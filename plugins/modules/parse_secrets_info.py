@@ -52,7 +52,7 @@ files.region2:
 
 import yaml
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.parse_secrets_v2 import ParseSecretsV2
+from ..module_utils.parse_secrets_v2 import ParseSecretsV2
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.2",

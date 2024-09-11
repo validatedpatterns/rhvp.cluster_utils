@@ -22,7 +22,7 @@ import os
 import time
 
 import yaml
-from ansible.module_utils.load_secrets_common import flatten, get_version
+from ..module_utils.load_secrets_common import flatten, get_version
 
 
 class LoadSecretsV1:
