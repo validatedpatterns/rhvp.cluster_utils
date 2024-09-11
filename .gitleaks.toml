@@ -5,4 +5,5 @@ files = [
   "plugins/modules/*.py",
   "tests/unit/test_*.py",
   "tests/unit/v1/*.yaml",
+  "tests/unit/v2/*.yaml",
 ]
