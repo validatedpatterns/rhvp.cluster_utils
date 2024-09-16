@@ -28,7 +28,7 @@ from unittest.mock import patch
 
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
-from test_util_datastructures import (
+from ansible_collections.rhvp.cluster_utils.tests.unit.test_util_datastructures import (
     DEFAULT_KUBERNETES_METADATA,
     DEFAULT_KUBERNETES_SECRET_OBJECT,
     DEFAULT_PARSED_SECRET_VALUE,

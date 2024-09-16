@@ -23,7 +23,7 @@ import sys
 import unittest
 from unittest.mock import call, patch
 
-import test_util_datastructures
+from ansible_collections.rhvp.cluster_utils.tests.unit import test_util_datastructures
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
 
