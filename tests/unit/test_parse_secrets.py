@@ -37,23 +37,9 @@ from test_util_datastructures import (
 
 # from unittest.mock import call, patch
 
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we "import parse_secrets_info"
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
-
-import load_secrets_common  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_common"] = load_secrets_common
-
-import parse_secrets_v2  # noqa: E402
-
-sys.modules["ansible.module_utils.parse_secrets_v2"] = parse_secrets_v2
-
-import parse_secrets_info  # noqa: E402
-
-sys.modules["ansible.modules.parse_secrets_info"] = parse_secrets_info
-
+from rhvp.cluster_utils.plugins.module_utils import load_secrets_common
+from rhvp.cluster_utils.plugins.module_utils import parse_secrets_v2
+from rhvp.cluster_utils.plugins.modules import parse_secrets_info
 
 def set_module_args(args):
     """prepare arguments so that they will be picked up during module creation"""

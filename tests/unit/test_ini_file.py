@@ -21,11 +21,7 @@ import os
 import sys
 import unittest
 
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we 'import vault_load_secrets'
-sys.path.insert(1, "./plugins/module_utils")
-sys.path.insert(1, "./plugins/modules")
-import load_secrets_common  # noqa: E402
+from rhvp.cluster_utils.plugins.module_utils import load_secrets_common  # noqa: E402
 
 
 class TestMyModule(unittest.TestCase):

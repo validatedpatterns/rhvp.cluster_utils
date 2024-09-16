@@ -27,14 +27,7 @@ import test_util_datastructures
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
 
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we 'import vault_load_secrets'
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
-
-import vault_load_parsed_secrets  # noqa: E402
-
-sys.modules["ansible.modules.vault_load_parsed_secrets"] = vault_load_parsed_secrets
+from rhvp.cluster_utils.plugins.modules import vault_load_parsed_secrets
 
 
 def set_module_args(args):

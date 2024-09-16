@@ -26,19 +26,10 @@ from unittest.mock import call, patch
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
 
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we 'import vault_load_secrets'
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
-import load_secrets_common  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_common"] = load_secrets_common
-import load_secrets_v1  # noqa: E402
-import load_secrets_v2  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_v1"] = load_secrets_v1
-sys.modules["ansible.module_utils.load_secrets_v2"] = load_secrets_v2
-import vault_load_secrets  # noqa: E402
+from rhvp.cluster_utils.plugins.module_utils import load_secrets_common
+from rhvp.cluster_utils.plugins.module_utils import load_secrets_v1
+from rhvp.cluster_utils.plugins.module_utils import load_secrets_v2
+from rhvp.cluster_utils.plugins.modules import vault_load_secrets
 
 
 def set_module_args(args):
