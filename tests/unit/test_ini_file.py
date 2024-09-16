@@ -23,8 +23,8 @@ import unittest
 
 # TODO(bandini): I could not come up with something better to force the imports to be existing
 # when we 'import vault_load_secrets'
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
+sys.path.insert(1, "./plugins/module_utils")
+sys.path.insert(1, "./plugins/modules")
 import load_secrets_common  # noqa: E402
 
 
