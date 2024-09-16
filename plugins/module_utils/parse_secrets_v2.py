@@ -21,7 +21,7 @@ import base64
 import getpass
 import os
 
-from .load_secrets_common import (
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
     find_dupes,
     get_ini_value,
     get_version,

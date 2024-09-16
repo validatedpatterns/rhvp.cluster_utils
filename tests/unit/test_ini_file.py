@@ -21,7 +21,7 @@ import os
 import sys
 import unittest
 
-from rhvp.cluster_utils.plugins.module_utils import load_secrets_common  # noqa: E402
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_common  # noqa: E402
 
 
 class TestMyModule(unittest.TestCase):

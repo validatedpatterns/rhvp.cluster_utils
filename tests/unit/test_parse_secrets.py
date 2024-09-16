@@ -37,9 +37,9 @@ from test_util_datastructures import (
 
 # from unittest.mock import call, patch
 
-from rhvp.cluster_utils.plugins.module_utils import load_secrets_common
-from rhvp.cluster_utils.plugins.module_utils import parse_secrets_v2
-from rhvp.cluster_utils.plugins.modules import parse_secrets_info
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_common
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import parse_secrets_v2
+from ansible_collections.rhvp.cluster_utils.plugins.modules import parse_secrets_info
 
 def set_module_args(args):
     """prepare arguments so that they will be picked up during module creation"""

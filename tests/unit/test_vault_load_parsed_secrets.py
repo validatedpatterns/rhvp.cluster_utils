@@ -27,7 +27,7 @@ import test_util_datastructures
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
 
-from rhvp.cluster_utils.plugins.modules import vault_load_parsed_secrets
+from ansible_collections.rhvp.cluster_utils.plugins.modules import vault_load_parsed_secrets
 
 
 def set_module_args(args):

@@ -22,7 +22,7 @@ import os
 import time
 
 import yaml
-from .load_secrets_common import flatten, get_version
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import flatten, get_version
 
 
 class LoadSecretsV1:

@@ -28,10 +28,10 @@ from unittest.mock import call, patch
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
 
-from rhvp.cluster_utils.plugins.module_utils import load_secrets_common
-from rhvp.cluster_utils.plugins.module_utils import load_secrets_v1
-from rhvp.cluster_utils.plugins.module_utils import load_secrets_v2
-from rhvp.cluster_utils.plugins.modules import vault_load_secrets
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_common
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_v1
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_v2
+from ansible_collections.rhvp.cluster_utils.plugins.modules import vault_load_secrets
 
 
 def set_module_args(args):
