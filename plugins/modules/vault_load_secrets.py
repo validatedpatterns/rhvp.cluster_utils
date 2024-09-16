@@ -54,9 +54,9 @@ import os
 
 import yaml
 from ansible.module_utils.basic import AnsibleModule
-from ..module_utils.load_secrets_common import get_version
-from ..module_utils.load_secrets_v1 import LoadSecretsV1
-from ..module_utils.load_secrets_v2 import LoadSecretsV2
+from rhvp.cluster_utils.plugins.module_utils.load_secrets_common import get_version
+from rhvp.cluster_utils.plugins.module_utils.load_secrets_v1 import LoadSecretsV1
+from rhvp.cluster_utils.plugins.module_utils.load_secrets_v2 import LoadSecretsV2
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.1",
