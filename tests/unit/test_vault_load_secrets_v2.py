@@ -70,7 +70,7 @@ def fail_json(*args, **kwargs):
 class TestMyModule(unittest.TestCase):
 
     def create_inifile(self):
-        self.inifile = open("/tmp/awscredentials", "w")
+        self.inifile = open(os.path.expanduser("~/awscredentials"), "w")
         config = configparser.ConfigParser()
         config["default"] = {
             "aws_access_key_id": "123123",

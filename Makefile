@@ -5,4 +5,5 @@ ansible-lint: ## run ansible lint on ansible/ folder
 
 .PHONY: ansible-unittest
 ansible-unittest: ## run ansible unit tests
+	rm -rf tests/output
 	ansible-test units --docker
