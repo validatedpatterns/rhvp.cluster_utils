@@ -102,45 +102,19 @@ def fail_json(*args, **kwargs):
 @mock.patch("getpass.getpass")
 class TestMyModule(unittest.TestCase):
 
-    def create_inifile(self):
-        self.inifile = open("/tmp/awscredentials", "w")
-        config = configparser.ConfigParser()
-        config["default"] = {
-            "aws_access_key_id": "123123",
-            "aws_secret_access_key": "abcdefghi",
-        }
-        config["foobar"] = {
-            "aws_access_key_id": "345345",
-            "aws_secret_access_key": "rstuvwxyz",
-        }
-        with self.inifile as configfile:
-            config.write(configfile)
-
-    def create_testbinfile(self):
-        with open(self.binfilename, "wb") as f:
-            f.write(bytes([8, 6, 7, 5, 3, 0, 9]))
-            f.close()
-
     def setUp(self):
-        self.binfilename = "/tmp/testbinfile.bin"
         self.mock_module_helper = patch.multiple(
             basic.AnsibleModule, exit_json=exit_json, fail_json=fail_json
         )
         self.mock_module_helper.start()
         self.addCleanup(self.mock_module_helper.stop)
         self.testdir_v2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v2")
-        self.create_testbinfile()
         # For ~/expanduser tests
         self.orig_home = os.environ["HOME"]
         os.environ["HOME"] = self.testdir_v2
 
     def tearDown(self):
         os.environ["HOME"] = self.orig_home
-        #self.testfile.close()
-        try:
-            os.remove(self.binfilename)
-        except OSError:
-            pass
 
     def get_file_as_stdout(self, filename, openmode="r"):
         with open(filename, mode=openmode, encoding="utf-8") as f:
@@ -152,7 +126,7 @@ class TestMyModule(unittest.TestCase):
             parse_secrets_info.main()
 
     def test_module_parse_base(self, getpass):
-        getpass.return_value = "~/empty"
+        getpass.return_value = os.path.expanduser("~/empty")
         testfile_output = self.get_file_as_stdout(
             os.path.join(self.testdir_v2, "values-secret-v2-base.yaml")
         )
@@ -173,7 +147,7 @@ class TestMyModule(unittest.TestCase):
         )
 
     def test_module_parse_base_parsed_secrets(self, getpass):
-        getpass.return_value = "~/empty"
+        getpass.return_value = os.path.expanduser("~/empty")
         testfile_output = self.get_file_as_stdout(
             os.path.join(self.testdir_v2, "values-secret-v2-base.yaml")
         )
@@ -197,7 +171,7 @@ class TestMyModule(unittest.TestCase):
                 "name": "config-demo",
                 "fields": {
                     "secret": None,
-                    "secret2": "~/empty",
+                    "secret2": os.path.expanduser("~/empty"),
                     "ca_crt": "",
                     "ca_crt2": "",
                 },
@@ -212,8 +186,8 @@ class TestMyModule(unittest.TestCase):
                     "snowflake.blueprints.rhecoeng.com",
                 ],
                 "paths": {
-                    "ca_crt": "~/empty",
-                    "ca_crt2": "~/empty",
+                    "ca_crt": os.path.expanduser("~/empty"),
+                    "ca_crt2": os.path.expanduser("~/empty"),
                 },
             },
         }
