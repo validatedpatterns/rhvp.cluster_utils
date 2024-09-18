@@ -49,6 +49,7 @@ secrets.region1:
 files.region2:
   testbar: ~/ca.crt
 """
+from __future__ import (absolute_import, division, print_function)
 
 __metaclass__ = type
 
@@ -188,6 +189,7 @@ def run(module):
         )
 
     else:
+        secret_obj = None
         module.fail_json(f"Version {version} is currently not supported")
 
     secret_obj.sanitize_values()

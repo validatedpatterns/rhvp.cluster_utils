@@ -18,11 +18,8 @@ Simple module to test parse_secret_info
 """
 
 import base64
-import configparser
 import json
 import os
-import subprocess
-import sys
 import unittest
 from unittest import mock
 from unittest.mock import patch
@@ -38,8 +35,6 @@ from ansible_collections.rhvp.cluster_utils.tests.unit.test_util_datastructures 
 
 # from unittest.mock import call, patch
 
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_common
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils import parse_secrets_v2
 from ansible_collections.rhvp.cluster_utils.plugins.modules import parse_secrets_info
 
 

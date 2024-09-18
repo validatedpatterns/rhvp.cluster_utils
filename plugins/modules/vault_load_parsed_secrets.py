@@ -22,6 +22,7 @@ expected to be in the following format:
 version: 2.0
 
 """
+from __future__ import (absolute_import, division, print_function)
 
 __metaclass__ = type
 

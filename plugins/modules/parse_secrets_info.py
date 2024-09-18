@@ -50,6 +50,8 @@ files.region2:
   testbar: ~/ca.crt
 """
 
+from __future__ import (absolute_import, division, print_function)
+
 __metaclass__ = type
 
 import yaml

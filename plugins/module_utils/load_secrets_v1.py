@@ -16,6 +16,7 @@
 """
 Module that implements V1 of the values-secret.yaml spec
 """
+from __future__ import (absolute_import, division, print_function)
 
 __metaclass__ = type
 

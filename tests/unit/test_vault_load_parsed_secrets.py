@@ -19,7 +19,6 @@ Simple module to test vault_load_parsed_secrets
 
 import json
 import os
-import sys
 import unittest
 from unittest.mock import call, patch
 

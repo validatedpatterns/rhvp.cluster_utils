@@ -18,7 +18,6 @@ Simple module to test ini parsing function
 """
 
 import os
-import sys
 import unittest
 
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_common  # noqa: E402
