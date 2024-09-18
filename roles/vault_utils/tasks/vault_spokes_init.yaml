@@ -36,7 +36,7 @@
     - "apps.open-cluster-management.io/secret-type=acm-cluster"
   register: acm_secrets
 
-- name: Set cleaned_acm_secrets fect
+- name: Set cleaned_acm_secrets fact
   ansible.builtin.set_fact:
     cleaned_acm_secrets: "{{ acm_secrets.resources | rhvp.cluster_utils.parse_acm_secrets }}"
 
