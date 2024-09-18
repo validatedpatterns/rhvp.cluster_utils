@@ -72,11 +72,12 @@ class TestMyModule(unittest.TestCase):
         )
         self.mock_module_helper.start()
         self.addCleanup(self.mock_module_helper.stop)
+        self.orig_home = os.environ["HOME"]
         self.testdir_v1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v1")
-        self.testfile = open("/tmp/ca.crt", "w")
+        os.environ["HOME"] = self.testdir_v1
 
     def tearDown(self):
-        self.testfile.close()
+        os.environ["HOME"] = self.orig_home
         try:
             os.remove("/tmp/ca.crt")
         except OSError:
