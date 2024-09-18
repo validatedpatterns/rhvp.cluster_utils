@@ -50,6 +50,8 @@ files.region2:
   testbar: ~/ca.crt
 """
 
+__metaclass__ = type
+
 import yaml
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.parse_secrets_v2 import ParseSecretsV2

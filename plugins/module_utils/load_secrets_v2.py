@@ -17,6 +17,8 @@
 Module that implements V2 of the values-secret.yaml spec
 """
 
+__metaclass__ = type
+
 import base64
 import getpass
 import os

@@ -17,6 +17,8 @@
 Module that implements some common functions
 """
 
+__metaclass__ = type
+
 import configparser
 from collections.abc import MutableMapping
 

@@ -23,6 +23,8 @@ version: 2.0
 
 """
 
+__metaclass__ = type
+
 import os
 import time
 

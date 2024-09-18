@@ -50,6 +50,8 @@ files.region2:
   testbar: ~/ca.crt
 """
 
+__metaclass__ = type
+
 import os
 
 import yaml

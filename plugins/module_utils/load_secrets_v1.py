@@ -17,6 +17,8 @@
 Module that implements V1 of the values-secret.yaml spec
 """
 
+__metaclass__ = type
+
 import base64
 import os
 import time
