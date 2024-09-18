@@ -81,14 +81,14 @@ options:
         values_secrets_plaintext can be passed)
     required: false
     default: ''
-    type: str
+    type: path
   values_secrets_plaintext:
     description:
       - The content of the values-secrets file (only one of values_secrets and
         values_secrets_plaintext can be passed)
     required: false
     default: ''
-    type: str
+    type: path
   namespace:
     description:
       - Namespace where the vault is running
@@ -138,12 +138,12 @@ def run(module):
     results = dict(changed=False)
 
     args = module.params
-    values_secrets = os.path.expanduser(args.get("values_secrets", ""))
+    values_secrets = args.get("values_secrets", "")
     values_secrets_plaintext = args.get("values_secrets_plaintext", "")
     if values_secrets != "" and values_secrets_plaintext != "":
         module.fail_json("Cannot pass both values_secret and values_secret_plaintext")
 
-    values_secrets = os.path.expanduser(args.get("values_secrets"))
+    values_secrets = args.get("values_secrets")
     basepath = args.get("basepath")
     namespace = args.get("namespace")
     pod = args.get("pod")
