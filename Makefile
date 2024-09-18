@@ -11,3 +11,6 @@ ansible-sanitytest: ## run ansible unit tests
 ansible-unittest: ## run ansible unit tests
 	rm -rf tests/output
 	ansible-test units --docker
+
+.PHONY: test
+test: ansible-sanitytest ansible-unittest

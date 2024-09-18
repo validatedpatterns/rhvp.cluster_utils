@@ -131,7 +131,7 @@ class VaultSecretLoader:
             f'"vault kv get -mount={mount} -field={attribute} {prefix}/{secret_name}"'
         )
         # we ignore stdout and stderr
-        (ret, _, _) = self._run_command(cmd, attempts=1, checkrc=False)
+        (ret, *unused) = self._run_command(cmd, attempts=1, checkrc=False)
         if ret == 0:
             return True
 
