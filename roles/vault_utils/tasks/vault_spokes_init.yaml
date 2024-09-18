@@ -38,7 +38,7 @@
 
 - name: Set cleaned_acm_secrets fect
   ansible.builtin.set_fact:
-    cleaned_acm_secrets: "{{ acm_secrets.resources | parse_acm_secrets }}"
+    cleaned_acm_secrets: "{{ acm_secrets.resources | rhvp.cluster_utils.parse_acm_secrets }}"
 
 - name: Merge the two dicts together
   ansible.builtin.set_fact:
