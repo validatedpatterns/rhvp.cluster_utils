@@ -54,16 +54,6 @@ from __future__ import (absolute_import, division, print_function)
 
 __metaclass__ = type
 
-try:
-    import yaml
-    YAML_IMPORT_ERROR = None
-except ImportError as err:
-    YAML_IMPORT_ERROR = err
-
-from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.parse_secrets_v2 import ParseSecretsV2
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import filter_module_args
-
 ANSIBLE_METADATA = {
     "metadata_version": "1.2",
     "status": ["preview"],
@@ -118,6 +108,16 @@ EXAMPLES = """
     secrets_backing_store: 'none'
   register: secrets_info
 """
+
+try:
+    import yaml
+    YAML_IMPORT_ERROR = None
+except ImportError as err:
+    YAML_IMPORT_ERROR = err
+
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.parse_secrets_v2 import ParseSecretsV2
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import filter_module_args
 
 
 def run(module):
