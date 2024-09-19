@@ -64,8 +64,10 @@ DOCUMENTATION = """
 ---
 module: vault_load_secrets
 short_description: Loads secrets into the HashiCorp Vault
-version_added: "2.11"
-author: "Michele Baldessari"
+version_added: "0.0.1"
+author:
+  - Michele Baldessari (@mbaldess)
+  - Martin Jackson (@mhjacks)
 description:
   - Takes a values-secret.yaml file and uploads the secrets into the HashiCorp Vault
 options:

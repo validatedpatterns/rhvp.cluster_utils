@@ -74,9 +74,9 @@ DOCUMENTATION = """
 ---
 module: parse_secrets_info
 short_description: Parses a Validated Patterns Secrets file for later loading
-version_added: "2.50"
+version_added: "0.5.0"
 author:
-  - "Martin Jackson"
+  - Martin Jackson (@mhjacks)
 description:
   - Takes a values-secret.yaml file, parses and returns values for secrets loading. The goal here is to do all the
     work of reading and interpreting the file and resolving the content pointers (that is, creating content where it

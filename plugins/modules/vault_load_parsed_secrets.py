@@ -43,8 +43,9 @@ DOCUMENTATION = """
 ---
 module: vault_load_parsed_secrets
 short_description: Loads secrets into the HashiCorp Vault
-version_added: "2.50"
-author: "Martin Jackson"
+version_added: '0.5.0'
+author:
+  - Martin Jackson (@mhjacks)
 description:
     - Takes parsed secrets objects and vault policies (as delivered by parse_secrets_info) and runs the commands to
       load them into a vault instance. The relevent metadata will exist in the parsed secrets object. Returns count
