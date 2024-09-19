@@ -16,3 +16,6 @@ plugins/modules/__init__.py import-2.7!skip
 plugins/modules/parse_secrets_info.py import-2.7!skip
 plugins/modules/vault_load_parsed_secrets.py import-2.7!skip
 plugins/modules/vault_load_secrets.py import-2.7!skip
+plugins/modules/parse_secrets_info.py validate-modules:missing-gplv3-license
+plugins/modules/vault_load_secrets.py validate-modules:missing-gplv3-license
+plugins/modules/vault_load_parsed_secrets.py validate-modules:missing-gplv3-license
