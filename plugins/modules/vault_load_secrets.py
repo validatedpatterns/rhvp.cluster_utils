@@ -49,17 +49,10 @@ secrets.region1:
 files.region2:
   testbar: ~/ca.crt
 """
+
 from __future__ import (absolute_import, division, print_function)
 
 __metaclass__ = type
-
-import os
-
-import yaml
-from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import get_version
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_v1 import LoadSecretsV1
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_v2 import LoadSecretsV2
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.1",
@@ -132,6 +125,15 @@ EXAMPLES = """
   vault_load_secrets:
     values_secrets: ~/values-secret.yaml
 """
+import os
+
+import yaml
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    get_version,
+    filter_module_args)
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_v1 import LoadSecretsV1
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_v2 import LoadSecretsV2
 
 
 def run(module):
@@ -202,8 +204,11 @@ def run(module):
 
 def main():
     """Main entry point where the AnsibleModule class is instantiated"""
+
+    arg_spec = filter_module_args(yaml.safe_load(DOCUMENTATION)["options"])
+
     module = AnsibleModule(
-        argument_spec=yaml.safe_load(DOCUMENTATION)["options"],
+        argument_spec=arg_spec,
         supports_check_mode=False,
     )
     run(module)

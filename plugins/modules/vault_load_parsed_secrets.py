@@ -31,6 +31,7 @@ import time
 
 import yaml
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import filter_module_args
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.1",
@@ -295,8 +296,11 @@ def run(module):
 
 def main():
     """Main entry point where the AnsibleModule class is instantiated"""
+
+    arg_spec = filter_module_args(yaml.safe_load(DOCUMENTATION)["options"])
+
     module = AnsibleModule(
-        argument_spec=yaml.safe_load(DOCUMENTATION)["options"],
+        argument_spec=arg_spec,
         supports_check_mode=False,
     )
     run(module)

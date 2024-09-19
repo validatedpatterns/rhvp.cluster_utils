@@ -54,9 +54,15 @@ from __future__ import (absolute_import, division, print_function)
 
 __metaclass__ = type
 
-import yaml
+try:
+    import yaml
+    YAML_IMPORT_ERROR = None
+except ImportError as err:
+    YAML_IMPORT_ERROR = err
+
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.parse_secrets_v2 import ParseSecretsV2
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import filter_module_args
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.2",
@@ -69,7 +75,8 @@ DOCUMENTATION = """
 module: parse_secrets_info
 short_description: Parses a Validated Patterns Secrets file for later loading
 version_added: "2.50"
-author: "Martin Jackson"
+author:
+  - "Martin Jackson"
 description:
   - Takes a values-secret.yaml file, parses and returns values for secrets loading. The goal here is to do all the
     work of reading and interpreting the file and resolving the content pointers (that is, creating content where it
@@ -84,7 +91,7 @@ options:
     type: str
   secrets_backing_store:
     description:
-      - The secrets backing store that will be used for parsed secrets (i.e. vault, kubernetes, none)
+      - The secrets backing store that will be used for parsed secrets
     required: false
     default: vault
     type: str
@@ -142,8 +149,14 @@ def run(module):
 
 def main():
     """Main entry point where the AnsibleModule class is instantiated"""
+
+    if YAML_IMPORT_ERROR:
+        raise YAML_IMPORT_ERROR
+
+    arg_spec = filter_module_args(yaml.safe_load(DOCUMENTATION)["options"])
+
     module = AnsibleModule(
-        argument_spec=yaml.safe_load(DOCUMENTATION)["options"],
+        argument_spec=arg_spec,
         supports_check_mode=True,
     )
     run(module)
