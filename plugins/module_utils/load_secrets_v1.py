@@ -24,7 +24,12 @@ import base64
 import os
 import time
 
-import yaml
+try:
+    import yaml
+    YAML_IMPORT_EXCEPTION = None
+except ImportError as imp_err:
+    YAML_IMPORT_EXCEPTION = imp_err
+
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import flatten, get_version
 
 
@@ -251,6 +256,9 @@ class LoadSecretsV1:
         return counter
 
     def check_for_missing_secrets(self):
+        if YAML_IMPORT_EXCEPTION:
+            self.module.fail_json("Missing yaml module")
+
         with open(self.values_secret_template, "r", encoding="utf-8") as file:
             template_yaml = yaml.safe_load(file.read())
         if template_yaml is None:
