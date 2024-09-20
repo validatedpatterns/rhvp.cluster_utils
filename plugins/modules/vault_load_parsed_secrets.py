@@ -22,7 +22,7 @@ expected to be in the following format:
 version: 2.0
 
 """
-from __future__ import (absolute_import, division, print_function)
+from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
 
@@ -82,12 +82,14 @@ import os
 import time
 import traceback
 
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import missing_required_lib
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import filter_module_args
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    filter_module_args,
+)
 
 try:
     import yaml
+
     HAS_YAML = True
     YAML_IMPORT_ERROR = None
 except ImportError:
@@ -310,9 +312,7 @@ def main():
     # This would be really exceptional
     if not HAS_YAML:
         module = AnsibleModule(argument_spec=dict(), supports_check_mode=True)
-        module.fail_json(
-            msg=missing_required_lib('yaml'),
-            exception=YAML_IMPORT_ERROR)
+        module.fail_json(msg=missing_required_lib("yaml"), exception=YAML_IMPORT_ERROR)
 
     arg_spec = filter_module_args(yaml.safe_load(DOCUMENTATION)["options"])
 

@@ -16,7 +16,7 @@
 """
 Module that implements V1 of the values-secret.yaml spec
 """
-from __future__ import (absolute_import, division, print_function)
+from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
 
@@ -26,11 +26,15 @@ import time
 
 try:
     import yaml
+
     YAML_IMPORT_EXCEPTION = None
 except ImportError as imp_err:
     YAML_IMPORT_EXCEPTION = imp_err
 
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import flatten, get_version
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    flatten,
+    get_version,
+)
 
 
 class LoadSecretsV1:

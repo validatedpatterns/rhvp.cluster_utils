@@ -25,7 +25,6 @@ from unittest.mock import call, patch
 
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
-
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_v1
 from ansible_collections.rhvp.cluster_utils.plugins.modules import vault_load_secrets
 
@@ -73,7 +72,7 @@ class TestMyModule(unittest.TestCase):
         self.orig_home = os.environ["HOME"]
         self.testdir_v1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v1")
         os.environ["HOME"] = self.testdir_v1
-        self.emptyfilepath = os.path.expanduser('~/empty')
+        self.emptyfilepath = os.path.expanduser("~/empty")
 
     def tearDown(self):
         os.environ["HOME"] = self.orig_home

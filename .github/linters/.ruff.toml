@@ -1,0 +1,9 @@
+[lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+# select = ["E4", "E7", "E9", "F"]
+# E402 - imports not at the top of file. ansible wants them after documentation
+# F841 - unused variables. ansible demands we do not use _ (sigh)
+# E501 - line length, which is just dumb
+ignore = ["E402", "F841"]
