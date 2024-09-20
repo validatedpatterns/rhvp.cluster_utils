@@ -221,8 +221,7 @@ files.region2:
   testbar: ~/ca.crt
 ```
 
-Internals
----------
+### Internals
 
 Here is the rough high-level algorithm used to unseal the vault:
 
