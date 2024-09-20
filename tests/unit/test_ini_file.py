@@ -18,14 +18,11 @@ Simple module to test ini parsing function
 """
 
 import os
-import sys
 import unittest
 
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we 'import vault_load_secrets'
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
-import load_secrets_common  # noqa: E402
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import (  # noqa: E402
+    load_secrets_common,
+)
 
 
 class TestMyModule(unittest.TestCase):

@@ -19,26 +19,14 @@ Simple module to test vault_load_secrets
 
 import json
 import os
-import sys
+import os.path
 import unittest
 from unittest.mock import call, patch
 
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
-
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we 'import vault_load_secrets'
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
-import load_secrets_common  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_common"] = load_secrets_common
-import load_secrets_v1  # noqa: E402
-import load_secrets_v2  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_v1"] = load_secrets_v1
-sys.modules["ansible.module_utils.load_secrets_v2"] = load_secrets_v2
-import vault_load_secrets  # noqa: E402
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_v1
+from ansible_collections.rhvp.cluster_utils.plugins.modules import vault_load_secrets
 
 
 def set_module_args(args):
@@ -81,15 +69,13 @@ class TestMyModule(unittest.TestCase):
         )
         self.mock_module_helper.start()
         self.addCleanup(self.mock_module_helper.stop)
+        self.orig_home = os.environ["HOME"]
         self.testdir_v1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v1")
-        self.testfile = open("/tmp/ca.crt", "w")
+        os.environ["HOME"] = self.testdir_v1
+        self.emptyfilepath = os.path.expanduser("~/empty")
 
     def tearDown(self):
-        self.testfile.close()
-        try:
-            os.remove("/tmp/ca.crt")
-        except OSError:
-            pass
+        os.environ["HOME"] = self.orig_home
 
     def test_module_fail_when_required_args_missing(self):
         with self.assertRaises(AnsibleFailJson):
@@ -189,7 +175,7 @@ class TestMyModule(unittest.TestCase):
 
         calls = [
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/hub/publickey b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfilepath}' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/hub/publickey b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
         ]
@@ -245,11 +231,11 @@ class TestMyModule(unittest.TestCase):
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/hub/cluster_alejandro_ca b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfilepath}' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/hub/cluster_alejandro_ca b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/region-one/ca b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfilepath}' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/region-one/ca b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
         ]
@@ -350,7 +336,7 @@ class TestMyModule(unittest.TestCase):
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/region-one/ca b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfilepath}' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'base64 --wrap=0 /tmp/vcontent | vault kv put secret/region-one/ca b64content=- content=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
         ]

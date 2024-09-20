@@ -1,0 +1,5 @@
+[flake8]
+# E402 - imports not at the top of file. ansible wants them after documentation
+# F841 - unused variables. ansible demands we do not use _ (sigh)
+# E501 - line length, which is just dumb
+extend-ignore = E402,E501,F841

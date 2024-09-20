@@ -18,17 +18,16 @@ Simple module to test parse_secret_info
 """
 
 import base64
-import configparser
 import json
 import os
-import sys
 import unittest
 from unittest import mock
 from unittest.mock import patch
 
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
-from test_util_datastructures import (
+from ansible_collections.rhvp.cluster_utils.plugins.modules import parse_secrets_info
+from ansible_collections.rhvp.cluster_utils.tests.unit.test_util_datastructures import (
     DEFAULT_KUBERNETES_METADATA,
     DEFAULT_KUBERNETES_SECRET_OBJECT,
     DEFAULT_PARSED_SECRET_VALUE,
@@ -36,23 +35,6 @@ from test_util_datastructures import (
 )
 
 # from unittest.mock import call, patch
-
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we "import parse_secrets_info"
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
-
-import load_secrets_common  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_common"] = load_secrets_common
-
-import parse_secrets_v2  # noqa: E402
-
-sys.modules["ansible.module_utils.parse_secrets_v2"] = parse_secrets_v2
-
-import parse_secrets_info  # noqa: E402
-
-sys.modules["ansible.modules.parse_secrets_info"] = parse_secrets_info
 
 
 def set_module_args(args):
@@ -115,49 +97,19 @@ def fail_json(*args, **kwargs):
 @mock.patch("getpass.getpass")
 class TestMyModule(unittest.TestCase):
 
-    def create_inifile(self):
-        self.inifile = open("/tmp/awscredentials", "w")
-        config = configparser.ConfigParser()
-        config["default"] = {
-            "aws_access_key_id": "123123",
-            "aws_secret_access_key": "abcdefghi",
-        }
-        config["foobar"] = {
-            "aws_access_key_id": "345345",
-            "aws_secret_access_key": "rstuvwxyz",
-        }
-        with self.inifile as configfile:
-            config.write(configfile)
-
-    def create_testbinfile(self):
-        with open(self.binfilename, "wb") as f:
-            f.write(bytes([8, 6, 7, 5, 3, 0, 9]))
-            f.close()
-
     def setUp(self):
-        self.binfilename = "/tmp/testbinfile.bin"
         self.mock_module_helper = patch.multiple(
             basic.AnsibleModule, exit_json=exit_json, fail_json=fail_json
         )
         self.mock_module_helper.start()
         self.addCleanup(self.mock_module_helper.stop)
         self.testdir_v2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v2")
-        self.testfile = open("/tmp/ca.crt", "w")
-        self.create_inifile()
-        self.create_testbinfile()
         # For ~/expanduser tests
         self.orig_home = os.environ["HOME"]
         os.environ["HOME"] = self.testdir_v2
 
     def tearDown(self):
         os.environ["HOME"] = self.orig_home
-        self.testfile.close()
-        try:
-            os.remove("/tmp/ca.crt")
-            os.remove(self.binfilename)
-            # os.remove("/tmp/awscredentials")
-        except OSError:
-            pass
 
     def get_file_as_stdout(self, filename, openmode="r"):
         with open(filename, mode=openmode, encoding="utf-8") as f:
@@ -169,7 +121,7 @@ class TestMyModule(unittest.TestCase):
             parse_secrets_info.main()
 
     def test_module_parse_base(self, getpass):
-        getpass.return_value = "/tmp/ca.crt"
+        getpass.return_value = os.path.expanduser("~/empty")
         testfile_output = self.get_file_as_stdout(
             os.path.join(self.testdir_v2, "values-secret-v2-base.yaml")
         )
@@ -190,7 +142,7 @@ class TestMyModule(unittest.TestCase):
         )
 
     def test_module_parse_base_parsed_secrets(self, getpass):
-        getpass.return_value = "/tmp/ca.crt"
+        getpass.return_value = os.path.expanduser("~/empty")
         testfile_output = self.get_file_as_stdout(
             os.path.join(self.testdir_v2, "values-secret-v2-base.yaml")
         )
@@ -214,7 +166,7 @@ class TestMyModule(unittest.TestCase):
                 "name": "config-demo",
                 "fields": {
                     "secret": None,
-                    "secret2": "/tmp/ca.crt",
+                    "secret2": os.path.expanduser("~/empty"),
                     "ca_crt": "",
                     "ca_crt2": "",
                 },
@@ -229,8 +181,8 @@ class TestMyModule(unittest.TestCase):
                     "snowflake.blueprints.rhecoeng.com",
                 ],
                 "paths": {
-                    "ca_crt": "/tmp/ca.crt",
-                    "ca_crt2": "/tmp/ca.crt",
+                    "ca_crt": os.path.expanduser("~/empty"),
+                    "ca_crt2": os.path.expanduser("~/empty"),
                 },
             },
         }
@@ -265,12 +217,12 @@ class TestMyModule(unittest.TestCase):
                 },
                 "ini_file": {
                     "aws_access_key_id": {
-                        "ini_file": "/tmp/awscredentials",
+                        "ini_file": os.path.expanduser("~/awscredentials"),
                         "ini_section": "default",
                         "ini_key": "aws_access_key_id",
                     },
                     "aws_secret_access_key": {
-                        "ini_file": "/tmp/awscredentials",
+                        "ini_file": os.path.expanduser("~/awscredentials"),
                         "ini_section": "default",
                         "ini_key": "aws_secret_access_key",
                     },
@@ -285,12 +237,12 @@ class TestMyModule(unittest.TestCase):
                 },
                 "ini_file": {
                     "aws_access_key_id": {
-                        "ini_file": "/tmp/awscredentials",
+                        "ini_file": os.path.expanduser("~/awscredentials"),
                         "ini_section": "foobar",
                         "ini_key": "aws_access_key_id",
                     },
                     "aws_secret_access_key": {
-                        "ini_file": "/tmp/awscredentials",
+                        "ini_file": os.path.expanduser("~/awscredentials"),
                         "ini_section": "foobar",
                         "ini_key": "aws_secret_access_key",
                     },

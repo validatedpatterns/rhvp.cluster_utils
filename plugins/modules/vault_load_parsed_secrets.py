@@ -22,12 +22,9 @@ expected to be in the following format:
 version: 2.0
 
 """
+from __future__ import absolute_import, division, print_function
 
-import os
-import time
-
-import yaml
-from ansible.module_utils.basic import AnsibleModule
+__metaclass__ = type
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.1",
@@ -39,8 +36,9 @@ DOCUMENTATION = """
 ---
 module: vault_load_parsed_secrets
 short_description: Loads secrets into the HashiCorp Vault
-version_added: "2.50"
-author: "Martin Jackson"
+version_added: '0.5.0'
+author:
+  - Martin Jackson (@mhjacks)
 description:
     - Takes parsed secrets objects and vault policies (as delivered by parse_secrets_info) and runs the commands to
       load them into a vault instance. The relevent metadata will exist in the parsed secrets object. Returns count
@@ -79,6 +77,24 @@ EXAMPLES = """
     parsed_secrets: "{{ parsed_secrets_structure_from_parse_secrets_info }}"
     vault_policies: "{{ parsed_vault_policies_structure_from_parse_secrets_info }}"
 """
+
+import os
+import time
+import traceback
+
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    filter_module_args,
+)
+
+try:
+    import yaml
+
+    HAS_YAML = True
+    YAML_IMPORT_ERROR = None
+except ImportError:
+    HAS_YAML = False
+    YAML_IMPORT_ERROR = traceback.format_exc()
 
 
 class VaultSecretLoader:
@@ -129,7 +145,7 @@ class VaultSecretLoader:
             f'"vault kv get -mount={mount} -field={attribute} {prefix}/{secret_name}"'
         )
         # we ignore stdout and stderr
-        (ret, _, _) = self._run_command(cmd, attempts=1, checkrc=False)
+        (ret, *unused) = self._run_command(cmd, attempts=1, checkrc=False)
         if ret == 0:
             return True
 
@@ -292,8 +308,16 @@ def run(module):
 
 def main():
     """Main entry point where the AnsibleModule class is instantiated"""
+
+    # This would be really exceptional
+    if not HAS_YAML:
+        module = AnsibleModule(argument_spec=dict(), supports_check_mode=True)
+        module.fail_json(msg=missing_required_lib("yaml"), exception=YAML_IMPORT_ERROR)
+
+    arg_spec = filter_module_args(yaml.safe_load(DOCUMENTATION)["options"])
+
     module = AnsibleModule(
-        argument_spec=yaml.safe_load(DOCUMENTATION)["options"],
+        argument_spec=arg_spec,
         supports_check_mode=False,
     )
     run(module)
