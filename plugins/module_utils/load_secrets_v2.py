@@ -16,13 +16,16 @@
 """
 Module that implements V2 of the values-secret.yaml spec
 """
+from __future__ import (absolute_import, division, print_function)
+
+__metaclass__ = type
 
 import base64
 import getpass
 import os
 import time
 
-from ..module_utils.load_secrets_common import (
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
     find_dupes,
     get_ini_value,
     get_version,
@@ -139,7 +142,7 @@ class LoadSecretsV2:
     def _validate_field(self, f):
         # These fields are mandatory
         try:
-            _ = f["name"]
+            unused = f["name"]
         except KeyError:
             return (False, f"Field {f} is missing name")
 
@@ -162,8 +165,8 @@ class LoadSecretsV2:
                 )
 
         # Test if base64 is a correct boolean (defaults to False)
-        _ = self._get_field_base64(f)
-        _ = self._get_field_override(f)
+        unused = self._get_field_base64(f)
+        unused = self._get_field_override(f)
 
         vault_policy = f.get("vaultPolicy", None)
         if vault_policy is not None and vault_policy not in self._get_vault_policies():
@@ -243,7 +246,7 @@ class LoadSecretsV2:
             # These fields are mandatory
             for i in ["name"]:
                 try:
-                    _ = s[i]
+                    unused = s[i]
                 except KeyError:
                     return (False, f"Secret {s['name']} is missing {i}")
             names.append(s["name"])
@@ -353,7 +356,7 @@ class LoadSecretsV2:
             f'"vault kv get -mount={mount} -field={attribute} {prefix}/{secret_name}"'
         )
         # we ignore stdout and stderr
-        (ret, _, _) = self._run_command(cmd, attempts=1, checkrc=False)
+        (ret, *unused) = self._run_command(cmd, attempts=1, checkrc=False)
         if ret == 0:
             return True
 

@@ -16,6 +16,9 @@
 """
 Module that implements some common functions
 """
+from __future__ import (absolute_import, division, print_function)
+
+__metaclass__ = type
 
 import configparser
 from collections.abc import MutableMapping
@@ -122,3 +125,27 @@ def stringify_dict(input_dict):
         output_dict[str(key)] = str(value)
 
     return output_dict
+
+
+def filter_module_args(arg_spec):
+    """
+    Return a dict that is suitable as an Ansible Module argument spec based on a DOCUMENTATION string from
+    the options section.
+    Specific changes that are made to options include removing the description key, if it exists
+    and adding a no_log setting. 'parsed_secrets' actually contains secrets but the other fields do not.
+
+    Without this function, sanity tests throw numerous errors because of improper argument specs.
+    """
+    for arg in arg_spec:
+        # We only deal with meta-secrets in this module
+        if arg == 'parsed_secrets':
+            arg_spec[arg]['no_log'] = True
+        elif 'secret' in arg:
+            arg_spec[arg]['no_log'] = False
+
+        try:
+            del arg_spec[arg]['description']
+        except KeyError:
+            pass
+
+    return arg_spec
