@@ -17,30 +17,16 @@
 Simple module to test vault_load_secrets
 """
 
-import configparser
 import json
 import os
-import sys
 import unittest
 from unittest import mock
 from unittest.mock import call, patch
 
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
-
-# TODO(bandini): I could not come up with something better to force the imports to be existing
-# when we 'import vault_load_secrets'
-sys.path.insert(1, "./ansible/plugins/module_utils")
-sys.path.insert(1, "./ansible/plugins/modules")
-import load_secrets_common  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_common"] = load_secrets_common
-import load_secrets_v1  # noqa: E402
-import load_secrets_v2  # noqa: E402
-
-sys.modules["ansible.module_utils.load_secrets_v1"] = load_secrets_v1
-sys.modules["ansible.module_utils.load_secrets_v2"] = load_secrets_v2
-import vault_load_secrets  # noqa: E402
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_v2
+from ansible_collections.rhvp.cluster_utils.plugins.modules import vault_load_secrets
 
 
 def set_module_args(args):
@@ -78,37 +64,19 @@ def fail_json(*args, **kwargs):
 @mock.patch("getpass.getpass")
 class TestMyModule(unittest.TestCase):
 
-    def create_inifile(self):
-        self.inifile = open("/tmp/awscredentials", "w")
-        config = configparser.ConfigParser()
-        config["default"] = {
-            "aws_access_key_id": "123123",
-            "aws_secret_access_key": "abcdefghi",
-        }
-        config["foobar"] = {
-            "aws_access_key_id": "345345",
-            "aws_secret_access_key": "rstuvwxyz",
-        }
-        with self.inifile as configfile:
-            config.write(configfile)
-
     def setUp(self):
         self.mock_module_helper = patch.multiple(
             basic.AnsibleModule, exit_json=exit_json, fail_json=fail_json
         )
         self.mock_module_helper.start()
         self.addCleanup(self.mock_module_helper.stop)
+        self.orig_home = os.environ["HOME"]
         self.testdir_v2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v2")
-        self.testfile = open("/tmp/ca.crt", "w")
-        self.create_inifile()
+        os.environ["HOME"] = self.testdir_v2
+        self.emptyfile = os.path.expanduser("~/empty")
 
     def tearDown(self):
-        self.testfile.close()
-        try:
-            os.remove("/tmp/ca.crt")
-            # os.remove("/tmp/awscredentials")
-        except OSError:
-            pass
+        os.environ["HOME"] = self.orig_home
 
     def test_module_fail_when_required_args_missing(self, getpass):
         with self.assertRaises(AnsibleFailJson):
@@ -169,11 +137,11 @@ class TestMyModule(unittest.TestCase):
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv put -mount=secret secret/region-two/config-demo-file ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfile}' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv put -mount=secret secret/region-two/config-demo-file ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv put -mount=secret secret/snowflake.blueprints.rhecoeng.com/config-demo-file ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfile}' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv put -mount=secret secret/snowflake.blueprints.rhecoeng.com/config-demo-file ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
         ]
@@ -188,7 +156,7 @@ class TestMyModule(unittest.TestCase):
             }
         )
         # this will be used for both a secret and a file path
-        getpass.return_value = "/tmp/ca.crt"
+        getpass.return_value = self.emptyfile
         with patch.object(
             load_secrets_v2.LoadSecretsV2, "_run_command"
         ) as mock_run_command:
@@ -226,27 +194,27 @@ class TestMyModule(unittest.TestCase):
                 attempts=3,
             ),
             call(
-                "oc exec -n vault vault-0 -i -- sh -c \"vault kv patch -mount=secret region-one/config-demo secret2='/tmp/ca.crt'\"",  # noqa: E501
+                f"oc exec -n vault vault-0 -i -- sh -c \"vault kv patch -mount=secret region-one/config-demo secret2='{self.emptyfile}'\"",  # noqa: E501
                 attempts=3,
             ),
             call(
-                "oc exec -n vault vault-0 -i -- sh -c \"vault kv patch -mount=secret snowflake.blueprints.rhecoeng.com/config-demo secret2='/tmp/ca.crt'\"",  # noqa: E501
+                f"oc exec -n vault vault-0 -i -- sh -c \"vault kv patch -mount=secret snowflake.blueprints.rhecoeng.com/config-demo secret2='{self.emptyfile}'\"",  # noqa: E501
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret region-one/config-demo ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfile}' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret region-one/config-demo ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret snowflake.blueprints.rhecoeng.com/config-demo ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfile}' | oc exec -n vault vault-0 -i -- sh -c 'cat - > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret snowflake.blueprints.rhecoeng.com/config-demo ca_crt=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret region-one/config-demo ca_crt2=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfile}' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret region-one/config-demo ca_crt2=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
             call(
-                "cat '/tmp/ca.crt' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret snowflake.blueprints.rhecoeng.com/config-demo ca_crt2=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
+                f"cat '{self.emptyfile}' | oc exec -n vault vault-0 -i -- sh -c 'cat - | base64 --wrap=0 > /tmp/vcontent'; oc exec -n vault vault-0 -i -- sh -c 'vault kv patch -mount=secret snowflake.blueprints.rhecoeng.com/config-demo ca_crt2=@/tmp/vcontent; rm /tmp/vcontent'",  # noqa: E501
                 attempts=3,
             ),
         ]
@@ -652,7 +620,7 @@ class TestMyModule(unittest.TestCase):
             }
         )
         # this will be used for both a secret and a file path
-        getpass.return_value = "/tmp/ca.crt"
+        getpass.return_value = self.emptyfile
         with patch.object(
             load_secrets_v2.LoadSecretsV2, "_run_command"
         ) as mock_run_command:

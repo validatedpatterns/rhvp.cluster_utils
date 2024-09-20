@@ -50,9 +50,9 @@ files.region2:
   testbar: ~/ca.crt
 """
 
-import yaml
-from ansible.module_utils.basic import AnsibleModule
-from ..module_utils.parse_secrets_v2 import ParseSecretsV2
+from __future__ import absolute_import, division, print_function
+
+__metaclass__ = type
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.2",
@@ -64,8 +64,9 @@ DOCUMENTATION = """
 ---
 module: parse_secrets_info
 short_description: Parses a Validated Patterns Secrets file for later loading
-version_added: "2.50"
-author: "Martin Jackson"
+version_added: "0.5.0"
+author:
+  - Martin Jackson (@mhjacks)
 description:
   - Takes a values-secret.yaml file, parses and returns values for secrets loading. The goal here is to do all the
     work of reading and interpreting the file and resolving the content pointers (that is, creating content where it
@@ -80,7 +81,7 @@ options:
     type: str
   secrets_backing_store:
     description:
-      - The secrets backing store that will be used for parsed secrets (i.e. vault, kubernetes, none)
+      - The secrets backing store that will be used for parsed secrets
     required: false
     default: vault
     type: str
@@ -107,6 +108,25 @@ EXAMPLES = """
     secrets_backing_store: 'none'
   register: secrets_info
 """
+
+import traceback
+
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    filter_module_args,
+)
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.parse_secrets_v2 import (
+    ParseSecretsV2,
+)
+
+try:
+    import yaml
+
+    HAS_YAML = True
+    YAML_IMPORT_ERROR = None
+except ImportError:
+    HAS_YAML = False
+    YAML_IMPORT_ERROR = traceback.format_exc()
 
 
 def run(module):
@@ -138,8 +158,16 @@ def run(module):
 
 def main():
     """Main entry point where the AnsibleModule class is instantiated"""
+
+    # This would be really exceptional
+    if not HAS_YAML:
+        module = AnsibleModule(argument_spec=dict(), supports_check_mode=True)
+        module.fail_json(msg=missing_required_lib("yaml"), exception=YAML_IMPORT_ERROR)
+
+    arg_spec = filter_module_args(yaml.safe_load(DOCUMENTATION)["options"])
+
     module = AnsibleModule(
-        argument_spec=yaml.safe_load(DOCUMENTATION)["options"],
+        argument_spec=arg_spec,
         supports_check_mode=True,
     )
     run(module)

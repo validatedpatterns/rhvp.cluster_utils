@@ -50,13 +50,9 @@ files.region2:
   testbar: ~/ca.crt
 """
 
-import os
+from __future__ import absolute_import, division, print_function
 
-import yaml
-from ansible.module_utils.basic import AnsibleModule
-from ..module_utils.load_secrets_common import get_version
-from ..module_utils.load_secrets_v1 import LoadSecretsV1
-from ..module_utils.load_secrets_v2 import LoadSecretsV2
+__metaclass__ = type
 
 ANSIBLE_METADATA = {
     "metadata_version": "1.1",
@@ -68,8 +64,10 @@ DOCUMENTATION = """
 ---
 module: vault_load_secrets
 short_description: Loads secrets into the HashiCorp Vault
-version_added: "2.11"
-author: "Michele Baldessari"
+version_added: "0.0.1"
+author:
+  - Michele Baldessari (@mbaldess)
+  - Martin Jackson (@mhjacks)
 description:
   - Takes a values-secret.yaml file and uploads the secrets into the HashiCorp Vault
 options:
@@ -79,14 +77,14 @@ options:
         values_secrets_plaintext can be passed)
     required: false
     default: ''
-    type: str
+    type: path
   values_secrets_plaintext:
     description:
       - The content of the values-secrets file (only one of values_secrets and
         values_secrets_plaintext can be passed)
     required: false
     default: ''
-    type: str
+    type: path
   namespace:
     description:
       - Namespace where the vault is running
@@ -129,6 +127,29 @@ EXAMPLES = """
   vault_load_secrets:
     values_secrets: ~/values-secret.yaml
 """
+import os
+import traceback
+
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    filter_module_args,
+    get_version,
+)
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_v1 import (
+    LoadSecretsV1,
+)
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_v2 import (
+    LoadSecretsV2,
+)
+
+try:
+    import yaml
+
+    HAS_YAML = True
+    YAML_IMPORT_ERROR = None
+except ImportError:
+    HAS_YAML = False
+    YAML_IMPORT_ERROR = traceback.format_exc()
 
 
 def run(module):
@@ -136,12 +157,12 @@ def run(module):
     results = dict(changed=False)
 
     args = module.params
-    values_secrets = os.path.expanduser(args.get("values_secrets", ""))
+    values_secrets = args.get("values_secrets", "")
     values_secrets_plaintext = args.get("values_secrets_plaintext", "")
     if values_secrets != "" and values_secrets_plaintext != "":
         module.fail_json("Cannot pass both values_secret and values_secret_plaintext")
 
-    values_secrets = os.path.expanduser(args.get("values_secrets"))
+    values_secrets = args.get("values_secrets")
     basepath = args.get("basepath")
     namespace = args.get("namespace")
     pod = args.get("pod")
@@ -186,6 +207,7 @@ def run(module):
         )
 
     else:
+        secret_obj = None
         module.fail_json(f"Version {version} is currently not supported")
 
     secret_obj.sanitize_values()
@@ -198,8 +220,16 @@ def run(module):
 
 def main():
     """Main entry point where the AnsibleModule class is instantiated"""
+
+    # This would really be an exceptional circumstance
+    if not HAS_YAML:
+        module = AnsibleModule(argument_spec=dict(), supports_check_mode=True)
+        module.fail_json(msg=missing_required_lib("yaml"), exception=YAML_IMPORT_ERROR)
+
+    arg_spec = filter_module_args(yaml.safe_load(DOCUMENTATION)["options"])
+
     module = AnsibleModule(
-        argument_spec=yaml.safe_load(DOCUMENTATION)["options"],
+        argument_spec=arg_spec,
         supports_check_mode=False,
     )
     run(module)
