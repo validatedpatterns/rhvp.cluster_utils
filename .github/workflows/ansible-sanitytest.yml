@@ -1,5 +1,5 @@
 ---
-name: Ansible unit tests
+name: Ansible collection sanity tests
 
 #
 # Documentation:
@@ -10,7 +10,7 @@ on: [push, pull_request]
 
 jobs:
   ansible_unittests:
-    name: Ansible unit tests
+    name: Ansible collection sanity tests
     strategy:
       matrix:
         python-version: [3.11.3, 3.12.6]
@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest ansible-core=='${{ matrix.ansible-core }}'
 
-      - name: Run make ansible-unittest
+      - name: Run make ansible-sanitytest
         run: |
           cd ansible_collections/rhvp/cluster_utils
-          make ansible-unittest
+          make ansible-sanitytest
