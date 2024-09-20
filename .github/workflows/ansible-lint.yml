@@ -14,4 +14,6 @@ jobs:
         uses: ansible/ansible-lint-action@v6
         # Let's point it to the path
         with:
-          path: "/"
+          setup_python: "true"
+          # args: ""
+          # working_directory: ""
