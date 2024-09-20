@@ -73,7 +73,7 @@ class TestMyModule(unittest.TestCase):
         self.orig_home = os.environ["HOME"]
         self.testdir_v1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v1")
         os.environ["HOME"] = self.testdir_v1
-        self.emptyfilepath = os.path.expanduser('~/empty')
+        self.emptyfilepath = os.path.expanduser("~/empty")
 
     def tearDown(self):
         os.environ["HOME"] = self.orig_home
