@@ -25,7 +25,6 @@ from unittest.mock import call, patch
 
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
-
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils import load_secrets_v1
 from ansible_collections.rhvp.cluster_utils.plugins.modules import vault_load_secrets
 

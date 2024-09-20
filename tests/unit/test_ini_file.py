@@ -20,9 +20,9 @@ Simple module to test ini parsing function
 import os
 import unittest
 
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils import (
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils import (  # noqa: E402
     load_secrets_common,
-)  # noqa: E402
+)
 
 
 class TestMyModule(unittest.TestCase):

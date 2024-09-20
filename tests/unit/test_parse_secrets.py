@@ -26,6 +26,7 @@ from unittest.mock import patch
 
 from ansible.module_utils import basic
 from ansible.module_utils.common.text.converters import to_bytes
+from ansible_collections.rhvp.cluster_utils.plugins.modules import parse_secrets_info
 from ansible_collections.rhvp.cluster_utils.tests.unit.test_util_datastructures import (
     DEFAULT_KUBERNETES_METADATA,
     DEFAULT_KUBERNETES_SECRET_OBJECT,
@@ -34,8 +35,6 @@ from ansible_collections.rhvp.cluster_utils.tests.unit.test_util_datastructures 
 )
 
 # from unittest.mock import call, patch
-
-from ansible_collections.rhvp.cluster_utils.plugins.modules import parse_secrets_info
 
 
 def set_module_args(args):

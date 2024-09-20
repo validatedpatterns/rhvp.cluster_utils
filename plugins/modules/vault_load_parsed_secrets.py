@@ -82,8 +82,7 @@ import os
 import time
 import traceback
 
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import missing_required_lib
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
     filter_module_args,
 )

@@ -130,11 +130,10 @@ EXAMPLES = """
 import os
 import traceback
 
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import missing_required_lib
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
-    get_version,
     filter_module_args,
+    get_version,
 )
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_v1 import (
     LoadSecretsV1,

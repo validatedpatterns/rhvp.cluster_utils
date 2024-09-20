@@ -111,13 +111,12 @@ EXAMPLES = """
 
 import traceback
 
-from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.basic import missing_required_lib
-from ansible_collections.rhvp.cluster_utils.plugins.module_utils.parse_secrets_v2 import (
-    ParseSecretsV2,
-)
+from ansible.module_utils.basic import AnsibleModule, missing_required_lib
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
     filter_module_args,
+)
+from ansible_collections.rhvp.cluster_utils.plugins.module_utils.parse_secrets_v2 import (
+    ParseSecretsV2,
 )
 
 try:
