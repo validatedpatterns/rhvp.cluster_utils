@@ -1,0 +1,4 @@
+[flake8]
+# E402 - imports not at the top of file. ansible wants them after documentation
+# E501 - line length, which is just dumb
+extend-ignore = E402,E501
