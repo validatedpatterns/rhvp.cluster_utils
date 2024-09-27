@@ -1,4 +1,4 @@
-# Ansible Collection - rhvp.cluser_utils
+# Ansible Collection - rhvp.cluster_utils
 
 This collection represents the collected Ansible code from the Validated Patterns framework common repository.
 
