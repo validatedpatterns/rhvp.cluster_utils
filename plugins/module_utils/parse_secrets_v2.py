@@ -194,6 +194,11 @@ class ParseSecretsV2:
         secrets = self._get_secrets()
 
         total_secrets = 0  # Counter for all the secrets uploaded
+
+        if secrets == "None" or len(secrets) == 0:
+            self.module.warn("No secrets were parsed")
+            return total_secrets
+
         for s in secrets:
             total_secrets += 1
             counter = 0  # This counter is to use kv put on first secret and kv patch on latter
@@ -322,8 +327,9 @@ class ParseSecretsV2:
     def _validate_secrets(self):
         backing_store = self._get_backingstore()
         secrets = self._get_secrets()
-        if len(secrets) == 0:
-            self.module.fail_json("No secrets found")
+        if secrets == "None" or len(secrets) == 0:
+            self.module.warn("No secrets found")
+            return (True, "")
 
         names = []
         for s in secrets:
