@@ -96,7 +96,9 @@ class ParseSecretsV2:
         return policies
 
     def _get_secrets(self):
-        return self.syaml.get("secrets", {})
+        secrets = self.syaml.get("secrets", [])
+        # We check for "None" here because the yaml file is filtered thru' from_yaml
+        return [] if secrets == "None" else secrets
 
     def _get_field_on_missing_value(self, f):
         # By default if 'onMissingValue' is missing we assume we need to
@@ -195,7 +197,7 @@ class ParseSecretsV2:
 
         total_secrets = 0  # Counter for all the secrets uploaded
 
-        if secrets == "None" or len(secrets) == 0:
+        if len(secrets) == 0:
             self.module.warn("No secrets were parsed")
             return total_secrets
 
@@ -327,7 +329,7 @@ class ParseSecretsV2:
     def _validate_secrets(self):
         backing_store = self._get_backingstore()
         secrets = self._get_secrets()
-        if secrets == "None" or len(secrets) == 0:
+        if len(secrets) == 0:
             self.module.warn("No secrets found")
             return (True, "")
 
