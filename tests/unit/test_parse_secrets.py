@@ -930,6 +930,48 @@ class TestMyModule(unittest.TestCase):
             == "You cannot have onMissingValue set to 'generate' unless using vault backingstore for secret config-demo field secret"  # noqa: E501
         )
 
+    def test_ensure_success_empty_secrets(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-empty-secret.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_backing_store": "vault",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertTrue(
+            (ret["failed"] is False)
+            and (ret["changed"] is False)
+            and (len(ret["parsed_secrets"])) == 0
+            and (len(ret["kubernetes_secret_objects"]) == 0)
+        )
+
+    def test_ensure_success_null_secrets(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-null-secret.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_backing_store": "vault",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertTrue(
+            (ret["failed"] is False)
+            and (ret["changed"] is False)
+            and (len(ret["parsed_secrets"])) == 0
+            and (len(ret["kubernetes_secret_objects"]) == 0)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

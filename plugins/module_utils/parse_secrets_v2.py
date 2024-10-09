@@ -97,8 +97,10 @@ class ParseSecretsV2:
 
     def _get_secrets(self):
         secrets = self.syaml.get("secrets", [])
-        # We check for "None" here because the yaml file is filtered thru' from_yaml
-        return [] if secrets == "None" else secrets
+        # We check for "None" here because the yaml file is currently
+        # filtered thru' from_yaml in module
+        # We also check for None here to cover when there is no jinja filter is used (unit tests)
+        return [] if secrets == "None" or secrets is None else secrets
 
     def _get_field_on_missing_value(self, f):
         # By default if 'onMissingValue' is missing we assume we need to
