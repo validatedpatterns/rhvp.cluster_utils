@@ -96,7 +96,11 @@ class ParseSecretsV2:
         return policies
 
     def _get_secrets(self):
-        return self.syaml.get("secrets", {})
+        secrets = self.syaml.get("secrets", [])
+        # We check for "None" here because the yaml file is currently
+        # filtered thru' from_yaml in module
+        # We also check for None here to cover when there is no jinja filter is used (unit tests)
+        return [] if secrets == "None" or secrets is None else secrets
 
     def _get_field_on_missing_value(self, f):
         # By default if 'onMissingValue' is missing we assume we need to
@@ -194,6 +198,11 @@ class ParseSecretsV2:
         secrets = self._get_secrets()
 
         total_secrets = 0  # Counter for all the secrets uploaded
+
+        if len(secrets) == 0:
+            self.module.warn("No secrets were parsed")
+            return total_secrets
+
         for s in secrets:
             total_secrets += 1
             counter = 0  # This counter is to use kv put on first secret and kv patch on latter
@@ -323,7 +332,8 @@ class ParseSecretsV2:
         backing_store = self._get_backingstore()
         secrets = self._get_secrets()
         if len(secrets) == 0:
-            self.module.fail_json("No secrets found")
+            self.module.warn("No secrets found")
+            return (True, "")
 
         names = []
         for s in secrets:
