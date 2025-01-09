@@ -138,6 +138,7 @@ secrets:
       description: "Please specify the password for application ABC"
     - name: secretprompt2
       value: defaultvalue
+      # Prompt will always ask for the password even if value is set, in which case a simple enter press will confirm the default values
       onMissingValue: prompt
       description: "Please specify the API key for XYZ"
     - name: secretprompt3
