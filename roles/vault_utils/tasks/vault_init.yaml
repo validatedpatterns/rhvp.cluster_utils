@@ -10,7 +10,7 @@
 # We need to retry here because the vault service might be starting
 # and can return a 500 internal server until its state is fully ready
 - name: Init vault operator
-  no_log: true
+  no_log: '{{ hide_sensitive_output | default(true) }}'
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
@@ -22,7 +22,7 @@
   when: not vault_initialized
 
 - name: Set vault init output json fact
-  no_log: true
+  no_log: '{{ hide_sensitive_output | default(true) }}'
   ansible.builtin.set_fact:
     vault_init_json: "{{ vault_init_json_out.stdout | from_json }}"
   when: not vault_initialized
@@ -31,7 +31,7 @@
 # the cluster when the vault was not already initialized *and* when
 # unseal_from_cluster is set to true
 - name: Save vault operator output (into a secret inside the cluster)
-  no_log: true
+  no_log: '{{ hide_sensitive_output | default(true) }}'
   kubernetes.core.k8s:
     state: present
     definition:
