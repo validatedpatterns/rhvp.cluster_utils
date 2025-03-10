@@ -50,7 +50,7 @@
     oc get -n "{{ internal_registry_ns }}" packagemanifests -l "catalog=iib-{{ item.value['iib'] }}" --field-selector "metadata.name={{ item.key }}" \
       -o jsonpath='{.items[0].status.defaultChannel}'
   register: oc_catalogsource_result
-  retries: 30
+  retries: 60
   delay: 10
   until: oc_catalogsource_result is not failed
   changed_when: false
