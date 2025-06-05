@@ -28,7 +28,7 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: vault status -format=json
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   register: vault_status_json
   until: "'rc' in vault_status_json"
   retries: 20

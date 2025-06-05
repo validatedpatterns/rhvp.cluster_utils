@@ -119,7 +119,7 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: bash -e -c "echo '{{ item.value['caBundle'] }}' > /tmp/{{ item.value['vault_path'] }}.ca"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
@@ -135,7 +135,7 @@
     command: bash -e -c "if vault auth list | grep -e ^'{{ item.value['vault_path'] }}'; then
         echo done; else
         vault auth enable -path='{{ item.value['vault_path'] }}' kubernetes; fi"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
@@ -152,7 +152,7 @@
         token_reviewer_jwt=\"{{ item.value['esoToken'] }}\"
         kubernetes_host=\"{{ item.value['server_api'] }}\"
         kubernetes_ca_cert=@/tmp/{{ item.value['vault_path'] }}.ca"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
@@ -167,7 +167,7 @@
     command: >
       bash -e -c "echo \"path \\\"secret/data/{{ item.value['vault_path'] }}/*\\\" {
         capabilities = {{ vault_spoke_capabilities }} }\" > /tmp/policy-{{ item.value['vault_path'] }}.hcl"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
@@ -182,7 +182,7 @@
     command: >
       bash -e -c "echo \"path \\\"secret/data/{{ vault_pushsecrets_policy }}/*\\\" {
         capabilities = {{ vault_pushsecrets_capabilities }} }\" >> /tmp/policy-{{ item.value['vault_path'] }}.hcl"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
@@ -197,7 +197,7 @@
     command: >
       bash -e -c "echo \"path \\\"secret/metadata/{{ vault_pushsecrets_policy }}/*\\\" {
         capabilities = {{ vault_pushsecrets_capabilities }} }\" >> /tmp/policy-{{ item.value['vault_path'] }}.hcl"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
@@ -210,7 +210,7 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: "vault policy write {{ item.value['vault_path'] }}-secret /tmp/policy-{{ item.value['vault_path'] }}.hcl"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
@@ -227,7 +227,7 @@
         bound_service_account_names="{{ external_secrets_sa }}"
         bound_service_account_namespaces="{{ external_secrets_ns }}"
         policies="default,{{ vault_global_policy }}-secret,{{ vault_pushsecrets_policy }}-secret,{{ item.value['vault_path'] }}-secret" ttl="{{ vault_spoke_ttl }}"
-  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
     - item.value['esoToken'] is defined
