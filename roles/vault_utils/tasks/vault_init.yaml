@@ -15,6 +15,9 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: vault operator init -format=json
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
+    http_proxy: "{{ ansible_env['http_proxy'] if not env_config.use_env else '' }}"
+    https_proxy: "{{ ansible_env['http_proxy'] if not env_config.use_env else '' }}"
   register: vault_init_json_out
   until: vault_init_json_out is not failed
   retries: 10

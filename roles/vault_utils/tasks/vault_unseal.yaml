@@ -44,6 +44,7 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: vault operator unseal "{{ item }}"
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
   loop: "{{ unseal_keys }}"
   loop_control:
     extended: true
@@ -55,6 +56,7 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ item }}"
     command: vault operator raft join http://{{ vault_pod }}.{{ vault_ns }}-internal:8200
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"
   register: join_raft_cluster_out
   until: join_raft_cluster_out is not failed
   retries: 10
@@ -72,6 +74,7 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ item.0 }}"
     command: vault operator unseal "{{ item.1 }}"
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
   loop: "{{ followers | product(unseal_keys) | list }}"
   loop_control:
     extended: true
@@ -85,4 +88,5 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: vault login "{{ root_token }}"
+  environment: "{{ k8s_exec_environment_vars | default ({}) if k8s_exec_use_environment }}"	 
   when: vault_sealed
