@@ -1,0 +1,17 @@
+---
+- name: Get pattern_dir
+  ansible.builtin.import_playbook: ./determine_pattern_dir.yml
+
+- name: Load values global file
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Set pattern_dir fact
+      ansible.builtin.set_fact:
+        pattern_dir: '{{ pattern_dir }}'
+
+    - name: Load values-global.yaml
+      ansible.builtin.set_fact:
+        values_global: "{{ lookup('file', pattern_dir + '/values-global.yaml') | from_yaml }}"
