@@ -7,7 +7,7 @@
   vars:
     pattern_dir: ''
   tasks:
-    - name: Determine current directory if one is not given
+    - name: Fail if directory is not set
       ansible.builtin.fail:
         msg: "pattern_dir variable must be set"
       when: pattern_dir | length == 0
