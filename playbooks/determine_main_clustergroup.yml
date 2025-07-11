@@ -1,0 +1,13 @@
+---
+- name: Load values-global.yaml
+  ansible.builtin.import_playbook: ./load_values_global.yml
+
+- name: Determine main clustergroup name
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  tasks:
+    - name: Set fact for main clustergroup
+      ansible.builtin.set_fact:
+        main_clustergroupname: "{{ values_global.main.clusterGroupName }}"

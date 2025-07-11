@@ -1,0 +1,15 @@
+---
+- name: Load values-global.yaml
+  ansible.builtin.import_playbook: ./load_values_global.yml
+
+- name: Determine pattern name
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars:
+    pattern_dir: "."
+  tasks:
+    - name: Set fact for main clustergroup
+      ansible.builtin.set_fact:
+        pattern_name: "{{ values_global.global.pattern }}"
