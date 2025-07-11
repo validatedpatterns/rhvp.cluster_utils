@@ -1,0 +1,17 @@
+---
+- name: Determine pattern dir
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars:
+    pattern_dir: ''
+  tasks:
+    - name: Fail if directory is not set
+      ansible.builtin.fail:
+        msg: "pattern_dir variable must be set"
+      when: pattern_dir | length == 0
+
+    - name: Set pattern_dir fact for future plays
+      ansible.builtin.set_fact:
+        pattern_dir: '{{ pattern_dir }}'

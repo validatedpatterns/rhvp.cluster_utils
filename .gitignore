@@ -6,6 +6,7 @@ __pycache__/
 values-secret.yaml
 .*.expected.yaml
 .vscode
+.ansible
 pattern-vault.init
 pattern-vault.init.bak
 super-linter.log
