@@ -1,0 +1,71 @@
+---
+- name: Create Kubernetes Job from CronJob
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.fail:
+        msg: "Variable 'cronjob_name' is required. Please provide it with -e cronjob_name=<name>"
+      when: cronjob_name is not defined or cronjob_name == ""
+
+    - name: Set default values for optional variables
+      ansible.builtin.set_fact:
+        _cronjob_namespace: "{{ cronjob_namespace | default('default') }}"
+        _job_namespace: "{{ job_namespace | default(cronjob_namespace | default('default')) }}"
+
+    - name: Generate random suffix for unique job naming
+      ansible.builtin.set_fact:
+        random_suffix: "{{ lookup('password', '/dev/null chars=ascii_lowercase,digits length=6') }}"
+
+    - name: Set job name with random suffix if not provided
+      ansible.builtin.set_fact:
+        _job_name: "{{ job_name | default(cronjob_name + '-manual-' + random_suffix) }}"
+
+    - name: Get CronJob definition
+      kubernetes.core.k8s_info:
+        api_version: batch/v1
+        kind: CronJob
+        name: "{{ cronjob_name }}"
+        namespace: "{{ _cronjob_namespace }}"
+      register: cronjob_info
+
+    - name: Verify CronJob exists
+      ansible.builtin.fail:
+        msg: "CronJob '{{ cronjob_name }}' not found in namespace '{{ _cronjob_namespace }}'"
+      when: cronjob_info.resources | length == 0
+
+    - name: Extract job template from CronJob
+      ansible.builtin.set_fact:
+        job_template: "{{ cronjob_info.resources[0].spec.jobTemplate }}"
+
+    - name: Create Job from CronJob template
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: "{{ _job_name }}"
+            namespace: "{{ _job_namespace }}"
+            labels: "{{ job_template.metadata.labels | default({}) | combine({'created-from': 'cronjob', 'source-cronjob': cronjob_name}) }}"
+            annotations: "{{ job_template.metadata.annotations | default({}) | combine({'created-from-cronjob': cronjob_name, 'created-manually': 'true'}) }}"
+          spec: "{{ job_template.spec }}"
+      register: job_creation
+
+    - name: Display job creation result
+      ansible.builtin.debug:
+        msg:
+          - "Successfully created Job '{{ _job_name }}' in namespace '{{ _job_namespace }}'"
+          - "Job was created from CronJob '{{ cronjob_name }}' in namespace '{{ _cronjob_namespace }}'"
+          - "Job UID: {{ job_creation.result.metadata.uid }}"
+
+    - name: Show how to monitor the job
+      ansible.builtin.debug:
+        msg:
+          - "To monitor the job status, run:"
+          - "kubectl get job {{ _job_name }} -n {{ _job_namespace }}"
+          - "To view job logs, run:"
+          - "kubectl logs job/{{ _job_name }} -n {{ _job_namespace }}"
