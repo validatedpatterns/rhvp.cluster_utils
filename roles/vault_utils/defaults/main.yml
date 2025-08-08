@@ -19,6 +19,14 @@ vault_global_policy: global
 vault_global_capabilities: '[\\\"read\\\"]'
 vault_pushsecrets_policy: pushsecrets
 vault_pushsecrets_capabilities: '[\\\"create\\\",\\\"read\\\",\\\"update\\\",\\\"delete\\\"]'
+vault_pchat_db: true
+vault_pchat_db_policy: pchat
+vault_pchat_db_capabilities: '[\\\"read\\\"]'
+vault_policies:
+  - "default"
+  - "{{ vault_global_policy }}-secret"
+  - "{{ vault_pushsecrets_policy }}-secret"
+  - "{{ vault_hub }}-secret"
 external_secrets_ns: golang-external-secrets
 external_secrets_sa: golang-external-secrets
 external_secrets_secret: golang-external-secrets

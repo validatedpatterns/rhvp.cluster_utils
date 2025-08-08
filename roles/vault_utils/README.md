@@ -42,7 +42,7 @@ This relies on [kubernetes.core](https://docs.ansible.com/ansible/latest/collect
 
 ## Vault out of the box configuration
 
-This role configures four secret paths in vault:
+This role configures five secret paths in vault:
 
 1. `secret/global` - Any secret under this path is accessible in read-only only to all clusters known to ACM (hub and spokes)
 2. `secret/hub` - Any secret under this path is accessible in read-only only to the ACM hub cluster
@@ -50,6 +50,7 @@ This role configures four secret paths in vault:
 4. `secret/pushsecrets` - Any secret here can be accessed in read and write mode to all clusters known to ACM. This area can
    be used with ESO's `PushSecrets` so you can push an existing secret from one namespace, to the vault under this path and
    then it can be retrieved by an `ExternalSecret` either in a different namespace *or* from an entirely different cluster.
+5. `secret/pchat` - (_optional_ ) In this path we save the DB credentials used by the application in the UC12.
 
 ## Values secret file format
 
