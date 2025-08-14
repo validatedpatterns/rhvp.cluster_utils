@@ -1,0 +1,15 @@
+---
+- name: Template patttern-install chart
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load defaults
+      ansible.builtin.include_role:
+        name: pattern_defaults
+
+    - name: Run helm template
+      ansible.builtin.shell: >-
+        helm template {{ pattern_install_chart }} --name-template {{ pattern_name }} {{ helm_opts }} > /dev/tty
+      args:
+        chdir: "{{ pattern_dir }}"

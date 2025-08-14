@@ -1,0 +1,108 @@
+---
+# Sets sane defaults and computes values from env/git for pattern operations
+- name: Set pattern_dir default
+  ansible.builtin.set_fact:
+    pattern_dir: "{{ lookup('env', 'PWD') }}"
+
+- name: Set pattern_name from directory
+  ansible.builtin.set_fact:
+    pattern_name: "{{ pattern_dir | basename }}"
+
+- name: Determine git branch
+  ansible.builtin.command: git rev-parse --abbrev-ref HEAD
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: _git_branch
+
+- name: Determine branch remote
+  ansible.builtin.shell: "git config branch.{{ _git_branch.stdout }}.remote || echo 'origin'"
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: _git_remote
+
+- name: Get repo url for origin
+  ansible.builtin.command: "git ls-remote --get-url --symref {{ _git_remote.stdout }}"
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: _git_repo_raw
+
+- name: Read token env vars
+  ansible.builtin.set_fact:
+    token_secret: "{{ lookup('env', 'TOKEN_SECRET') | default('', true) }}"
+    token_namespace: "{{ lookup('env', 'TOKEN_NAMESPACE') | default('', true) }}"
+
+- name: Compute target_repo
+  ansible.builtin.set_fact:
+    target_repo: >-
+      {{
+        (token_secret | length > 0)
+        | ternary(
+            _git_repo_raw.stdout,
+            (_git_repo_raw.stdout | regex_replace('^git@([^:]+):(.+)$', 'https://\1/\2'))
+        )
+      }}
+
+- name: Build SECRET_OPTS when token provided
+  ansible.builtin.set_fact:
+    secret_opts: "--set main.tokenSecret={{ token_secret }} --set main.tokenSecretNamespace={{ token_namespace }}"
+  when: token_secret | length > 0 and token_namespace | length > 0
+
+- name: Read TARGET_SITE env var
+  ansible.builtin.set_fact:
+    target_site: "{{ lookup('env', 'TARGET_SITE') | default('', true) }}"
+
+- name: Build TARGET_SITE_OPT when provided
+  ansible.builtin.set_fact:
+    target_site_opt: "--set main.clusterGroupName={{ target_site }}"
+  when: target_site | length > 0
+
+- name: Determine UUID file path
+  ansible.builtin.set_fact:
+    uuid_file: "{{ lookup('env', 'UUID_FILE') | default(lookup('env', 'HOME') + '/.config/validated-patterns/pattern-uuid', true) }}"
+
+- name: Check for UUID file
+  ansible.builtin.stat:
+    path: "{{ uuid_file }}"
+  register: _uuid_stat
+
+- name: Read UUID from file
+  ansible.builtin.set_fact:
+    uuid_value: "{{ lookup('file', uuid_file) | trim }}"
+  when: _uuid_stat.stat.exists
+
+- name: Build UUID_HELM_OPTS
+  ansible.builtin.set_fact:
+    uuid_helm_opts: "--set main.analyticsUUID={{ uuid_value }}"
+  when: uuid_value is defined and uuid_value | length > 0
+
+- name: Read extra helm opts from env
+  ansible.builtin.set_fact:
+    extra_helm_opts: "{{ lookup('env', 'EXTRA_HELM_OPTS') | default('', true) }}"
+
+- name: Build HELM_OPTS string
+  ansible.builtin.set_fact:
+    helm_opts: >-
+      -f values-global.yaml
+      --set main.git.repoURL="{{ target_repo }}"
+      --set main.git.revision={{ _git_branch.stdout }}
+      {{ secret_opts | default('') }}
+      {{ target_site_opt | default('') }}
+      {{ uuid_helm_opts | default('') }}
+      {{ extra_helm_opts | default('') }}
+
+- name: Compute pattern install chart
+  ansible.builtin.set_fact:
+    disconnected_home: "{{ lookup('env', 'PATTERN_DISCONNECTED_HOME') | default('', true) }}"
+    env_pattern_install_chart: "{{ lookup('env', 'PATTERN_INSTALL_CHART') | default('', true) }}"
+
+- name: Set pattern_install_chart
+  ansible.builtin.set_fact:
+    pattern_install_chart: >-
+      {{
+        (disconnected_home | length > 0)
+        | ternary(
+            'oci://' + disconnected_home + '/pattern-install',
+            (env_pattern_install_chart | length > 0)
+              | ternary(env_pattern_install_chart, 'oci://quay.io/hybridcloudpatterns/pattern-install')
+        )
+      }}
