@@ -1,0 +1,24 @@
+---
+- name: Preview all applications across hub and managed groups
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load defaults
+      ansible.builtin.include_role:
+        name: pattern_defaults
+
+    - name: Get applications per cluster
+      ansible.builtin.set_fact:
+        cluster_to_apps: "{{ (cluster_to_apps | default({})) | combine({ item: (['clustergroup'] + ((lookup('file', pattern_dir + '/values-' + item + '.yaml') | from_yaml).clusterGroup.applications | default({}) | dict2items | map(attribute='value.name') | list)) }) }}"
+      loop: "{{ all_clusters }}"
+
+    - name: Render preview for each cluster/app
+      vars:
+        cluster_group: "{{ item.0.key }}"
+        app: "{{ item.1 }}"
+      ansible.builtin.include_role:
+        name: "{{ 'preview_clustergroup' if app == 'clustergroup' else 'preview_app' }}"
+      loop: "{{ query('subelements', cluster_to_apps | dict2items, 'value') | map('list') | list }}"
+      loop_control:
+        label: "{{ item.0.key }}:{{ item.1 }}"

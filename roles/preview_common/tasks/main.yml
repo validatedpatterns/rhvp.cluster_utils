@@ -1,0 +1,84 @@
+---
+- name: Load cluster group values yaml
+  ansible.builtin.set_fact:
+    values_cluster_group: "{{ lookup('file', pattern_dir + '/values-' + cluster_group + '.yaml') | from_yaml }}"
+
+- name: Read env overrides for OCP info
+  ansible.builtin.set_fact:
+    ocp_platform_env: "{{ lookup('env', 'OCP_PLATFORM') | default('', true) }}"
+    ocp_version_env: "{{ lookup('env', 'OCP_VERSION') | default('', true) }}"
+    ocp_domain_env: "{{ lookup('env', 'OCP_DOMAIN') | default('', true) }}"
+
+- name: Determine cluster platform
+  ansible.builtin.command: oc get Infrastructure.config.openshift.io/cluster -o jsonpath='{.spec.platformSpec.type}'
+  register: _ocp_platform
+  changed_when: false
+  when: ocp_platform_env | length == 0
+
+- name: Determine cluster version
+  ansible.builtin.command: oc get clusterversion/version -o jsonpath='{.status.desired.version}'
+  register: _ocp_version_full
+  changed_when: false
+  when: ocp_version_env | length == 0
+
+- name: Determine cluster domain
+  ansible.builtin.command: oc get Ingress.config.openshift.io/cluster -o jsonpath='{.spec.domain}'
+  register: _ocp_domain
+  changed_when: false
+  when: ocp_domain_env | length == 0
+
+- name: Set OCP facts
+  ansible.builtin.set_fact:
+    ocp_platform: "{{ (ocp_platform_env | length > 0) | ternary(ocp_platform_env, _ocp_platform.stdout) }}"
+    ocp_version: "{{ ((ocp_version_env | length > 0) | ternary(ocp_version_env, _ocp_version_full.stdout)) | regex_search('^\\d+\\.\\d+') }}"
+    ocp_domain: "{{ (ocp_domain_env | length > 0) | ternary(ocp_domain_env, (_ocp_domain.stdout | regex_replace('^apps\\.', ''))) }}"
+
+- name: Set cluster options
+  ansible.builtin.set_fact:
+    cluster_opts: >-
+      --set global.pattern={{ pattern_name }}
+      --set global.repoURL={{ target_repo }}
+      --set main.git.repoURL={{ target_repo }}
+      --set main.git.revision={{ _git_branch.stdout }}
+      --set global.hubClusterDomain=apps.{{ ocp_domain }}
+      --set global.localClusterDomain=apps.{{ ocp_domain }}
+      --set global.clusterDomain={{ ocp_domain }}
+      --set global.clusterVersion={{ ocp_version }}
+      --set global.clusterPlatform={{ ocp_platform }}
+
+- name: Initialize base value files list
+  ansible.builtin.set_fact:
+    value_files_list:
+      - values-global.yaml
+      - "values-{{ cluster_group }}.yaml"
+
+- name: Collect shared value files
+  ansible.builtin.set_fact:
+    shared_value_files_raw: "{{ values_cluster_group.clusterGroup.sharedValueFiles | default([]) }}"
+
+- name: Expand shared value file placeholders
+  ansible.builtin.set_fact:
+    _shared_path_out: >-
+      {{ shared_value
+         | regex_replace('\\s+', '')
+         | regex_replace('\\$', '')
+         | regex_replace('\\{\\{\\.Values\\.global\\.clusterPlatform\\}\\}', ocp_platform)
+         | regex_replace('\\{\\{\\.Values\\.global\\.clusterVersion\\}\\}', ocp_version)
+         | regex_replace('\\{\\{\\.Values\\.global\\.clusterDomain\\}\\}', ocp_domain)
+      }}
+  loop: "{{ shared_value_files_raw }}"
+  loop_control:
+    loop_var: shared_value
+  register: _shared_paths
+
+- name: Check existence of shared value files
+  ansible.builtin.stat:
+    path: "{{ (shared_path is match('^/')) | ternary(shared_path, (pattern_dir + '/' + shared_path)) }}"
+  register: _shared_stats
+  loop: "{{ _shared_paths.results | map(attribute='ansible_facts._shared_path_out') | list }}"
+  loop_control:
+    loop_var: shared_path
+
+- name: Append existing shared value files
+  ansible.builtin.set_fact:
+    value_files_list: "{{ value_files_list + (_shared_stats.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | map(attribute='item') | list) }}"

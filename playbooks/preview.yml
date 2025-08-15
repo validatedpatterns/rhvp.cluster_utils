@@ -1,0 +1,25 @@
+---
+- name: Preview a single application for a site
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    app: 'clustergroup'
+  tasks:
+    - name: Load defaults
+      ansible.builtin.include_role:
+        name: pattern_defaults
+
+    - name: Set cluster group
+      ansible.builtin.set_fact:
+        cluster_group: "{{ lookup('env', 'CLUSTERGROUP') | default(hub_clustergroup, true) }}"
+
+    - name: Render preview for clustergroup "{{ cluster_group }}"
+      when: app == 'clustergroup'
+      ansible.builtin.include_role:
+        name: preview_clustergroup
+
+    - name: Render preview for app
+      when: app != 'clustergroup'
+      ansible.builtin.include_role:
+        name: preview_app

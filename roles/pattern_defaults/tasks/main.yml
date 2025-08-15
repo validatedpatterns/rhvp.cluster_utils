@@ -106,3 +106,23 @@
               | ternary(env_pattern_install_chart, 'oci://quay.io/hybridcloudpatterns/pattern-install')
         )
       }}
+
+- name: Load values-global.yaml
+  ansible.builtin.set_fact:
+    values_global: "{{ lookup('file', pattern_dir + '/values-global.yaml') | from_yaml }}"
+
+- name: Set hub_clustergroup
+  ansible.builtin.set_fact:
+    hub_clustergroup: "{{ values_global.main.clusterGroupName }}"
+
+- name: Load values-hub.yaml
+  ansible.builtin.set_fact:
+    values_hub: "{{ lookup('file', pattern_dir + '/values-' + hub_clustergroup + '.yaml') | from_yaml }}"
+
+- name: Set managed_clustergroups
+  ansible.builtin.set_fact:
+    managed_clustergroups: "{{ (values_hub.clusterGroup.managedClusterGroups | default({})) | dict2items | map(attribute='value.name') | list }}"
+
+- name: Set all_clusters
+  ansible.builtin.set_fact:
+    all_clusters: "{{ [hub_clustergroup] + (managed_clustergroups | default([])) }}"
