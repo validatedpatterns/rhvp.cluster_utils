@@ -1,0 +1,50 @@
+---
+- name: Warn if folder name and values-global pattern mismatch
+  when: pattern_name != values_global.global.pattern
+  ansible.builtin.shell:
+    cmd: |
+      echo "WARNING: folder directory is '{{ pattern_name }}' and global.pattern is set to '{{ values_global.global.pattern }}'" > /dev/tty
+      echo "this can create problems. Please make sure they are the same!" > /dev/tty
+
+- name: Check if running inside a container
+  ansible.builtin.stat:
+    path: /run/.containerenv
+  register: _containerenv
+
+- name: Validate local environment prerequisites (python-kubernetes, kubernetes.core)
+  when: not _containerenv.stat.exists
+  block:
+    - name: Check for python-kubernetes import
+      ansible.builtin.command: "{{ ansible_python_interpreter | default('python3') }} -c 'import kubernetes'"
+      register: python_import
+      failed_when: false
+
+    - name: Fail with message if python-kubernetes missing
+      when: python_import.rc != 0
+      ansible.builtin.shell:
+        cmd: |
+          echo "Missing required Python package: kubernetes" > /dev/tty
+          exit 1
+
+    - name: Check for kubernetes.core collection
+      ansible.builtin.command: ansible-galaxy collection list
+      register: galaxy_list
+      failed_when: false
+
+    - name: Fail with message if kubernetes.core collection missing
+      when: "'kubernetes.core' not in galaxy_list.stdout"
+      ansible.builtin.shell:
+        cmd: |
+          echo "Missing required Ansible collection: kubernetes.core" > /dev/tty
+          exit 1
+
+- name: Validate container prerequisites (multiSourceConfig.enabled)
+  when: _containerenv.stat.exists
+  block:
+    - name: Fail when multiSourceConfig.enabled is not true in container image
+      when: (values_global.main.multiSourceConfig.enabled | default(true)) | bool == false
+      ansible.builtin.shell:
+        cmd: |
+          echo "You must set \".main.multiSourceConfig.enabled: true\" in your 'values-global.yaml' file" > /dev/tty
+          echo "because your common subfolder is the slimmed down version with no helm charts in it" > /dev/tty
+          exit 1
