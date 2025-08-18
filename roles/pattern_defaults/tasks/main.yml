@@ -111,6 +111,10 @@
   ansible.builtin.set_fact:
     values_global: "{{ lookup('file', pattern_dir + '/values-global.yaml') | from_yaml }}"
 
+- name: Set secrets backing store
+  ansible.builtin.set_fact:
+    secrets_backing_store: "{{ values_global.global.secretStore.backend | default('vault') }}"
+
 - name: Set hub_clustergroup
   ansible.builtin.set_fact:
     hub_clustergroup: "{{ values_global.main.clusterGroupName }}"

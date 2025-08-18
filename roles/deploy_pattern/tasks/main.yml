@@ -1,0 +1,64 @@
+---
+- name: Print start message
+  ansible.builtin.shell:
+    cmd: |
+      echo -n "Installing pattern: " > /dev/tty
+
+- name: Create temporary manifest file
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .yaml
+  register: temp_manifest
+
+- name: Render helm template
+  ansible.builtin.command: >-
+    helm template --include-crds --name-template {{ pattern_name }} {{ pattern_install_chart }} {{ helm_opts }}
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: helm_template
+  failed_when: false
+
+- name: Fail if helm template failed
+  when: helm_template.rc != 0
+  ansible.builtin.shell:
+    cmd: |
+      echo "Helm template failed" > /dev/tty
+      exit 1
+
+- name: Write rendered manifest to file
+  ansible.builtin.copy:
+    dest: "{{ temp_manifest.path }}"
+    content: "{{ helm_template.stdout }}"
+    mode: '0644'
+
+- name: Apply manifest (retry on failure)
+  ansible.builtin.command: >-
+    oc apply -f {{ temp_manifest.path }}
+  register: oc_apply
+  until: oc_apply.rc == 0
+  retries: 10
+  delay: 15
+  failed_when: false
+
+- name: Report failure details and exit
+  when: oc_apply.rc != 0
+  ansible.builtin.shell:
+    cmd: |
+      echo "Installation failed after retries. Error output:" > /dev/tty
+      if [ -n "{{ oc_apply.stderr | default('') | replace('"', '\\"') }}" ]; then
+        echo "{{ oc_apply.stderr | default('') | replace('"', '\\"') }}" > /dev/tty
+      fi
+      if [ -n "{{ oc_apply.stdout | default('') | replace('"', '\\"') }}" ]; then
+        echo "{{ oc_apply.stdout | default('') | replace('"', '\\"') }}" > /dev/tty
+      fi
+      exit 1
+
+- name: Print done
+  ansible.builtin.shell:
+    cmd: |
+      echo "Done" > /dev/tty
+
+- name: Remove temporary manifest file
+  ansible.builtin.file:
+    path: "{{ temp_manifest.path }}"
+    state: absent

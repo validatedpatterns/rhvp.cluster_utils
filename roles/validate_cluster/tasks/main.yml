@@ -1,0 +1,48 @@
+---
+- name: Print start message
+  ansible.builtin.shell:
+    cmd: |
+      echo "Validating cluster..." > /dev/tty
+
+- name: Run oc cluster-info
+  ansible.builtin.command: oc cluster-info
+  register: cluster_info
+  failed_when: false
+
+- name: Report cluster-info OK
+  when: cluster_info.rc == 0
+  ansible.builtin.shell:
+    cmd: |
+      echo -n "  cluster-info: " > /dev/tty
+      echo "OK" > /dev/tty
+
+- name: Report cluster-info error and exit
+  when: cluster_info.rc != 0
+  ansible.builtin.shell:
+    cmd: |
+      echo -n "  cluster-info: " > /dev/tty
+      echo "Error" > /dev/tty
+      exit 1
+
+- name: Get storageclass names
+  ansible.builtin.command: oc get storageclass -o jsonpath='{.items[*].metadata.name}'
+  register: sc_names
+  failed_when: false
+
+- name: Compute storageclass count
+  ansible.builtin.set_fact:
+    sc_count: "{{ (sc_names.stdout | default('') | regex_findall('\\S+') | length) }}"
+
+- name: Report storageclass warning when none
+  when: (sc_count | int) == 0
+  ansible.builtin.shell:
+    cmd: |
+      echo -n "  storageclass: " > /dev/tty
+      echo "WARNING: No storageclass found" > /dev/tty
+
+- name: Report storageclass OK
+  when: (sc_count | int) > 0
+  ansible.builtin.shell:
+    cmd: |
+      echo -n "  storageclass: " > /dev/tty
+      echo "OK" > /dev/tty
