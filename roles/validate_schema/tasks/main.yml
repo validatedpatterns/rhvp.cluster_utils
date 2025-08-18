@@ -1,0 +1,41 @@
+---
+- name: Find values-* files to validate
+  ansible.builtin.find:
+    paths: "{{ pattern_dir }}"
+    patterns: "values-*.yaml"
+    file_type: file
+  register: _values_files
+
+- name: Sort file list
+  ansible.builtin.set_fact:
+    values_files_sorted: "{{ _values_files.files | map(attribute='path') | list | sort }}"
+
+- name: Print start message
+  ansible.builtin.shell:
+    cmd: |
+      echo -n "Validating clustergroup schema of: " > /dev/tty
+      for f in {{ values_files_sorted | map('basename') | list | join(' ') }}; do echo -n " $f" > /dev/tty; done
+      echo > /dev/tty
+
+- name: Determine clustergroup chart CLI extras
+  ansible.builtin.set_fact:
+    clustergroup_version: "{{ values_global.main.multiSourceConfig.clusterGroupChartVersion | default('') }}"
+    clustergroup_version_cli: "{{ (values_global.main.multiSourceConfig.clusterGroupChartVersion | default('')) | ternary('--version ' + values_global.main.multiSourceConfig.clusterGroupChartVersion, '') }}"
+
+- name: Validate each file with helm template
+  ansible.builtin.command: >-
+    helm template oci://quay.io/hybridcloudpatterns/clustergroup {{ clustergroup_version_cli }} {{ helm_opts }} -f "{{ item }}"
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: helm_validate
+  failed_when: false
+  loop: "{{ values_files_sorted }}"
+  loop_control:
+    label: "{{ item | basename }}"
+
+- name: Exit with error if any validation failed
+  when: (helm_validate.results | selectattr('rc', 'ne', 0) | list | length) > 0
+  ansible.builtin.shell:
+    cmd: |
+      echo "Schema validation failed for one or more values files. See helm output by re-running without suppressed output." > /dev/tty
+      exit 1

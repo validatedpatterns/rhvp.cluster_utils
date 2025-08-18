@@ -1,0 +1,13 @@
+---
+- name: Validate clustergroup schema
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load defaults
+      ansible.builtin.include_role:
+        name: pattern_defaults
+
+    - name: Run schema validation
+      ansible.builtin.include_role:
+        name: validate_schema
