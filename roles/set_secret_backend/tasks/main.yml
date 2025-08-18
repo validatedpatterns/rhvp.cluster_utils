@@ -1,0 +1,4 @@
+---
+- name: Update secrets backend in values-global.yaml
+  ansible.builtin.command: >-
+    yq -i '.global.secretStore.backend = "{{ secrets_backing_store }}"' {{ pattern_dir }}/values-global.yaml

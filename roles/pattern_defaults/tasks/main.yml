@@ -111,9 +111,10 @@
   ansible.builtin.set_fact:
     values_global: "{{ lookup('file', pattern_dir + '/values-global.yaml') | from_yaml }}"
 
-- name: Set secrets backing store
+- name: Set secrets backing store (only if not provided by caller)
   ansible.builtin.set_fact:
     secrets_backing_store: "{{ values_global.global.secretStore.backend | default('vault') }}"
+  when: secrets_backing_store is not defined or (secrets_backing_store | string | length) == 0
 
 - name: Set hub_clustergroup
   ansible.builtin.set_fact:
