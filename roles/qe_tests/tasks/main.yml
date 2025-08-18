@@ -1,0 +1,30 @@
+---
+- name: Load defaults (pattern_dir)
+  ansible.builtin.include_role:
+    name: pattern_defaults
+
+- name: Check for QE test runner script
+  ansible.builtin.stat:
+    path: "{{ pattern_dir }}/tests/interop/run_tests.sh"
+  register: _interop_runner
+
+- name: Announce missing QE tests
+  when: not _interop_runner.stat.exists
+  ansible.builtin.shell:
+    cmd: |
+      echo "No ./tests/interop/run_tests.sh found; skipping" > /dev/tty
+
+- name: Announce running QE tests
+  when: _interop_runner.stat.exists
+  ansible.builtin.shell:
+    cmd: |
+      echo "Running QE tests from ./tests/interop/run_tests.sh" > /dev/tty
+
+- name: Run QE test suite
+  when: _interop_runner.stat.exists
+  ansible.builtin.shell:
+    cmd: |
+      ./run_tests.sh > /dev/tty 2>&1
+  args:
+    chdir: "{{ pattern_dir }}/tests/interop"
+

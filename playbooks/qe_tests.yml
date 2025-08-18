@@ -1,0 +1,11 @@
+---
+- name: Run QE tests
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Execute QE test role
+      ansible.builtin.include_role:
+        name: qe_tests
+
+
