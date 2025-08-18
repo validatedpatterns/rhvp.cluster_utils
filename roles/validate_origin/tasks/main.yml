@@ -1,0 +1,37 @@
+---
+- name: Determine if origin validation is disabled
+  ansible.builtin.set_fact:
+    disable_validate_origin: "{{ (lookup('env', 'DISABLE_VALIDATE_ORIGIN') | default('false', true) | lower) == 'true' }}"
+
+- name: Skip origin validation when disabled
+  when: disable_validate_origin
+  ansible.builtin.shell:
+    cmd: |
+      echo "Skipping origin validation because DISABLE_VALIDATE_ORIGIN=true" > /dev/tty
+
+- block:
+    - name: Print start message
+      ansible.builtin.shell:
+        cmd: |
+          echo "Validating origin..." > /dev/tty
+
+    - name: Set upstream URL fact (may be empty)
+      ansible.builtin.set_fact:
+        upstream_url: "{{ values_global.main.git.repoUpstreamURL | default('', true) }}"
+
+    - name: Choose repository to validate
+      ansible.builtin.set_fact:
+        repo_to_check: "{{ (upstream_url | length > 0) | ternary(upstream_url, target_repo) }}"
+
+    - name: Validate origin reachability (git ls-remote)
+      ansible.builtin.command: git ls-remote --exit-code --heads {{ repo_to_check }} {{ _git_branch.stdout }}
+      register: origin_check
+      failed_when: false
+
+    - name: Report failure and exit if origin validation fails
+      when: origin_check.rc != 0
+      ansible.builtin.shell:
+        cmd: |
+          echo "Origin validation failed: repo '{{ repo_to_check }}' does not have branch '{{ _git_branch.stdout }}'" > /dev/tty
+          exit 1
+  when: not disable_validate_origin

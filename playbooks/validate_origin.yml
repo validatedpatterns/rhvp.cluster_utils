@@ -1,0 +1,13 @@
+---
+- name: Validate git origin
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load defaults and values
+      ansible.builtin.include_role:
+        name: pattern_defaults
+
+    - name: Run validate-origin checks
+      ansible.builtin.include_role:
+        name: validate_origin

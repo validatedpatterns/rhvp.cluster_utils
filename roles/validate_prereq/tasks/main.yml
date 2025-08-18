@@ -1,10 +1,16 @@
 ---
+- name: Print start message
+  ansible.builtin.shell:
+    cmd: |
+      echo "Validating prerequisites..." > /dev/tty
+
 - name: Warn if folder name and values-global pattern mismatch
   when: pattern_name != values_global.global.pattern
   ansible.builtin.shell:
     cmd: |
       echo "WARNING: folder directory is '{{ pattern_name }}' and global.pattern is set to '{{ values_global.global.pattern }}'" > /dev/tty
       echo "this can create problems. Please make sure they are the same!" > /dev/tty
+
 
 - name: Check if running inside a container
   ansible.builtin.stat:
