@@ -1,0 +1,44 @@
+---
+- name: Print start message
+  ansible.builtin.shell:
+    cmd: |
+      echo "Checking argo applications" > /dev/tty
+
+- name: Get all Argo CD applications as JSON
+  ansible.builtin.command: oc get applications.argoproj.io -A -o json
+  register: apps_raw
+  failed_when: false
+
+- name: Extract items list
+  ansible.builtin.set_fact:
+    apps_items: "{{ (apps_raw.stdout | default('{}')) | from_json | json_query('items') | default([]) }}"
+
+- name: Build applications summary
+  ansible.builtin.set_fact:
+    apps_summary: "{{ (apps_summary | default([])) + [ {
+      'namespace': item.metadata.namespace | default(''),
+      'name': item.metadata.name | default(''),
+      'sync': (item.status.sync.status | default('')),
+      'health': (item.status.health.status | default('')),
+      'bad': ((item.status.sync.status | default('')) != 'Synced') or ((item.status.health.status | default('')) != 'Healthy')
+    } ] }}"
+  loop: "{{ apps_items }}"
+
+- name: Print status lines
+  ansible.builtin.shell:
+    cmd: |
+      echo "{{ item.namespace }} {{ item.name }} -> Sync: {{ item.sync }} - Health: {{ item.health }}" > /dev/tty
+  loop: "{{ apps_summary | default([]) }}"
+  loop_control:
+    label: "{{ item.namespace }}:{{ item.name }}"
+
+- name: Determine if any app is not healthy/synced
+  ansible.builtin.set_fact:
+    any_bad: "{{ (apps_summary | default([])) | selectattr('bad') | list | length > 0 }}"
+
+- name: Fail if any app is not healthy/synced
+  when: any_bad | bool
+  ansible.builtin.shell:
+    cmd: |
+      echo "Some applications are not synced or are unhealthy" > /dev/tty
+      exit 1
