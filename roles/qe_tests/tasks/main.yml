@@ -27,4 +27,3 @@
       ./run_tests.sh > /dev/tty 2>&1
   args:
     chdir: "{{ pattern_dir }}/tests/interop"
-
