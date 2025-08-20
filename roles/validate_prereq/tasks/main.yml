@@ -48,7 +48,7 @@
   when: _containerenv.stat.exists
   block:
     - name: Fail when multiSourceConfig.enabled is not true in container image
-      when: (values_global.main.multiSourceConfig.enabled | default(true)) | bool == false
+      when: not (values_global.main.multiSourceConfig.enabled | default(true) | bool)
       ansible.builtin.shell:
         cmd: |
           echo "You must set \".main.multiSourceConfig.enabled: true\" in your 'values-global.yaml' file" > /dev/tty

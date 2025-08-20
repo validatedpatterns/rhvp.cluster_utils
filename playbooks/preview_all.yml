@@ -10,7 +10,23 @@
 
     - name: Get applications per cluster
       ansible.builtin.set_fact:
-        cluster_to_apps: "{{ (cluster_to_apps | default({})) | combine({ item: (['clustergroup'] + ((lookup('file', pattern_dir + '/values-' + item + '.yaml') | from_yaml).clusterGroup.applications | default({}) | dict2items | map(attribute='value.name') | list)) }) }}"
+        cluster_to_apps: >-
+          {{ (cluster_to_apps | default({}))
+             | combine({
+                 item: (
+                   ['clustergroup'] + (
+                     (
+                       lookup('file', pattern_dir + '/values-' + item + '.yaml')
+                       | from_yaml
+                     ).clusterGroup.applications
+                     | default({})
+                     | dict2items
+                     | map(attribute='value.name')
+                     | list
+                   )
+                 )
+               })
+          }}
       loop: "{{ all_clusters }}"
 
     - name: Render preview for each cluster/app

@@ -9,7 +9,9 @@
     cmd: |
       echo "Skipping origin validation because DISABLE_VALIDATE_ORIGIN=true" > /dev/tty
 
-- block:
+- name: Validate origin
+  when: not disable_validate_origin
+  block:
     - name: Print start message
       ansible.builtin.shell:
         cmd: |
@@ -23,7 +25,7 @@
       ansible.builtin.set_fact:
         repo_to_check: "{{ (upstream_url | length > 0) | ternary(upstream_url, target_repo) }}"
 
-    - name: Validate origin reachability (git ls-remote)
+    - name: Validate origin reachability (git ls-remote)  # noqa: command-instead-of-module
       ansible.builtin.command: git ls-remote --exit-code --heads {{ repo_to_check }} {{ _git_branch.stdout }}
       register: origin_check
       failed_when: false
@@ -34,4 +36,3 @@
         cmd: |
           echo "Origin validation failed: repo '{{ repo_to_check }}' does not have branch '{{ _git_branch.stdout }}'" > /dev/tty
           exit 1
-  when: not disable_validate_origin

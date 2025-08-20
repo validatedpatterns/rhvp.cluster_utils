@@ -15,13 +15,18 @@
 
 - name: Build applications summary
   ansible.builtin.set_fact:
-    apps_summary: "{{ (apps_summary | default([])) + [ {
-      'namespace': item.metadata.namespace | default(''),
-      'name': item.metadata.name | default(''),
-      'sync': (item.status.sync.status | default('')),
-      'health': (item.status.health.status | default('')),
-      'bad': ((item.status.sync.status | default('')) != 'Synced') or ((item.status.health.status | default('')) != 'Healthy')
-    } ] }}"
+    apps_summary: >-
+      {{ (apps_summary | default([])) + [
+          {
+            'namespace': (item.metadata.namespace | default('')),
+            'name': (item.metadata.name | default('')),
+            'sync': (item.status.sync.status | default('')),
+            'health': (item.status.health.status | default('')),
+            'bad': ((item.status.sync.status | default('')) != 'Synced')
+                   or ((item.status.health.status | default('')) != 'Healthy')
+          }
+        ]
+      }}
   loop: "{{ apps_items }}"
 
 - name: Print status lines

@@ -14,13 +14,13 @@
     chdir: "{{ pattern_dir }}"
   register: _git_branch
 
-- name: Determine branch remote
+- name: Determine branch remote  # noqa: command-instead-of-module
   ansible.builtin.shell: "git config branch.{{ _git_branch.stdout }}.remote || echo 'origin'"
   args:
     chdir: "{{ pattern_dir }}"
   register: _git_remote
 
-- name: Get repo url for origin
+- name: Get repo url for origin  # noqa: command-instead-of-module
   ansible.builtin.command: "git ls-remote --get-url --symref {{ _git_remote.stdout }}"
   args:
     chdir: "{{ pattern_dir }}"
