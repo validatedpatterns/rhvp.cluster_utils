@@ -7,5 +7,3 @@
     - name: Run validate-cluster checks
       ansible.builtin.include_role:
         name: validate_cluster
-
-

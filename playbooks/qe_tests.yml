@@ -7,5 +7,3 @@
     - name: Execute QE test role
       ansible.builtin.include_role:
         name: qe_tests
-
-
