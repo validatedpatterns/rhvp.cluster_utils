@@ -1,0 +1,92 @@
+---
+- name: Prepare preview context
+  ansible.builtin.include_role:
+    name: preview_common
+
+- name: Collect application definitions
+  ansible.builtin.set_fact:
+    app_items: "{{ (values_cluster_group.clusterGroup.applications | default({})) | dict2items }}"
+
+- name: Locate application key by name
+  ansible.builtin.set_fact:
+    app_kv: "{{ app_items | selectattr('value.name', 'equalto', app) | list | first | default({}) }}"
+
+- name: Fail if application '{{ app }}' not found
+  ansible.builtin.fail:
+    msg: "Application '{{ app }}' not found in '{{ 'values-' + cluster_group + '.yaml' }}'. Available apps: {{ app_items | map(attribute='value.name') | list }}"
+  when: app_kv == {}
+
+- name: Set app definition and namespace
+  ansible.builtin.set_fact:
+    app_def: "{{ app_kv.value | default({}) }}"
+    app_namespace: "{{ app_kv.value.namespace | default('openshift-operators') }}"
+
+- name: Expand extra value file placeholders
+  vars:
+    path_in: "{{ item }}"
+  ansible.builtin.set_fact:
+    _extra_path_out: "{{ (path_in | regex_replace('\\{\\{\\.Values\\.global\\.clusterPlatform\\}\\}', ocp_platform)
+                           | regex_replace('\\{\\{\\.Values\\.global\\.clusterVersion\\}\\}', ocp_version)
+                           | regex_replace('\\{\\{\\.Values\\.global\\.clusterDomain\\}\\}', ocp_domain)) | regex_replace('\\s+', '') }}"
+  loop: "{{ app_def.extraValueFiles | default([]) }}"
+  register: _extra_paths
+
+- name: Append existing extra value files
+  ansible.builtin.set_fact:
+    value_files_list: "{{ value_files_list + existing_extra }}"
+  vars:
+    existing_extra: >-
+      {{ _extra_paths.results | map(attribute='ansible_facts._extra_path_out') | list
+         | select('length') | list }}
+
+- name: Build overrides string
+  ansible.builtin.set_fact:
+    overrides: "{{ app_def.overrides | default([]) | map('extract', {}) | map('combine', {}) | map('json_query', '{name: name, value: value}') | map('regex_replace', '^(.*)$', '--set {{ item.name }}={{ item.value }}') | list | join(' ') }}"
+  vars:
+    item: "{{ item }}"
+
+- name: Determine if kustomize
+  ansible.builtin.set_fact:
+    is_kustomize: "{{ app_def.kustomize | default(false) | bool }}"
+
+- name: Set chart string for local path
+  ansible.builtin.set_fact:
+    chart_string: "{{ app_def.path }}"
+  when: (app_def.path | default('')) | length > 0 and not is_kustomize
+
+- name: Set chart string for remote chart
+  ansible.builtin.set_fact:
+    chart_string: "oci://quay.io/hybridcloudpatterns/{{ app_def.chart }} --version {{ app_def.chartVersion }}"
+  when: (app_def.path | default('')) | length == 0 and not is_kustomize
+
+- name: Build value files CLI string
+  ansible.builtin.set_fact:
+    value_files_cli: "{{ ['-f'] | product(value_files_list) | map('join', ' ') | list | join(' ') }}"
+
+- name: Render with kustomize
+  when: is_kustomize
+  block:
+    - name: Safely compute repo url
+      ansible.builtin.set_fact:
+        repo_url_safe: "{{ app_def.repoURL | default('', true) }}"
+
+    - name: Compute kustomize path
+      ansible.builtin.set_fact:
+        kustomize_path: >-
+          {{ (repo_url_safe | length > 0 and (repo_url_safe is match('^http') or repo_url_safe is match('^git@')))
+             | ternary(repo_url_safe + '/' + app_def.path, app_def.path) }}
+
+    - name: Run oc kustomize
+      ansible.builtin.shell:
+        cmd: oc kustomize {{ kustomize_path }} > /dev/tty
+        chdir: "{{ pattern_dir }}"
+
+- name: Render with helm
+  when: not is_kustomize
+  block:
+    - name: Run helm template
+      ansible.builtin.shell:
+        cmd: >-
+          helm template {{ chart_string }} --name-template {{ app }} -n {{ app_namespace }}
+          {{ value_files_cli }} {{ overrides | default('') }} {{ cluster_opts }} > /dev/tty
+        chdir: "{{ pattern_dir }}"

@@ -1,0 +1,9 @@
+---
+- name: Argo applications health check
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Run argo healthcheck
+      ansible.builtin.include_role:
+        name: argo_healthcheck

@@ -1,0 +1,49 @@
+---
+- name: Set yq file path
+  ansible.builtin.set_fact:
+    yq_file: "{{ pattern_dir }}/values-{{ hub_clustergroup }}.yaml"
+
+- name: Get existing applications
+  ansible.builtin.command:
+    cmd: |
+      yq '.clusterGroup.applications' {{ yq_file }}
+  register: current_app_list
+  changed_when: false
+
+- name: Set application definition for vault
+  when: application == 'vault'
+  ansible.builtin.set_fact:
+    app_def:
+      name: vault
+      namespace: vault
+      project: "{{ hub_clustergroup }}"
+      chart: hashicorp-vault
+      chartVersion: 0.1.*
+
+- name: Set application definition for golang-external-secrets
+  when: application == 'golang-external-secrets'
+  ansible.builtin.set_fact:
+    app_def:
+      name: golang-external-secrets
+      namespace: golang-external-secrets
+      project: "{{ hub_clustergroup }}"
+      chart: golang-external-secrets
+      chartVersion: 0.1.*
+
+- name: Determine if application exists
+  ansible.builtin.set_fact:
+    app_found: "{{ application in (current_app_list.stdout | from_yaml) }}"
+
+- name: Add application when desired present and not found
+  when:
+    - application_state | default('present') == 'present'
+    - not app_found
+  ansible.builtin.command: >-
+    yq -i '.clusterGroup.applications.{{ app_def.name }} = {{ app_def | to_json }}' {{ yq_file }}
+
+- name: Remove application when desired absent and found
+  when:
+    - application_state | default('present') == 'absent'
+    - app_found
+  ansible.builtin.command: >-
+    yq -i 'del(.clusterGroup.applications.{{ app_def.name }})' {{ yq_file }}

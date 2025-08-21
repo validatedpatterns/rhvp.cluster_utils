@@ -1,0 +1,21 @@
+---
+- name: Prepare preview context
+  ansible.builtin.include_role:
+    name: preview_common
+
+- name: Compute clustergroup chart and namespace
+  ansible.builtin.set_fact:
+    chart_string: "oci://quay.io/hybridcloudpatterns/clustergroup --version {{ values_global.main.multiSourceConfig.clusterGroupChartVersion }}"
+    render_name: "clustergroup"
+    render_namespace: "openshift-operators"
+
+- name: Build value files CLI string
+  ansible.builtin.set_fact:
+    value_files_cli: "{{ ['-f'] | product(value_files_list) | map('join', ' ') | list | join(' ') }}"
+
+- name: Run helm template for clustergroup
+  ansible.builtin.shell:
+    cmd: >-
+      helm template {{ chart_string }} --name-template {{ render_name }} -n {{ render_namespace }}
+      {{ value_files_cli }} {{ cluster_opts }} > /dev/tty
+    chdir: "{{ pattern_dir }}"

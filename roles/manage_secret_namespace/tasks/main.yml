@@ -1,0 +1,29 @@
+---
+- name: Set yq file path
+  ansible.builtin.set_fact:
+    yq_file: "{{ pattern_dir }}/values-{{ hub_clustergroup }}.yaml"
+
+- name: Get existing namespaces
+  ansible.builtin.command:
+    cmd: |
+      yq '.clusterGroup.namespaces' {{ yq_file }}
+  register: current_ns_list
+  changed_when: false
+
+- name: Determine if namespace exists
+  ansible.builtin.set_fact:
+    ns_found: "{{ app_namespace in (current_ns_list.stdout | from_yaml) }}"
+
+- name: Add namespace when desired present and not found
+  when:
+    - namespace_state | default('present') == 'present'
+    - not ns_found
+  ansible.builtin.command: >-
+    yq -i '.clusterGroup.namespaces += [ "{{ app_namespace }}" ]' {{ yq_file }}
+
+- name: Remove namespace when desired absent and found
+  when:
+    - namespace_state | default('present') == 'absent'
+    - ns_found
+  ansible.builtin.command: >-
+    yq -i 'del(.clusterGroup.namespaces[] | select(. == "{{ app_namespace }}"))' {{ yq_file }}

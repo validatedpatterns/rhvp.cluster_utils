@@ -1,8 +1,18 @@
-# This playbook invokes the iib_ci role
 ---
 - name: IIB CI playbook
   hosts: localhost
   connection: local
   gather_facts: false
-  roles:
-    - iib_ci
+  vars:
+    index_images: "{{ lookup('env', 'INDEX_IMAGES') | default('', true) }}"
+  tasks:
+    - name: Validate INDEX_IMAGES is set
+      when: index_images | length == 0
+      ansible.builtin.shell:
+        cmd: |
+          echo "No INDEX_IMAGES defined. Bailing out" > /dev/tty
+          exit 1
+
+    - name: Run IIB CI role
+      ansible.builtin.include_role:
+        name: iib_ci

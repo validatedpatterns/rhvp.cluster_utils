@@ -1,0 +1,25 @@
+---
+- name: Operator deploy (validate prereqs, origin, cluster, then install)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Load defaults
+      ansible.builtin.include_role:
+        name: pattern_defaults
+
+    - name: Validate prerequisites
+      ansible.builtin.include_role:
+        name: validate_prereq
+
+    - name: Validate origin
+      ansible.builtin.include_role:
+        name: validate_origin
+
+    - name: Validate cluster
+      ansible.builtin.include_role:
+        name: validate_cluster
+
+    - name: Deploy pattern
+      ansible.builtin.include_role:
+        name: deploy_pattern
