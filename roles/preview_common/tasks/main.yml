@@ -45,6 +45,7 @@
       --set global.clusterDomain={{ ocp_domain }}
       --set global.clusterVersion={{ ocp_version }}
       --set global.clusterPlatform={{ ocp_platform }}
+      {{ extra_helm_opts }}
 
 - name: Initialize base value files list
   ansible.builtin.set_fact:
