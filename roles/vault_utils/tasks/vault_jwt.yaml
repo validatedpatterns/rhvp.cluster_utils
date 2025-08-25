@@ -1,0 +1,78 @@
+---
+- name: Check vault auth configuration
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: vault auth list -format=json
+  register: vault_auth_json
+  until: "'rc' in vault_auth_json"
+  retries: 20
+  delay: 45
+  changed_when: false
+  failed_when: "'stdout_lines' not in vault_auth_json"
+
+- name: Set vault auth output json fact
+  ansible.builtin.set_fact:
+    vault_auth: "{{ vault_auth_json.stdout | from_json }}"
+  when: vault_auth_json.stdout_lines | length > 0
+
+- name: Set vault auth jwt fact
+  ansible.builtin.set_fact:
+    vault_auth_jwt: "{{ true if 'jwt/' in vault_auth else false }}"
+  when: vault_auth | length > 0
+
+- name: Enable jwt auth
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: vault auth enable jwt
+  when: not vault_auth_jwt
+
+- name: Get router CA certificate
+  kubernetes.core.k8s_info:
+    kind: Secret
+    namespace: openshift-ingress-operator
+    name: router-ca
+    api_version: v1
+  register: router_ca_cert
+  when: not vault_auth_jwt
+
+- name: Copy router CA certificate to vault
+  kubernetes.core.k8s_cp:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    content: "{{ router_ca_cert.resources[0].data['tls.crt'] | b64decode }}"
+    remote_path: /tmp/router-ca.crt
+  when: not vault_auth_jwt
+
+- name: Write JWT configuration
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault write auth/jwt/config
+        oidc_discovery_url={{ oidc_discovery_url }}
+        default_role={{ default_role | default('default') }}
+        oidc_discovery_ca_pem=@/tmp/router-ca.crt
+  when: not vault_auth_jwt
+
+- name: Write JWT role
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault write auth/jwt/role/{{ default_role | default('default') }}
+        role_type=jwt
+        user_claim=sub
+        bound_audiences={{ spiffe_audience }}
+        bound_subject={{ spiffe_subject }}
+        token_ttl={{ token_ttl | default('24h') }}
+        token_policies={{ vault_global_policy }}-secret
+  when: not vault_auth_jwt
+
+- name: Delete router CA certificate
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: rm -f /tmp/router-ca.crt
+  when: not vault_auth_jwt
