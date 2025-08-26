@@ -1,0 +1,16 @@
+---
+- import_tasks: resolve_overrides.yml
+
+- name: Ensure yq is available
+  ansible.builtin.include_role:
+    name: yq_check
+
+- name: Read .main.clusterGroupName from values-global.yaml (yq)
+  ansible.builtin.command: yq -r .main.clusterGroupName values-global.yaml
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: _yq_main_clustergroup
+
+- name: Set _main_clustergroup fact
+  ansible.builtin.set_fact:
+    _main_clustergroup: "{{ _yq_main_clustergroup.stdout | trim }}"

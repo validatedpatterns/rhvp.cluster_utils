@@ -1,0 +1,63 @@
+---
+- import_tasks: resolve_overrides.yml
+
+- name: Validate target_origin is usable
+  ansible.builtin.shell: |
+    printf "ERROR\n" > /dev/tty
+    printf "    No Git remote found for branch '%s' in '%s'.\n" "{{ target_branch }}" "{{ pattern_dir }}" > /dev/tty
+    printf "    Set TARGET_ORIGIN/TARGET_BRANCH or configure a remote for the branch.\n" > /dev/tty
+    exit 1
+  when: (target_origin | default("") | trim) == ""
+
+- name: Get remote URL for {{ target_origin }}
+  ansible.builtin.command: "git remote get-url {{ target_origin }}"
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: _repo_raw
+  failed_when: false
+
+- name: Fail if remote URL cannot be determined
+  ansible.builtin.shell: |
+    printf "ERROR\n" > /dev/tty
+    printf "    Could not resolve URL for remote '%s' in '%s'.\n" "{{ target_origin }}" "{{ pattern_dir }}" > /dev/tty
+    exit 1
+  when: (_repo_raw.rc != 0) or ((_repo_raw.stdout | default("") | trim) == "")
+
+- name: Compute _target_repo (convert SSH→HTTPS if no token_secret)
+  ansible.builtin.set_fact:
+    _target_repo: >-
+      {{
+        (_repo_raw.stdout | trim)
+        if (token_secret | default("") | trim != "")
+        else (
+          (_repo_raw.stdout | trim)
+          | regex_replace('^git@([^:]+):(.+)$', 'https://\1/\2')
+        )
+      }}
+
+- name: Build secret_opts
+  ansible.builtin.set_fact:
+    secret_opts: >-
+      {{
+        "" if (token_secret | default("") | trim == "")
+        else "--set main.tokenSecret=%s --set main.tokenSecretNamespace=%s" | format(token_secret, token_namespace)
+      }}
+
+- name: Build clustergroup_opt
+  ansible.builtin.set_fact:
+    clustergroup_opt: >-
+      {{
+        "" if (target_clustergroup | default("") | trim == "")
+        else "--set main.clusterGroupName=%s" | format(target_clustergroup)
+      }}
+
+
+- name: Assemble _install_helm_opts (string)
+  ansible.builtin.set_fact:
+    _install_helm_opts: >-
+      -f values-global.yaml
+      --set main.git.repoURL="{{ _target_repo }}"
+      --set main.git.revision={{ target_branch }}
+      {{ secret_opts }}
+      {{ clustergroup_opt }}
+      {{ extra_helm_opts }}

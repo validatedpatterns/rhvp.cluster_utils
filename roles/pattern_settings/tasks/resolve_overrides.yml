@@ -1,0 +1,19 @@
+---
+- name: Resolve pattern_dir
+  set_fact:
+    pattern_dir: >-
+      {{
+        pattern_dir
+          | default(lookup("env","PATTERN_DIR"), true)
+          | default(lookup("env","PWD"), true)
+          | default(lookup("pipe","pwd"), true)
+      }}
+
+- name: Resolve pattern_name
+  set_fact:
+    pattern_name: >-
+      {{
+        pattern_name
+          | default(lookup("env","PATTERN_NAME"), true)
+          | default((pattern_dir | basename), true)
+      }}
