@@ -34,6 +34,7 @@ external_secrets_ns: golang-external-secrets
 external_secrets_sa: golang-external-secrets
 unseal_secret: "vaultkeys"
 unseal_namespace: "imperative"
+vault_jwt_config: false
 ```
 
 ## Dependencies
