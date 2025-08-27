@@ -4,7 +4,7 @@
       {{
         pattern_install_chart
           | default(lookup("env", "PATTERN_INSTALL_CHART"), true)
-          | default("oci://quay.io/hybridcloudpatterns/pattern-install", true)
+          | default("oci://quay.io/validatedpatterns/pattern-install", true)
       }}
 
 - name: Resolve target_branch

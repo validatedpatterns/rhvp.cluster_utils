@@ -1,0 +1,35 @@
+---
+- name: Install the pattern via pattern-install chart
+  ansible.builtin.import_playbook: operator_deploy.yml
+
+- name: Decide whether to load secrets
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check if secrets should be loaded
+      ansible.builtin.command: "yq -r '.global.secretLoader.disabled // false' values-global.yaml"
+      args:
+        chdir: "{{ pattern_dir }}"
+      register: _secret_disabled
+      failed_when: false
+
+    - name: Print secret loading enabled message
+      ansible.builtin.shell: printf "==> Loading secrets into Vault (this may take several minutes)...\n" > /dev/tty
+      when: (_secret_disabled.stdout | default("false") | trim | lower) != "true"
+
+    - name: Print secret loading disabled message
+      ansible.builtin.shell: |
+        printf "==> Secrets loading is currently disabled. To enable, update the value of .global.secretLoader.disabled in your values-global.yaml to false.\n" > /dev/tty
+      when: (_secret_disabled.stdout | default("false") | trim | lower) == "true"
+
+    - name: Finish this playbook before running the secrets playbook
+      ansible.builtin.meta: end_host
+      when: (_secret_disabled.stdout | default("false") | trim | lower) == "true"
+
+# These playbooks won't run depending on whether we exit early above when secrets loading is explicitly disabled
+- name: Determine secret store backend
+  ansible.builtin.import_playbook: determine_secretstore_backend.yml
+
+- name: Process secrets
+  ansible.builtin.import_playbook: process_secrets.yml

@@ -1,0 +1,28 @@
+---
+- name: Ensure oc is available
+  ansible.builtin.include_role:
+    name: oc_check
+
+- name: Print cluster validation header
+  ansible.builtin.shell: |
+    printf "==> Checking cluster:\n" > /dev/tty
+
+- name: Check that we are logged into a cluster
+  ansible.builtin.shell: |
+    printf "    cluster-info: " > /dev/tty
+    if oc cluster-info >/dev/null 2>&1; then
+      printf "OK\n" > /dev/tty
+    else
+      printf "Error\n" > /dev/tty
+      exit 1
+    fi
+
+- name: Ensure we have storage classes defined
+  ansible.builtin.shell: |
+    printf "    storageclass: " > /dev/tty
+    count="$(oc get storageclass -o name 2>/dev/null | wc -l | tr -d ' ')"
+    if [ "${count}" -eq 0 ]; then
+      printf "WARNING: No storageclass found\n" > /dev/tty
+    else
+      printf "OK\n" > /dev/tty
+    fi

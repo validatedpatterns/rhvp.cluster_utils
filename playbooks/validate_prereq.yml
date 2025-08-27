@@ -1,0 +1,8 @@
+---
+- name: Validates multisource is enabled and dependencies exist if running outside of utility container
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: pattern_settings # set general pattern vars
+    - role: validate_prereq

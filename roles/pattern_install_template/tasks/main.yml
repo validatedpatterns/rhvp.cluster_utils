@@ -10,7 +10,7 @@
 
 - name: Run helm template
   ansible.builtin.command: >
-    helm template {{ pattern_install_chart }}
+    helm template  --include-crds {{ pattern_install_chart }}
     --name-template {{ pattern_name }}
     {{ _install_helm_opts }}
   args:
@@ -32,5 +32,5 @@
 
 - name: Set rendered YAML fact
   ansible.builtin.set_fact:
-    _pattern_install_rendered_yaml: "{{ _helm_template.stdout }}"
+    pattern_install_rendered_yaml: "{{ _helm_template.stdout }}"
   when: _helm_template.rc == 0
