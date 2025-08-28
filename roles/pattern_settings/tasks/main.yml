@@ -15,4 +15,4 @@
 
 - name: Set fact for main clustergroup
   ansible.builtin.set_fact:
-    main_clustergroupname: "{{ values_global.main.clusterGroupName }}"
+    main_clustergroup: "{{ values_global.main.clusterGroupName }}"
