@@ -1,16 +1,18 @@
 ---
 - import_tasks: resolve_overrides.yml
 
-- name: Ensure yq is available
-  ansible.builtin.include_role:
-    name: yq_check
-
-- name: Read .main.clusterGroupName from values-global.yaml (yq)
-  ansible.builtin.command: yq -r .main.clusterGroupName values-global.yaml
-  args:
-    chdir: "{{ pattern_dir }}"
-  register: _yq_main_clustergroup
-
-- name: Set _main_clustergroup fact
+- name: Load values-global.yaml
   ansible.builtin.set_fact:
-    _main_clustergroup: "{{ _yq_main_clustergroup.stdout | trim }}"
+    values_global: "{{ lookup('file', pattern_dir + '/values-global.yaml') | from_yaml }}"
+
+- name: Fail if main.clusterGroupName is missing
+  ansible.builtin.shell: |
+    printf "ERROR\n" > /dev/tty
+    printf "    values-global.yaml does not define .main.clusterGroupName.\n" > /dev/tty
+    printf "    Please set a value for main.clusterGroupName under the 'main' key.\n" > /dev/tty
+    exit 1
+  when: (values_global.main.clusterGroupName | default('') | string | trim) == ""
+
+- name: Set fact for main clustergroup
+  ansible.builtin.set_fact:
+    main_clustergroupname: "{{ values_global.main.clusterGroupName }}"

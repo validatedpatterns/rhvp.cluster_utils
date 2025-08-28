@@ -3,14 +3,19 @@
   ansible.builtin.shell: |
     printf "==> Checking oc availability... " > /dev/tty
 
-- name: Probe oc version
-  ansible.builtin.shell: oc version -o yaml | yq -r .releaseClientVersion
+- name: Probe oc version (YAML output)
+  ansible.builtin.command: oc version -o yaml
   register: _oc_probe
   failed_when: false
 
+- name: Parse oc version output
+  ansible.builtin.set_fact:
+    _oc_version: "{{ _oc_probe.stdout | from_yaml }}"
+  when: _oc_probe.rc == 0
+
 - name: Report oc version to TTY (if installed)
   ansible.builtin.shell: |
-    printf "OK (%s)\n" "{{ _oc_probe.stdout }}" > /dev/tty
+    printf "OK (%s)\n" "{{ _oc_version.releaseClientVersion | default('unknown') }}" > /dev/tty
   when: _oc_probe.rc == 0
 
 - name: Print oc missing/error message and exit (if not installed)

@@ -3,16 +3,9 @@
   ansible.builtin.shell: |
     printf "Checking origin reachability:\n" > /dev/tty
 
-- name: Read upstream URL from values file (yq)
-  ansible.builtin.command: yq -r '.main.git.repoUpstreamURL // (.main.git.repoUpstreamURL = "")' values-global.yaml
-  args:
-    chdir: "{{ pattern_dir }}"
-  register: _upstream_yq
-  failed_when: false
-
-- name: Set upstream_url (empty if yq failed or value absent)
+- name: Set upstream_url from values-global.yaml
   ansible.builtin.set_fact:
-    _upstream_url: "{{ (_upstream_yq.stdout | default('') | trim) if (_upstream_yq.rc == 0) else '' }}"
+    _upstream_url: "{{ values_global.main.git.repoUpstreamURL | default('') | string | trim }}"
 
 - name: Select URL to validate
   ansible.builtin.set_fact:

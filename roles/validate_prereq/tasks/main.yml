@@ -3,18 +3,15 @@
   ansible.builtin.shell: |
     printf "==> Checking prerequisites...\n" > /dev/tty
 
-- name: Read global.pattern from values-global.yaml
-  ansible.builtin.command: yq -r .global.pattern values-global.yaml
-  args:
-    chdir: "{{ pattern_dir }}"
-  register: _yq_global_pattern
-  failed_when: false
+- name: Extract global.pattern
+  ansible.builtin.set_fact:
+    _global_pattern: "{{ values_global.global.pattern | default('') | string | trim }}"
 
 - name: Warn on pattern name mismatch
   ansible.builtin.shell: |
-    printf "\nWARNING: folder directory is \"%s\" and global.pattern is set to \"%s\"\n" "{{ pattern_name }}" "{{ _yq_global_pattern.stdout | trim }}" > /dev/tty
-    printf "this can create problems. Please make sure they are the same!\n\n" > /dev/tty
-  when: (pattern_name | trim) != (_yq_global_pattern.stdout | default("") | trim)
+    printf "\nWARNING: folder directory is \"%s\" and global.pattern is set to \"%s\"\n" "{{ pattern_name }}" "{{ _global_pattern }}"
+    printf "this can create problems. Please make sure they are the same!\n\n"
+  when: (pattern_name | string | trim) != _global_pattern
 
 - name: Detect whether we are running inside a container
   ansible.builtin.stat:
@@ -47,15 +44,12 @@
 - name: Container validations
   when: _containerenv.stat.exists
   block:
-    - name: Check multiSourceConfig (container)
-      ansible.builtin.command: yq -r '.main.multiSourceConfig.enabled // (.main.multiSourceConfig.enabled = "false")' values-global.yaml
-      args:
-        chdir: "{{ pattern_dir }}"
-      register: _yq_msc_enabled
-      failed_when: false
+    - name: Compute multiSourceConfig.enabled (default false)
+      ansible.builtin.set_fact:
+        _msc_enabled: "{{ values_global.main.multiSourceConfig.enabled | default(false) | bool }}"
 
     - name: Enforce multiSourceConfig is enabled (container)
       ansible.builtin.shell: |
         printf "You must set \".main.multiSourceConfig.enabled: true\" in 'values-global.yaml'.\n" > /dev/tty
         exit 1
-      when: (_yq_msc_enabled.stdout | default("") | trim | lower) != "true"
+      when: not _msc_enabled
