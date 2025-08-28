@@ -10,11 +10,17 @@
     - name: Check values-global to see if secret loading is explicity disabled
       ansible.builtin.set_fact:
         secret_loader_disabled: "{{ values_global.global.secretLoader.disabled | default(false) | bool }}"
-        secret_loader_enabled: "{{ not secret_loader_disabled}}"
 
-    - name: Load secrets
-      ansible.builtin.shell: printf "==> Loading secrets into Vault (this may take several minutes)...\n" > /dev/tty
-      when: secret_loader_enabled
+    - name: Load secrets (when enabled)
+      when: not secret_loader_disabled
+      block:
+        - name: Announce secrets loading
+          ansible.builtin.shell: |
+            printf "==> Loading secrets into Vault (this may take several minutes)...\n" > /dev/tty
+
+        - name: Process secrets via role
+          ansible.builtin.include_role:
+            name: process_secrets
 
     - name: Print secret loading disabled message
       ansible.builtin.shell: |
