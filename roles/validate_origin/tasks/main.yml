@@ -32,7 +32,7 @@
   ansible.builtin.shell: |
     printf "  %s - branch '%s': " "{{ _repo_to_check }}" "{{ target_branch }}" > /dev/tty
 
-- name: Validate remote branch exists
+- name: Validate remote branch exists  # noqa: command-instead-of-module
   ansible.builtin.command: >
     git ls-remote --exit-code --heads {{ _repo_to_check }} {{ target_branch }}
   register: _lsremote
