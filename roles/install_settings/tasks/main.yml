@@ -60,4 +60,5 @@
       --set main.git.revision={{ target_branch }}
       {{ secret_opts }}
       {{ clustergroup_opt }}
+      {{ uuid_helm_opts }}
       {{ extra_helm_opts }}

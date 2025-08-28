@@ -105,3 +105,33 @@
           | default(lookup("env", "EXTRA_HELM_OPTS"), true)
           | default("", false)
       }}
+
+- name: Resolve uuid_helm_opts (from UUID_FILE)
+  block:
+    - name: Seed UUID file path
+      ansible.builtin.set_fact:
+        _uuid_file_path: >-
+          {{
+            uuid_file
+              | default(lookup('env','UUID_FILE'), true)
+              | default((lookup('env','HOME') | default('')) ~ '/.config/validated-patterns/pattern-uuid', true)
+          }}
+
+    - name: Stat UUID file
+      ansible.builtin.stat:
+        path: "{{ _uuid_file_path }}"
+      register: _uuid_stat
+
+    - name: Read UUID (if file exists)
+      ansible.builtin.slurp:
+        path: "{{ _uuid_file_path }}"
+      register: _uuid_slurp
+      when: _uuid_stat.stat.exists
+
+    - name: Compute uuid_helm_opts
+      ansible.builtin.set_fact:
+        uuid_helm_opts: >-
+          {{
+            '' if not _uuid_stat.stat.exists
+            else '--set main.analyticsUUID=' ~ (_uuid_slurp.content | b64decode | trim)
+          }}
