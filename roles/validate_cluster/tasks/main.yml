@@ -19,6 +19,7 @@
 
 - name: Ensure we have storage classes defined
   ansible.builtin.shell: |
+    set -o pipefail
     printf "    storageclass: " > /dev/tty
     count="$(oc get storageclass -o name 2>/dev/null | wc -l | tr -d ' ')"
     if [ "${count}" -eq 0 ]; then

@@ -37,7 +37,7 @@
             printf "==> Applying the following manifest to the cluster:\n\n" > /dev/tty
             printf "%s\n" "{{ pattern_install_rendered_yaml }}" > /dev/tty
 
-        - name: oc apply (stdin) with retry
+        - name: Apply via oc with retry
           ansible.builtin.command: oc apply -f -
           args:
             stdin: "{{ pattern_install_rendered_yaml }}"

@@ -1,6 +1,6 @@
 ---
 - name: Resolve pattern_dir
-  set_fact:
+  ansible.builtin.set_fact:
     pattern_dir: >-
       {{
         pattern_dir
@@ -10,7 +10,7 @@
       }}
 
 - name: Resolve pattern_name
-  set_fact:
+  ansible.builtin.set_fact:
     pattern_name: >-
       {{
         pattern_name

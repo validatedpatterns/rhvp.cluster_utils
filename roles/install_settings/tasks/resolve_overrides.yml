@@ -49,7 +49,7 @@
               | default("", false)
           }}
 
-    - name: Derive via git (when unset)
+    - name: Derive via git (when unset)  # noqa: command-instead-of-module
       ansible.builtin.command: "git config branch.{{ target_branch }}.remote"
       args:
         chdir: "{{ pattern_dir }}"

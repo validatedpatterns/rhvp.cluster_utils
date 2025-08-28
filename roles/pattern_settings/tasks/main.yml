@@ -1,5 +1,6 @@
 ---
-- import_tasks: resolve_overrides.yml
+- name: Resolve defaults with ansible var/env var overrides
+  ansible.builtin.import_tasks: resolve_overrides.yml
 
 - name: Load values-global.yaml
   ansible.builtin.set_fact:

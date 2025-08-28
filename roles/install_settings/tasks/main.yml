@@ -1,5 +1,6 @@
 ---
-- import_tasks: resolve_overrides.yml
+- name: Resolve defaults with ansible var/env var overrides
+  ansible.builtin.import_tasks: resolve_overrides.yml
 
 - name: Validate target_origin is usable
   ansible.builtin.shell: |
@@ -9,7 +10,7 @@
     exit 1
   when: (target_origin | default("") | trim) == ""
 
-- name: Get remote URL for {{ target_origin }}
+- name: Get remote URL for {{ target_origin }}  # noqa: command-instead-of-module
   ansible.builtin.command: "git remote get-url {{ target_origin }}"
   args:
     chdir: "{{ pattern_dir }}"
