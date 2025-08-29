@@ -1,0 +1,3 @@
+secrets_role: "vault_utils"
+tasks_from: "push_parsed_secrets"
+hide_sensitive_output: true
