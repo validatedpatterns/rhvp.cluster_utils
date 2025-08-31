@@ -28,22 +28,59 @@
     command: vault auth enable jwt
   when: not vault_auth_jwt
 
-- name: Get router CA certificate
-  kubernetes.core.k8s_info:
-    kind: Secret
-    namespace: openshift-ingress-operator
-    name: router-ca
-    api_version: v1
-  register: router_ca_cert
-  when: not vault_auth_jwt
+- name: Split url into host and port
+  ansible.builtin.set_fact:
+    oidc_discovery_host: "{{ oidc_discovery_url | urlsplit('hostname') }}"
+    oidc_discovery_port: "{{ oidc_discovery_url | urlsplit('port') | default('443', true) }}"
 
-- name: Copy router CA certificate to vault
-  kubernetes.core.k8s_cp:
+- name: Check if OIDC endpoint is reachable
+  kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
-    content: "{{ router_ca_cert.resources[0].data['tls.crt'] | b64decode }}"
-    remote_path: /tmp/router-ca.crt
+    command: >
+      curl -fsk -o /dev/null -w "%{http_code}" {{ oidc_discovery_url }}/.well-known/openid-configuration
+  register: oidc_discovery_reachable
+  until: oidc_discovery_reachable.rc == 0 and oidc_discovery_reachable.stdout | int == 200
+  retries: 20
+  delay: 45
+  changed_when: false
+  failed_when: oidc_discovery_reachable.rc != 0 or oidc_discovery_reachable.stdout | int != 200
+
+- name: Get OIDC discovery certificate
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      bash -e -c
+      "echo -n | openssl s_client -connect {{ oidc_discovery_host }}:{{ oidc_discovery_port }} -servername {{ oidc_discovery_host }}
+      | openssl x509 -outform PEM > /tmp/oidc-discovery-certificate.pem"
   when: not vault_auth_jwt
+
+- name: Check JWT discovery configuration
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault read auth/jwt/config
+  register: jwt_discovery_config_json
+  changed_when: false
+  when: not vault_auth_jwt
+
+- name: Set jwt_discovery fact
+  ansible.builtin.set_fact:
+    jwt_discovery: "{{ true if jwt_discovery_config_json.stdout_lines | length > 0 else false }}"
+  when: not vault_auth_jwt
+
+- name: Set JWT discovery configuration fact
+  ansible.builtin.set_fact:
+    jwt_discovery_config: "{{ jwt_discovery_config_json.stdout | from_json }}"
+  when: not vault_auth_jwt and jwt_discovery
+
+- name: Set JWT discovery configuration facts
+  ansible.builtin.set_fact:
+    jwt_config_oidc_discovery_url: "{{ jwt_discovery_config.data.oidc_discovery_url }}"
+    jwt_config_default_role: "{{ jwt_discovery_config.data.default_role }}"
+  when: not vault_auth_jwt and jwt_discovery
 
 - name: Write JWT configuration
   kubernetes.core.k8s_exec:
@@ -53,8 +90,39 @@
       vault write auth/jwt/config
         oidc_discovery_url={{ oidc_discovery_url }}
         default_role={{ default_role | default('default') }}
-        oidc_discovery_ca_pem=@/tmp/router-ca.crt
+        oidc_discovery_ca_pem=@/tmp/oidc-discovery-certificate.pem
+  when: not vault_auth_jwt or
+        not jwt_discovery or
+        not jwt_config_oidc_discovery_url == oidc_discovery_url or
+        not jwt_config_default_role == default_role | default('default')
+
+- name: Get JWT role configuration
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault read auth/jwt/role/{{ default_role | default('default') }}
+  register: jwt_role_config_json
+  changed_when: false
   when: not vault_auth_jwt
+
+- name: Set jwt_role fact
+  ansible.builtin.set_fact:
+    jwt_role: "{{ true if jwt_role_config_json.stdout_lines | length > 0 else false }}"
+  when: not vault_auth_jwt
+
+- name: Set JWT role configuration fact
+  ansible.builtin.set_fact:
+    jwt_role_config: "{{ jwt_role_config_json.stdout | from_json }}"
+  when: not vault_auth_jwt and jwt_role
+
+- name: Set JWT role configuration facts
+  ansible.builtin.set_fact:
+    jwt_role_config_bound_audiences: "{{ jwt_role_config.data.bound_audiences[0] | default('') }}"
+    jwt_role_config_bound_subject: "{{ jwt_role_config.data.bound_subject }}"
+    jwt_role_config_token_ttl: "{{ jwt_role_config.data.token_ttl }}"
+    jwt_role_config_token_policies: "{{ jwt_role_config.data.token_policies[0] | default('') }}"
+  when: not vault_auth_jwt and jwt_role
 
 - name: Write JWT role
   kubernetes.core.k8s_exec:
@@ -67,12 +135,17 @@
         bound_audiences={{ spiffe_audience }}
         bound_subject={{ spiffe_subject }}
         token_ttl={{ token_ttl | default('24h') }}
-        token_policies={{ vault_global_policy }}-secret
-  when: not vault_auth_jwt
+        token_policies={{ role_policy | default('{}-secret'.format(vault_global_policy)) }}
+  when: not vault_auth_jwt or
+        not jwt_role or
+        not jwt_role_config_bound_audiences == spiffe_audience or
+        not jwt_role_config_bound_subject == spiffe_subject or
+        not jwt_role_config_token_ttl == token_ttl | default('24h') or
+        not jwt_role_config_token_policies == role_policy | default('{}-secret'.format(vault_global_policy))
 
 - name: Delete router CA certificate
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
-    command: rm -f /tmp/router-ca.crt
+    command: rm -f /tmp/oidc-discovery-certificate.pem
   when: not vault_auth_jwt
