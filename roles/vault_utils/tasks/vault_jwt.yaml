@@ -28,21 +28,19 @@
     command: vault auth enable jwt
   when: not vault_auth_jwt
 
-- name: Get router CA certificate
-  kubernetes.core.k8s_info:
-    kind: Secret
-    namespace: openshift-ingress-operator
-    name: router-ca
-    api_version: v1
-  register: router_ca_cert
-  when: not vault_auth_jwt
+- name: Split url into host and port
+  ansible.builtin.set_fact:
+    oidc_discovery_host: "{{ oidc_discovery_url | urlsplit('hostname') }}"
+    oidc_discovery_port: "{{ '443' if oidc_discovery_url | urlsplit('port') == '' else oidc_discovery_url | urlsplit('port') }}"
 
-- name: Copy router CA certificate to vault
-  kubernetes.core.k8s_cp:
+- name: Get OIDC discovery certificate
+  kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
-    content: "{{ router_ca_cert.resources[0].data['tls.crt'] | b64decode }}"
-    remote_path: /tmp/router-ca.crt
+    command: >
+      bash -e -c
+      "echo -n | openssl s_client -connect {{ oidc_discovery_host }}:{{ oidc_discovery_port }} -servername {{ oidc_discovery_host }}
+      | openssl x509 -outform PEM > /tmp/oidc-discovery-certificate.pem"
   when: not vault_auth_jwt
 
 - name: Write JWT configuration
@@ -53,7 +51,7 @@
       vault write auth/jwt/config
         oidc_discovery_url={{ oidc_discovery_url }}
         default_role={{ default_role | default('default') }}
-        oidc_discovery_ca_pem=@/tmp/router-ca.crt
+        oidc_discovery_ca_pem=@/tmp/oidc-discovery-certificate.pem
   when: not vault_auth_jwt
 
 - name: Write JWT role
@@ -67,12 +65,12 @@
         bound_audiences={{ spiffe_audience }}
         bound_subject={{ spiffe_subject }}
         token_ttl={{ token_ttl | default('24h') }}
-        token_policies={{ vault_global_policy }}-secret
+        token_policies={{ role_policy | default('{}-secret'.format(vault_global_policy)) }}
   when: not vault_auth_jwt
 
 - name: Delete router CA certificate
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
-    command: rm -f /tmp/router-ca.crt
+    command: rm -f /tmp/oidc-discovery-certificate.pem
   when: not vault_auth_jwt
