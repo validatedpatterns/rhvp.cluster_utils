@@ -13,9 +13,13 @@
   ansible.builtin.meta: end_play
   when: resources | length == 0 or managed_clusters.failed or not managed_clusters.api_found
 
-- name: Loop over returned ACM managedclusters
+# These three loops are not done in one pass because sometimes the managedCluster is not fully
+# populated with all the attributes from the start
+- name: Loop over returned ACM managedclusters caBundle and name
   ansible.builtin.set_fact:
-    clusters: "{{ clusters | default({}) | combine({item.metadata.name: {'caBundle': item.spec.managedClusterClientConfigs[0].caBundle | b64decode}}) }}"
+    clusters: "{{ clusters | default({}) | combine({item.metadata.name:
+      {'caBundle': item.spec.managedClusterClientConfigs[0].caBundle | b64decode,
+       'name': item.metadata.name}}) }}"
   loop: "{{ resources }}"
   when: item.spec.managedClusterClientConfigs[0].caBundle is defined
   loop_control:
@@ -29,20 +33,76 @@
   loop_control:
     label: "{{ item.metadata.name }}"
 
+- name: Loop over returned ACM managedclusters url
+  ansible.builtin.set_fact:
+    clusters: "{{ clusters | default({}) | combine({item.metadata.name:
+    {'server_api': item.spec.managedClusterClientConfigs[0].url,
+     'cluster_fqdn': item.spec.managedClusterClientConfigs[0].url | ansible.builtin.urlsplit('hostname') | regex_replace('^api\\.', '')}}, recursive=True) }}"
+  loop: "{{ resources }}"
+  when: item.spec.managedClusterClientConfigs[0].url is defined
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# vault_path is 'hub' when 'local-cluster' and fqdn otherwise
+- name: Loop over clusters to set the vault_path
+  ansible.builtin.set_fact:
+    clusters: "{{ clusters | default({}) |
+      combine({item.key: {'vault_path': (item.value.name == 'local-cluster') | ternary('hub', item.value.cluster_fqdn)}}, recursive=True) }}"
+  loop: "{{ clusters | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# These three steps will only work on ACM 2.12 which uses these secrets to connect to the spokes
 - name: Fetch all ACM secrets
   kubernetes.core.k8s_info:
     kind: Secret
     label_selectors:
     - "apps.open-cluster-management.io/secret-type=acm-cluster"
-  register: acm_secrets
+  register: acm_secrets_raw
+
+- name: Set acm secrets fact
+  ansible.builtin.set_fact:
+    acm_secrets: "{{ acm_secrets_raw.resources }}"
 
 - name: Set cleaned_acm_secrets fact
   ansible.builtin.set_fact:
-    cleaned_acm_secrets: "{{ acm_secrets.resources | rhvp.cluster_utils.parse_acm_secrets }}"
+    cleaned_acm_secrets: "{{ acm_secrets | rhvp.cluster_utils.parse_acm_secrets }}"
+  when: acm_secrets | length > 0
 
 - name: Merge the two dicts together
   ansible.builtin.set_fact:
     clusters_info: "{{ clusters | default({}) | combine(cleaned_acm_secrets, recursive=True) }}"
+  when: acm_secrets | length > 0
+
+# These steps will only work on ACM >= 2.13 which uses managed service accounts to connect to remote spokes
+# ACM creates a namespace named like the remote cluster and we loop those
+- name: Get the ACM secrets when on ACM >=2.13
+  kubernetes.core.k8s_info:
+    kind: Secret
+    namespace: "{{ item.metadata.name }}"
+    name: application-manager
+  register: msa_secrets
+  loop: "{{ resources }}"
+  when: acm_secrets | length == 0
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+# We use item.item.metadata.name because the item used in the loop to fetch the
+# secret is a managedcluster type
+- name: Loop over returned ACM managedclusters url
+  ansible.builtin.set_fact:
+    clusters: "{{ clusters | default({}) | combine({item.item.metadata.name: {'bearerToken': item.resources[0].data.token | b64decode }}, recursive=True) }}"
+  loop: "{{ msa_secrets.results }}"
+  when:
+    - acm_secrets | length == 0
+    - msa_secrets.results | length > 0
+  loop_control:
+    label: "{{ item.item.metadata.name }}"
+
+- name: Set cluster_info fact
+  ansible.builtin.set_fact:
+    clusters_info: "{{ clusters }}"
+  when: acm_secrets | length == 0
 
 - name: Write out CAs
   ansible.builtin.copy:
@@ -110,9 +170,6 @@
 #   "esoToken": (optional) only if there was an external golang-external-secrets namespace+service account
 #   "name": "mcg-one",
 #   "server_api": "https://api.mcg-one.blueprints.rhecoeng.com:6443",
-#   "tlsClientConfig": {
-#     "insecure": true
-#   }
 # }
 - name: Dump CABundles into the vault
   kubernetes.core.k8s_exec:
