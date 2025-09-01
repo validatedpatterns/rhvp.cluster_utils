@@ -1,0 +1,50 @@
+---
+- name: Announce repository check
+  ansible.builtin.shell: |
+    printf "Checking origin reachability:\n" > /dev/tty
+
+- name: Set upstream_url from values-global.yaml
+  ansible.builtin.set_fact:
+    _upstream_url: "{{ values_global.main.git.repoUpstreamURL | default('') | string | trim }}"
+
+- name: Select URL to validate
+  ansible.builtin.set_fact:
+    _repo_to_check: >-
+      {{
+        (_upstream_url if (_upstream_url | trim != '') else _target_repo) | trim
+      }}
+
+- name: Print upstream notice (if present)
+  ansible.builtin.shell: |
+    printf "Upstream URL set to: %s\n" "{{ _upstream_url }}" > /dev/tty
+  when: _upstream_url | trim != ''
+
+- name: Fail if repo URL is empty
+  ansible.builtin.shell: |
+    printf "  (no repository URL available)\n" > /dev/tty
+    printf "ERROR\n" > /dev/tty
+    printf "    Could not determine repository URL to validate.\n" > /dev/tty
+    printf "    Ensure _target_repo is resolved (install_settings role) or set an upstream URL in values-global.yaml.\n" > /dev/tty
+    exit 1
+  when: _repo_to_check == ''
+
+- name: Print URL/branch header
+  ansible.builtin.shell: |
+    printf "  %s - branch '%s': " "{{ _repo_to_check }}" "{{ target_branch }}" > /dev/tty
+
+- name: Validate remote branch exists  # noqa: command-instead-of-module
+  ansible.builtin.command: >
+    git ls-remote --exit-code --heads {{ _repo_to_check }} {{ target_branch }}
+  register: _lsremote
+  failed_when: false
+
+- name: Report OK
+  ansible.builtin.shell: |
+    printf "OK\n" > /dev/tty
+  when: _lsremote.rc == 0
+
+- name: Report NOT FOUND and exit
+  ansible.builtin.shell: |
+    printf "NOT FOUND\n" > /dev/tty
+    exit 1
+  when: _lsremote.rc != 0

@@ -1,0 +1,9 @@
+---
+- name: Validates that we are logged into a cluster with a default storage class
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: pattern_settings # set general pattern vars
+    - role: install_settings # set pattern-install specific vars
+    - role: validate_cluster

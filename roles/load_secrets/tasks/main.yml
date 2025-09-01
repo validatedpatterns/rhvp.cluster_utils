@@ -1,0 +1,48 @@
+---
+- name: Set fact for secretStore backend
+  ansible.builtin.set_fact:
+    secrets_backing_store: "{{ values_global.global.secretStore.backend | default('vault') }}"
+
+- name: Run secret-loading pre-requisites
+  ansible.builtin.include_role:
+    name: "{{ item }}"
+  loop:
+    - cluster_pre_check
+    - find_vp_secrets
+
+- name: Fail if values_secrets_data is missing
+  ansible.builtin.shell: |
+    printf "ERROR\n" > /dev/tty
+    printf "    values_secrets_data was not found.\n" > /dev/tty
+    printf "    The find_vp_secrets role should set it.\n" > /dev/tty
+    printf "    Ensure your values/secret files are present and readable.\n" > /dev/tty
+    exit 1
+  when: values_secrets_data is not defined
+
+- name: Determine how to load secrets
+  ansible.builtin.set_fact:
+    secrets_yaml: "{{ values_secrets_data | from_yaml }}"
+
+- name: Parse secrets data
+  no_log: "{{ hide_sensitive_output | default(true) }}"
+  parse_secrets_info:
+    values_secrets_plaintext: "{{ values_secrets_data }}"
+    secrets_backing_store: "{{ secrets_backing_store }}"
+  register: secrets_results
+
+- name: Select Kubernetes secrets loader (when requested)
+  ansible.builtin.set_fact:
+    secrets_role: "k8s_secret_utils"
+    tasks_from: "inject_k8s_secrets"
+  when:
+    - secrets_backing_store in ["kubernetes", "none"]
+    - (secrets_yaml.version | default('2.0')) is version('2.0', '>=')
+
+- name: Load secrets using designated role and tasks
+  ansible.builtin.include_role:
+    name: "{{ secrets_role }}"
+    tasks_from: "{{ tasks_from }}"
+  vars:
+    kubernetes_secret_objects: "{{ secrets_results.kubernetes_secret_objects }}"
+    vault_policies: "{{ secrets_results.vault_policies }}"
+    parsed_secrets: "{{ secrets_results.parsed_secrets }}"

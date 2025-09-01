@@ -1,11 +1,6 @@
 ---
 name: Ansible unit tests
 
-#
-# Documentation:
-# https://help.github.com/en/articles/workflow-syntax-for-github-actions
-#
-
 on: [push, pull_request]
 
 jobs:
@@ -16,12 +11,15 @@ jobs:
         python-version: [3.11.3, 3.12.6]
         ansible-core: ["2.16.*"]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: ansible_collections/rhvp/cluster_utils
+          persist-credentials: false
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
