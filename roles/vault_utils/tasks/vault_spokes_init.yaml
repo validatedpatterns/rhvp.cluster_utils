@@ -19,8 +19,7 @@
   ansible.builtin.set_fact:
     clusters: "{{ clusters | default({}) | combine({item.metadata.name:
       {'caBundle': item.spec.managedClusterClientConfigs[0].caBundle | b64decode,
-       'name': item.metadata.name}
-      }) }}"
+       'name': item.metadata.name}}) }}"
   loop: "{{ resources }}"
   when: item.spec.managedClusterClientConfigs[0].caBundle is defined
   loop_control:
@@ -35,7 +34,7 @@
     label: "{{ item.metadata.name }}"
 
 - name: Loop over returned ACM managedclusters url
-  ansible.builtin.set_fact: 
+  ansible.builtin.set_fact:
     clusters: "{{ clusters | default({}) | combine({item.metadata.name:
     {'server_api': item.spec.managedClusterClientConfigs[0].url,
      'cluster_fqdn': item.spec.managedClusterClientConfigs[0].url | ansible.builtin.urlsplit('hostname') | regex_replace('^api\\.', '')}}, recursive=True) }}"
@@ -46,8 +45,8 @@
 
 # vault_path is 'hub' when 'local-cluster' and fqdn otherwise
 - name: Loop over clusters to set the vault_path
-  ansible.builtin.set_fact: 
-    clusters: "{{ clusters | default({}) | 
+  ansible.builtin.set_fact:
+    clusters: "{{ clusters | default({}) |
       combine({item.key: {'vault_path': (item.value.name == 'local-cluster') | ternary('hub', item.value.cluster_fqdn)}}, recursive=True) }}"
   loop: "{{ clusters | dict2items }}"
   loop_control:
@@ -94,7 +93,7 @@
   ansible.builtin.set_fact:
     clusters: "{{ clusters | default({}) | combine({item.item.metadata.name: {'bearerToken': item.resources[0].data.token | b64decode }}, recursive=True) }}"
   loop: "{{ msa_secrets.results }}"
-  when: 
+  when:
     - acm_secrets | length == 0
     - msa_secrets.results | length > 0
   loop_control:
