@@ -13,7 +13,7 @@
   ansible.builtin.meta: end_play
   when: resources | length == 0 or managed_clusters.failed or not managed_clusters.api_found
 
-- name: Loop over returned ACM managedclusters
+- name: Loop over returned ACM managedclusters caBundle
   ansible.builtin.set_fact:
     clusters: "{{ clusters | default({}) | combine({item.metadata.name: {'caBundle': item.spec.managedClusterClientConfigs[0].caBundle | b64decode}}) }}"
   loop: "{{ resources }}"
@@ -26,6 +26,14 @@
     clusters: "{{ clusters | default({}) | combine({item.metadata.name: {'clusterGroup': item.metadata.labels.clusterGroup}}, recursive=True) }}"
   when: "'clusterGroup' in item.metadata.labels"
   loop: "{{ resources }}"
+  loop_control:
+    label: "{{ item.metadata.name }}"
+
+- name: Loop over returned ACM managedclusters url
+  ansible.builtin.set_fact:
+    clusters: "{{ clusters | default({}) | combine({item.metadata.name: {'server_api': item.spec.managedClusterClientConfigs[0].url }}, recursive=True) }}"
+  loop: "{{ resources }}"
+  when: item.spec.managedClusterClientConfigs[0].url is defined
   loop_control:
     label: "{{ item.metadata.name }}"
 

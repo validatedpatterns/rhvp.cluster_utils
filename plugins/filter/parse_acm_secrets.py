@@ -13,7 +13,6 @@
 # <acm-name>:
 #  name: <acm-name>
 #  cluster_fqdn: <fqdn-without-api-prefix>
-#  server_api: https://api.<cluster_fqdn>:6443
 #  bearerToken: <bearerToken to access remote cluster>
 #  tlsClientConfig: <tlsClientConfig in ACM config field>
 #  vault_path: "hub" when it is the ACM hub or <fqdn-without-api-prefix> in the other cases
@@ -62,7 +61,6 @@ def parse_acm_secrets(secrets):
         ret[cluster] = {}
         name = b64decode(secret["data"]["name"])
         ret[cluster]["name"] = name
-        ret[cluster]["server_api"] = b64decode(secret["data"]["server"])
         fqdn = get_cluster_fqdn(secret)
         ret[cluster]["cluster_fqdn"] = fqdn
         if is_cluster_a_hub(name):
