@@ -9,7 +9,7 @@
   retries: 20
   delay: 45
   changed_when: false
-  failed_when: "'stdout_lines' not in vault_auth_json"
+  failed_when: "'stdout_lines' not in vault_auth_json or vault_auth_json.stdout_lines | length == 0"
 
 - name: Set vault auth output json fact
   ansible.builtin.set_fact:
@@ -79,6 +79,8 @@
       bash -e -c
       "echo -n | openssl s_client -connect {{ oidc_discovery_host }}:{{ oidc_discovery_port }} -servername {{ oidc_discovery_host }}
       | openssl x509 -outform PEM > /tmp/oidc-discovery-certificate.pem"
+  retries: 10
+  delay: 30
   when: not vault_auth_jwt or
         not jwt_discovery or
         not jwt_config_oidc_discovery_url == oidc_discovery_url or
@@ -93,6 +95,8 @@
         oidc_discovery_url={{ oidc_discovery_url }}
         default_role={{ default_role | default('default') }}
         oidc_discovery_ca_pem=@/tmp/oidc-discovery-certificate.pem
+  retries: 10
+  delay: 30
   when: not vault_auth_jwt or
         not jwt_discovery or
         not jwt_config_oidc_discovery_url == oidc_discovery_url or
