@@ -121,11 +121,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 5
+            assert mock_run_command.call_count == 6
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -170,11 +174,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 11
+            assert mock_run_command.call_count == 12
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -343,11 +351,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 2
+            assert mock_run_command.call_count == 3
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -378,11 +390,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 7
+            assert mock_run_command.call_count == 8
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -433,11 +449,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 4
+            assert mock_run_command.call_count == 5
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -508,11 +528,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 2
+            assert mock_run_command.call_count == 3
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -562,11 +586,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 6
+            assert mock_run_command.call_count == 7
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -634,11 +662,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 5
+            assert mock_run_command.call_count == 6
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(
@@ -698,11 +730,15 @@ class TestMyModule(unittest.TestCase):
             self.assertTrue(
                 result.exception.args[0]["changed"]
             )  # ensure result is changed
-            assert mock_run_command.call_count == 5
+            assert mock_run_command.call_count == 6
 
         calls = [
             call(
                 'echo \'length=20\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\nrule "charset" { charset = "!@#%^&*" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/validatedPatternDefaultPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/validatedPatternDefaultPolicy  policy=@/tmp/validatedPatternDefaultPolicy.hcl\'',  # noqa: E501
+                attempts=3,
+            ),
+            call(
+                'echo \'length=32\nrule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\nrule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\nrule "charset" { charset = "0123456789" min-chars = 1 }\n\' | oc exec -n vault vault-0 -i -- sh -c \'cat - > /tmp/alphanumericPolicy.hcl\';oc exec -n vault vault-0 -i -- sh -c \'vault write sys/policies/password/alphanumericPolicy  policy=@/tmp/alphanumericPolicy.hcl\'',  # noqa: E501
                 attempts=3,
             ),
             call(

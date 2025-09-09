@@ -30,6 +30,12 @@ DEFAULT_KUBERNETES_SECRET_OBJECT = {
 }
 
 DEFAULT_VAULT_POLICIES = {
+    "alphanumericPolicy": (
+        "length=32\n"
+        'rule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\n'  # noqa: E501
+        'rule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\n'  # noqa: E501
+        'rule "charset" { charset = "0123456789" min-chars = 1 }\n'
+    ),
     "validatedPatternDefaultPolicy": (
         "length=20\n"
         'rule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\n'  # noqa: E501
