@@ -1,0 +1,30 @@
+---
+- name: Validates pattern conforms to cluster group schema for all values files
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: pattern_settings # set general pattern vars
+
+  tasks:
+    - name: Set clustergroup chart fact
+      ansible.builtin.set_fact:
+        clustergroup_chart: >-
+          {{
+            clustergroup_chart
+              | default(lookup("env", "CLUSTERGROUP_CHART"), true)
+              | default("oci://quay.io/validatedpatterns/clustergroup", true)
+          }}
+
+    - name: Set extra helm opts fact
+      ansible.builtin.set_fact:
+        extra_helm_opts: >-
+          {{
+            extra_helm_opts
+              | default(lookup("env", "EXTRA_HELM_OPTS"), true)
+              | default("", false)
+          }}
+
+    - name: Validate schema
+      ansible.builtin.include_role:
+        name: validate_schema

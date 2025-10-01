@@ -1,0 +1,8 @@
+---
+- name: Checks sync status and health of all ArgoCD applications installed in cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: oc_check
+    - role: argo_healthcheck
