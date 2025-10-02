@@ -91,7 +91,7 @@
 # secret is a managedcluster type
 - name: Loop over returned ACM managedclusters url
   ansible.builtin.set_fact:
-    clusters: "{{ clusters | default({}) | combine({item.item.metadata.name: {'bearerToken': item.resources[0].data.token | b64decode }}, recursive=True) }}"
+    clusters: "{{ clusters | default({}) | combine({item.item.metadata.name: {'bearerToken': item.resources[0].data.token | b64decode}}, recursive=True) }}"
   loop: "{{ msa_secrets.results }}"
   when:
     - acm_secrets | length == 0
