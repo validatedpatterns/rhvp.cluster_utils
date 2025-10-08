@@ -174,10 +174,7 @@ class SecretsV2Base:
 
     def _get_vault_policies(self, enable_default_vp_policies=True):
         # We start off with the hard-coded default VP policy and add the user-defined ones
-        if enable_default_vp_policies:
-            policies = default_vp_vault_policies.copy()
-        else:
-            policies = {}
+        policies = default_vp_vault_policies.copy() if enable_default_vp_policies else {}
         policies.update(self.syaml.get("vaultPolicies", {}))
         return policies
 
@@ -322,22 +319,23 @@ class SecretsV2Base:
 
     def _get_secret_value(self, name, field):
         on_missing_value = self._get_field_on_missing_value(field)
-        # We cannot use match + case as RHEL8 has python 3.9 (it needs 3.10)
         # We checked for errors in _validate_secrets() already
-        if on_missing_value == "error":
-            value = field.get("value")
-            # Allow subclasses to override value processing
-            return self._process_secret_value(value)
-        elif on_missing_value == "prompt":
-            prompt = self._get_field_prompt(field)
-            if prompt is None:
-                prompt = f"Type secret for {name}/{field['name']}: "
-            value = self._get_field_value(field)
-            if value is not None:
-                prompt += f" [{value}]"
-            prompt += ": "
-            return getpass.getpass(prompt)
-        return None
+        match on_missing_value:
+            case "error":
+                value = field.get("value")
+                # Allow subclasses to override value processing
+                return self._process_secret_value(value)
+            case "prompt":
+                prompt = self._get_field_prompt(field)
+                if prompt is None:
+                    prompt = f"Type secret for {name}/{field['name']}: "
+                value = self._get_field_value(field)
+                if value is not None:
+                    prompt += f" [{value}]"
+                prompt += ": "
+                return getpass.getpass(prompt)
+            case _:
+                return None
 
     def _process_secret_value(self, value):
         """
@@ -347,25 +345,26 @@ class SecretsV2Base:
 
     def _get_file_path(self, name, field):
         on_missing_value = self._get_field_on_missing_value(field)
-        if on_missing_value == "error":
-            return os.path.expanduser(field.get("path"))
-        elif on_missing_value == "prompt":
-            prompt = self._get_field_prompt(field)
-            path = self._get_field_path(field)
-            if path is None:
-                path = ""
+        match on_missing_value:
+            case "error":
+                return os.path.expanduser(field.get("path"))
+            case "prompt":
+                prompt = self._get_field_prompt(field)
+                path = self._get_field_path(field)
+                if path is None:
+                    path = ""
 
-            if prompt is None:
-                text = f"Type path for file {name}/{field['name']} [{path}]: "
-            else:
-                text = f"{prompt} [{path}]: "
+                if prompt is None:
+                    text = f"Type path for file {name}/{field['name']} [{path}]: "
+                else:
+                    text = f"{prompt} [{path}]: "
 
-            newpath = getpass.getpass(text)
-            if newpath == "":  # Set the default if no string was entered
-                newpath = path
+                newpath = getpass.getpass(text)
+                if newpath == "":  # Set the default if no string was entered
+                    newpath = path
 
-            if os.path.isfile(os.path.expanduser(newpath)):
-                return newpath
-            self.module.fail_json(f"File {newpath} not found, exiting")
-
-        self.module.fail_json("File with wrong onMissingValue")
+                if os.path.isfile(os.path.expanduser(newpath)):
+                    return newpath
+                self.module.fail_json(f"File {newpath} not found, exiting")
+            case _:
+                self.module.fail_json("File with wrong onMissingValue")
