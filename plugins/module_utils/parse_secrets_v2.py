@@ -25,21 +25,13 @@ import getpass
 import os
 
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    default_vp_vault_policies,
     find_dupes,
     get_ini_value,
     get_version,
     stringify_dict,
 )
 
-default_vp_vault_policies = {
-    "validatedPatternDefaultPolicy": (
-        "length=20\n"
-        'rule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\n'
-        'rule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\n'
-        'rule "charset" { charset = "0123456789" min-chars = 1 }\n'
-        'rule "charset" { charset = "!@#%^&*" min-chars = 1 }\n'
-    )
-}
 
 secret_store_namespace = "validated-patterns-secrets"
 
