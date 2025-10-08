@@ -174,7 +174,9 @@ class SecretsV2Base:
 
     def _get_vault_policies(self, enable_default_vp_policies=True):
         # We start off with the hard-coded default VP policy and add the user-defined ones
-        policies = default_vp_vault_policies.copy() if enable_default_vp_policies else {}
+        policies = (
+            default_vp_vault_policies.copy() if enable_default_vp_policies else {}
+        )
         policies.update(self.syaml.get("vaultPolicies", {}))
         return policies
 
@@ -221,99 +223,137 @@ class SecretsV2Base:
         return bool(f.get("override", False))
 
     def _validate_field(self, f):
-        # These fields are mandatory
-        try:
-            unused = f["name"]
-        except KeyError:
+        # Check mandatory fields
+        if "name" not in f:
             return (False, f"Field {f} is missing name")
 
         on_missing_value = self._get_field_on_missing_value(f)
         if on_missing_value not in ["error", "generate", "prompt"]:
             return (False, f"onMissingValue: {on_missing_value} is invalid")
 
-        value = self._get_field_value(f)
-        path = self._get_field_path(f)
-        ini_file = self._get_field_ini_file(f)
+        # Validate field structure and types
+        result = self._validate_field_structure(f)
+        if not result[0]:
+            return result
+
+        # Validate vault policy
+        result = self._validate_vault_policy(f)
+        if not result[0]:
+            return result
+
+        # Validate based on onMissingValue type
+        match on_missing_value:
+            case "error":
+                return self._validate_error_mode(f)
+            case "generate":
+                return self._validate_generate_mode(f)
+            case "prompt":
+                return self._validate_prompt_mode(f)
+
+        return (True, "")
+
+    def _validate_field_structure(self, f):
+        """Validate field structure and basic types"""
         kind = self._get_field_kind(f)
         if kind == "ini_file":
-            # if we are using ini_file then at least ini_key needs to be defined
-            # ini_section defaults to 'default' when omitted
             ini_key = f.get("ini_key", None)
             if ini_key is None:
-                return (
-                    False,
-                    "ini_file requires at least ini_key to be defined",
-                )
+                return (False, "ini_file requires at least ini_key to be defined")
 
-        # Test if base64 is a correct boolean (defaults to False)
-        unused = self._get_field_base64(f)
-        unused = self._get_field_override(f)
+        # Test if base64 and override are correct booleans
+        self._get_field_base64(f)
+        self._get_field_override(f)
 
+        return (True, "")
+
+    def _validate_vault_policy(self, f):
+        """Validate vault policy exists if specified"""
         vault_policy = f.get("vaultPolicy", None)
         if vault_policy is not None and vault_policy not in self._get_vault_policies():
             return (
                 False,
                 f"Secret has vaultPolicy set to {vault_policy} but no such policy exists",
             )
+        return (True, "")
 
-        if on_missing_value in ["error"]:
-            if (
-                (value is None or len(value) < 1)
-                and (path is None or len(path) < 1)
-                and (ini_file is None or len(ini_file) < 1)
-            ):
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'error' and has neither value nor path nor ini_file set",
-                )
-            if path is not None and not os.path.isfile(os.path.expanduser(path)):
-                return (False, f"Field has non-existing path: {path}")
+    def _validate_error_mode(self, f):
+        """Validate fields when onMissingValue is 'error'"""
+        value = self._get_field_value(f)
+        path = self._get_field_path(f)
+        ini_file = self._get_field_ini_file(f)
 
-            if ini_file is not None and not os.path.isfile(
-                os.path.expanduser(ini_file)
-            ):
-                return (False, f"Field has non-existing ini_file: {ini_file}")
+        # Check that at least one source is provided and not empty
+        if (
+            (value is None or len(value) < 1)
+            and (path is None or len(path) < 1)
+            and (ini_file is None or len(ini_file) < 1)
+        ):
+            return (
+                False,
+                "Secret has onMissingValue set to 'error' and has neither value nor path nor ini_file set",
+            )
 
-            if "override" in f:
-                return (
-                    False,
-                    "'override' attribute requires 'onMissingValue' to be set to 'generate'",
-                )
+        # Validate file paths exist
+        if path is not None and not os.path.isfile(os.path.expanduser(path)):
+            return (False, f"Field has non-existing path: {path}")
 
-        if on_missing_value in ["generate"]:
-            if value is not None:
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'generate' but has a value set",
-                )
-            if path is not None:
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'generate' but has a path set",
-                )
-            if vault_policy is None:
-                return (
-                    False,
-                    "Secret has no vaultPolicy but onMissingValue is set to 'generate'",
-                )
+        if ini_file is not None and not os.path.isfile(os.path.expanduser(ini_file)):
+            return (False, f"Field has non-existing ini_file: {ini_file}")
 
-        if on_missing_value in ["prompt"]:
-            # When we prompt, the user needs to set one of the following:
-            # - value: null # prompt for a secret without a default value
-            # - value: 123 # prompt for a secret but use a default value
-            # - path: null # prompt for a file path without a default value
-            # - path: /tmp/ca.crt # prompt for a file path with a default value
-            if "value" not in f and "path" not in f:
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'prompt' but has no value nor path fields",
-                )
+        # Override not allowed in error mode
+        if "override" in f:
+            return (
+                False,
+                "'override' attribute requires 'onMissingValue' to be set to 'generate'",
+            )
 
-            if "override" in f:
-                return (
-                    False,
-                    "'override' attribute requires 'onMissingValue' to be set to 'generate'",
-                )
+        return (True, "")
+
+    def _validate_generate_mode(self, f):
+        """Validate fields when onMissingValue is 'generate'"""
+        value = self._get_field_value(f)
+        path = self._get_field_path(f)
+        vault_policy = f.get("vaultPolicy", None)
+
+        if value is not None:
+            return (
+                False,
+                "Secret has onMissingValue set to 'generate' but has a value set",
+            )
+
+        if path is not None:
+            return (
+                False,
+                "Secret has onMissingValue set to 'generate' but has a path set",
+            )
+
+        if vault_policy is None:
+            return (
+                False,
+                "Secret has no vaultPolicy but onMissingValue is set to 'generate'",
+            )
+
+        return (True, "")
+
+    def _validate_prompt_mode(self, f):
+        """Validate fields when onMissingValue is 'prompt'"""
+        # When we prompt, the user needs to set one of the following:
+        # - value: null # prompt for a secret without a default value
+        # - value: 123 # prompt for a secret but use a default value
+        # - path: null # prompt for a file path without a default value
+        # - path: /tmp/ca.crt # prompt for a file path with a default value
+        if "value" not in f and "path" not in f:
+            return (
+                False,
+                "Secret has onMissingValue set to 'prompt' but has no value nor path fields",
+            )
+
+        # Override not allowed in prompt mode
+        if "override" in f:
+            return (
+                False,
+                "'override' attribute requires 'onMissingValue' to be set to 'generate'",
+            )
 
         return (True, "")
 

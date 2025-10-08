@@ -18,6 +18,7 @@ super-linter: ## Runs super linter locally
 					-e VALIDATE_JSON_PRETTIER=false \
 					-e VALIDATE_MARKDOWN_PRETTIER=false \
 					-e VALIDATE_PYTHON_PYLINT=false \
+					-e VALIDATE_PYTHON_PYINK=false \
 					-e VALIDATE_PYTHON_RUFF_FORMAT=false \
 					-e VALIDATE_SHELL_SHFMT=false \
 					-e VALIDATE_YAML=false \

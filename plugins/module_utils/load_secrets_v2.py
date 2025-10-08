@@ -25,10 +25,10 @@ import os
 import time
 
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    SecretsV2Base,
     find_dupes,
     get_ini_value,
     get_version,
-    SecretsV2Base,
 )
 
 

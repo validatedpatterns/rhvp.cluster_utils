@@ -24,13 +24,12 @@ import base64
 import os
 
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    SecretsV2Base,
     find_dupes,
     get_ini_value,
     get_version,
     stringify_dict,
-    SecretsV2Base,
 )
-
 
 secret_store_namespace = "validated-patterns-secrets"
 
