@@ -163,79 +163,103 @@ class LoadSecretsV2(SecretsV2Base):
         return False
 
     def _inject_field(self, secret_name, f, mount, prefixes, first=False):
-        on_missing_value = self._get_field_on_missing_value(f)
-        override = self._get_field_override(f)
-        kind = self._get_field_kind(f)
-        # If we're generating the password then we just push the secret in the vault directly
         verb = "put" if first else "patch"
+        kind = self._get_field_kind(f)
+
+        match kind:
+            case "value" | "":
+                self._inject_value_field(secret_name, f, mount, prefixes, verb)
+            case "path":
+                self._inject_path_field(secret_name, f, mount, prefixes, verb)
+            case "ini_file":
+                self._inject_ini_field(secret_name, f, mount, prefixes, verb)
+
+    def _inject_value_field(self, secret_name, f, mount, prefixes, verb):
+        """Inject a value-based field into vault"""
+        on_missing_value = self._get_field_on_missing_value(f)
+
+        if on_missing_value == "generate":
+            self._inject_generated_secret(secret_name, f, mount, prefixes, verb)
+        else:
+            self._inject_provided_secret(secret_name, f, mount, prefixes, verb)
+
+    def _inject_generated_secret(self, secret_name, f, mount, prefixes, verb):
+        """Generate and inject a secret using vault policy"""
+        kind = self._get_field_kind(f)
+        if kind == "path":
+            self.module.fail_json(
+                "You cannot have onMissingValue set to 'generate' with a path"
+            )
+
+        override = self._get_field_override(f)
         b64 = self._get_field_base64(f)
-        if kind in ["value", ""]:
-            if on_missing_value == "generate":
-                if kind == "path":
-                    self.module.fail_json(
-                        "You cannot have onMissingValue set to 'generate' with a path"
-                    )
-                vault_policy = f.get("vaultPolicy")
-                gen_cmd = f"vault read -field=password sys/policies/password/{vault_policy}/generate"
-                if b64:
-                    gen_cmd += " | base64 --wrap=0"
-                for prefix in prefixes:
-                    # if the override field is False and the secret attribute exists at the prefix then we just
-                    # skip, as we do not want to overwrite the existing secret
-                    if not override and self._vault_secret_attr_exists(
-                        mount, prefix, secret_name, f["name"]
-                    ):
-                        continue
-                    cmd = (
-                        f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                        f"\"{gen_cmd} | vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=-\""
-                    )
-                    self._run_command(cmd, attempts=3)
-                return
+        vault_policy = f.get("vaultPolicy")
 
-            # If we're not generating the secret inside the vault directly we either read it from the file ("error")
-            # or we are prompting the user for it
-            secret = self._get_secret_value(secret_name, f)
-            if b64:
-                secret = base64.b64encode(secret.encode()).decode("utf-8")
-            for prefix in prefixes:
-                cmd = (
-                    f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                    f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
-                )
-                self._run_command(cmd, attempts=3)
+        gen_cmd = f"vault read -field=password sys/policies/password/{vault_policy}/generate"
+        if b64:
+            gen_cmd += " | base64 --wrap=0"
 
-        elif kind == "path":  # path. we upload files
-            # If we're generating the password then we just push the secret in the vault directly
-            verb = "put" if first else "patch"
-            path = self._get_file_path(secret_name, f)
-            for prefix in prefixes:
-                if b64:
-                    b64_cmd = "| base64 --wrap=0 "
-                else:
-                    b64_cmd = ""
-                cmd = (
-                    f"cat '{path}' | oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                    f"'cat - {b64_cmd}> /tmp/vcontent'; "
-                    f"oc exec -n {self.namespace} {self.pod} -i -- sh -c '"
-                    f"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=@/tmp/vcontent; "
-                    f"rm /tmp/vcontent'"
-                )
-                self._run_command(cmd, attempts=3)
-        elif kind == "ini_file":  # ini_file. we parse an ini_file
-            verb = "put" if first else "patch"
-            ini_file = os.path.expanduser(f.get("ini_file"))
-            ini_section = f.get("ini_section", "default")
-            ini_key = f.get("ini_key")
-            secret = get_ini_value(ini_file, ini_section, ini_key)
-            if b64:
-                secret = base64.b64encode(secret.encode()).decode("utf-8")
-            for prefix in prefixes:
-                cmd = (
-                    f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                    f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
-                )
-                self._run_command(cmd, attempts=3)
+        for prefix in prefixes:
+            # Skip if secret exists and override is False
+            if not override and self._vault_secret_attr_exists(
+                mount, prefix, secret_name, f["name"]
+            ):
+                continue
+
+            cmd = (
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"\"{gen_cmd} | vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=-\""
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _inject_provided_secret(self, secret_name, f, mount, prefixes, verb):
+        """Inject a user-provided secret value"""
+        secret = self._get_secret_value(secret_name, f)
+        secret = self._encode_secret_if_needed(secret, f)
+
+        for prefix in prefixes:
+            cmd = (
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _inject_path_field(self, secret_name, f, mount, prefixes, verb):
+        """Inject a file-based field into vault"""
+        path = self._get_file_path(secret_name, f)
+        b64_cmd = "| base64 --wrap=0 " if self._get_field_base64(f) else ""
+
+        for prefix in prefixes:
+            cmd = (
+                f"cat '{path}' | oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"'cat - {b64_cmd}> /tmp/vcontent'; "
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c '"
+                f"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=@/tmp/vcontent; "
+                f"rm /tmp/vcontent'"
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _inject_ini_field(self, secret_name, f, mount, prefixes, verb):
+        """Inject an INI file-based field into vault"""
+        ini_file = os.path.expanduser(f.get("ini_file"))
+        ini_section = f.get("ini_section", "default")
+        ini_key = f.get("ini_key")
+
+        secret = get_ini_value(ini_file, ini_section, ini_key)
+        secret = self._encode_secret_if_needed(secret, f)
+
+        for prefix in prefixes:
+            cmd = (
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _encode_secret_if_needed(self, secret, f):
+        """Apply base64 encoding if required"""
+        if self._get_field_base64(f):
+            return base64.b64encode(secret.encode()).decode("utf-8")
+        return secret
 
     # This assumes that self.sanitize_values() has already been called
     # so we do a lot less validation as it has already happened
