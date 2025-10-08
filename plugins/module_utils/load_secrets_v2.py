@@ -83,38 +83,68 @@ class LoadSecretsV2(SecretsV2Base):
         if len(secrets) == 0:
             self.module.fail_json("No secrets found")
 
-        names = []
-        for s in secrets:
-            # These fields are mandatory
-            for i in ["name"]:
-                try:
-                    unused = s[i]
-                except KeyError:
-                    return (False, f"Secret {s['name']} is missing {i}")
-            names.append(s["name"])
+        # Validate each secret and collect names for duplicate checking
+        secret_names = []
+        for secret in secrets:
+            result = self._validate_secret(secret)
+            if not result[0]:
+                return result
+            secret_names.append(secret["name"])
 
-            vault_prefixes = s.get("vaultPrefixes", ["hub"])
-            # This checks for the case when vaultPrefixes: is specified but empty
-            if vault_prefixes is None or len(vault_prefixes) == 0:
-                return (False, f"Secret {s['name']} has empty vaultPrefixes")
-
-            fields = s.get("fields", [])
-            if len(fields) == 0:
-                return (False, f"Secret {s['name']} does not have any fields")
-
-            field_names = []
-            for i in fields:
-                (ret, msg) = self._validate_field(i)
-                if not ret:
-                    return (False, msg)
-                field_names.append(i["name"])
-            field_dupes = find_dupes(field_names)
-            if len(field_dupes) > 0:
-                return (False, f"You cannot have duplicate field names: {field_dupes}")
-
-        dupes = find_dupes(names)
+        # Check for duplicate secret names
+        dupes = find_dupes(secret_names)
         if len(dupes) > 0:
             return (False, f"You cannot have duplicate secret names: {dupes}")
+
+        return (True, "")
+
+    def _validate_secret(self, secret):
+        """Validate a single secret configuration"""
+        # Check mandatory fields
+        if "name" not in secret:
+            return (False, f"Secret {secret} is missing name")
+
+        secret_name = secret["name"]
+
+        # Validate vault prefixes
+        result = self._validate_vault_prefixes(secret)
+        if not result[0]:
+            return result
+
+        # Validate fields
+        result = self._validate_secret_fields(secret)
+        if not result[0]:
+            return result
+
+        return (True, "")
+
+    def _validate_vault_prefixes(self, secret):
+        """Validate vault prefixes for a secret"""
+        vault_prefixes = secret.get("vaultPrefixes", ["hub"])
+        # This checks for the case when vaultPrefixes: is specified but empty
+        if vault_prefixes is None or len(vault_prefixes) == 0:
+            return (False, f"Secret {secret['name']} has empty vaultPrefixes")
+        return (True, "")
+
+    def _validate_secret_fields(self, secret):
+        """Validate all fields for a secret"""
+        fields = secret.get("fields", [])
+        if len(fields) == 0:
+            return (False, f"Secret {secret['name']} does not have any fields")
+
+        # Validate each field and collect names for duplicate checking
+        field_names = []
+        for field in fields:
+            result = self._validate_field(field)
+            if not result[0]:
+                return result
+            field_names.append(field["name"])
+
+        # Check for duplicate field names
+        field_dupes = find_dupes(field_names)
+        if len(field_dupes) > 0:
+            return (False, f"You cannot have duplicate field names: {field_dupes}")
+
         return (True, "")
 
     def inject_vault_policies(self):
