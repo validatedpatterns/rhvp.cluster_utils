@@ -227,10 +227,6 @@ class SecretsV2Base:
         if "name" not in f:
             return (False, f"Field {f} is missing name")
 
-        on_missing_value = self._get_field_on_missing_value(f)
-        if on_missing_value not in ["error", "generate", "prompt"]:
-            return (False, f"onMissingValue: {on_missing_value} is invalid")
-
         # Validate field structure and types
         result = self._validate_field_structure(f)
         if not result[0]:
@@ -241,6 +237,7 @@ class SecretsV2Base:
         if not result[0]:
             return result
 
+        on_missing_value = self._get_field_on_missing_value(f)
         # Validate based on onMissingValue type
         match on_missing_value:
             case "error":
@@ -250,7 +247,7 @@ class SecretsV2Base:
             case "prompt":
                 return self._validate_prompt_mode(f)
 
-        return (True, "")
+        return (False, f"onMissingValue: {on_missing_value} is invalid")
 
     def _validate_field_structure(self, f):
         """Validate field structure and basic types"""
