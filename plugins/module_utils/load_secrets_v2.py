@@ -145,7 +145,6 @@ class LoadSecretsV2(SecretsV2Base):
             self.module.fail_json(
                 f"Currently only the 'vault' backingStore is supported: {backing_store}"
             )
-
         (ret, msg) = self._validate_secrets()
         if not ret:
             self.module.fail_json(msg)
