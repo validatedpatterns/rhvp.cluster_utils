@@ -15,6 +15,6 @@ jobs:
           persist-credentials: false
 
       - name: Lint Ansible Playbook
-        uses: ansible/ansible-lint@8861a737a10e4bea5f5875d55d2f664908e7425c
+        uses: ansible/ansible-lint@d7cd7cfa2469536527aceaef9ef2ec6f2fb331cb
         with:
           setup_python: "true"
