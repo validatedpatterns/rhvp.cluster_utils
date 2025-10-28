@@ -11,6 +11,7 @@ super-linter: ## Runs super linter locally
 	podman run -e RUN_LOCAL=true -e USE_FIND_ALGORITHM=true	\
 					-e VALIDATE_ANSIBLE=false \
 					-e VALIDATE_BASH=false \
+					-e VALIDATE_BIOME=false \
 					-e VALIDATE_CHECKOV=false \
 					-e VALIDATE_DOCKERFILE_HADOLINT=false \
 					-e VALIDATE_JSCPD=false \
@@ -18,6 +19,8 @@ super-linter: ## Runs super linter locally
 					-e VALIDATE_MARKDOWN_PRETTIER=false \
 					-e VALIDATE_KUBERNETES_KUBECONFORM=false \
 					-e VALIDATE_PYTHON_PYLINT=false \
+					-e VALIDATE_PYTHON_PYINK=false \
+					-e VALIDATE_PYTHON_RUFF_FORMAT=false \
 					-e VALIDATE_SHELL_SHFMT=false \
 					-e VALIDATE_TEKTON=false \
 					-e VALIDATE_YAML=false \
