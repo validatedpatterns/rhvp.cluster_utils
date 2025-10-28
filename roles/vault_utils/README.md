@@ -30,7 +30,9 @@ vault_base_path: "secret"
 vault_path: "{{ vault_base_path }}/{{ vault_hub }}"
 vault_hub_ttl: "15m"
 vault_pki_max_lease_ttl: "8760h"
+# "external-secrets" is the namespace when using the downstream openshift-external-secrets chart
 external_secrets_ns: golang-external-secrets
+# "ocp-external-secrets" is the service account name when using the downstream openshift-external-secrets chart
 external_secrets_sa: golang-external-secrets
 unseal_secret: "vaultkeys"
 unseal_namespace: "imperative"
