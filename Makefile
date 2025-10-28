@@ -11,7 +11,7 @@ super-linter: ## Runs super linter locally
 	podman run -e RUN_LOCAL=true -e USE_FIND_ALGORITHM=true	\
 					-e VALIDATE_ANSIBLE=false \
 					-e VALIDATE_BASH=false \
-					-e VALIDATE_BIOME=false \
+					-e VALIDATE_BIOME_FORMAT=false \
 					-e VALIDATE_CHECKOV=false \
 					-e VALIDATE_DOCKERFILE_HADOLINT=false \
 					-e VALIDATE_JSCPD=false \
