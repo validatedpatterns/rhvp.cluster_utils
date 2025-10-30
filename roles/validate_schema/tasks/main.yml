@@ -1,0 +1,58 @@
+---
+- name: Find values-* files to validate
+  ansible.builtin.find:
+    paths: "{{ pattern_dir }}"
+    patterns: "values-*.yaml"
+    file_type: file
+  register: _values_files
+
+- name: Sort file list
+  ansible.builtin.set_fact:
+    values_files_sorted: >-
+      {{
+        _values_files.files
+          | map(attribute='path')
+          | list
+          | sort
+      }}
+
+- name: Print start message
+  ansible.builtin.shell:
+    cmd: |
+      printf "==> Validating clustergroup schema of: " > /dev/tty
+      for f in {{ values_files_sorted | map('basename') | list | join(' ') }}; do printf " $f" > /dev/tty; done
+      printf "\n" > /dev/tty
+
+- name: Determine clustergroup chart CLI extras
+  ansible.builtin.set_fact:
+    clustergroup_version: "{{ values_global.main.multiSourceConfig.clusterGroupChartVersion | default('') }}"
+    clustergroup_version_cli: >-
+      {{
+        (values_global.main.multiSourceConfig.clusterGroupChartVersion | default(''))
+        | ternary('--version ' + values_global.main.multiSourceConfig.clusterGroupChartVersion, '')
+      }}
+
+- name: Validate each file with helm template
+  ansible.builtin.command: >-
+    helm template {{ clustergroup_chart }} {{ clustergroup_version_cli }} {{ extra_helm_opts }} -f "{{ item }}"
+  args:
+    chdir: "{{ pattern_dir }}"
+  register: helm_validate
+  failed_when: false
+  loop: "{{ values_files_sorted }}"
+  loop_control:
+    label: "{{ item | basename }}"
+
+- name: Exit with error if any validation failed
+  when: (helm_validate.results | selectattr('rc', 'ne', 0) | list | length) > 0
+  ansible.builtin.shell:
+    cmd: |
+      printf "Schema validation failed for the following values files:\n" > /dev/tty
+      {% for result in helm_validate.results %}
+      {% if result.rc != 0 %}
+      printf "  - {{ result.item | basename }} (exit code: {{ result.rc }})\n" > /dev/tty
+      printf "    To reproduce: cd {{ pattern_dir }} && helm template {{ clustergroup_chart }} {{ clustergroup_version_cli }} {{ extra_helm_opts }} -f \"{{ result.item }}\"\n" > /dev/tty
+      {% endif %}
+      {% endfor %}
+      printf "\nRe-run the above commands to see the detailed error output.\n" > /dev/tty
+      exit 1
