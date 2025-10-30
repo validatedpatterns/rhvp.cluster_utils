@@ -121,7 +121,7 @@
   ansible.builtin.set_fact:
     validate_certs_api_endpoint: "{{ not letsencrypt.api_endpoint | default(True) | bool }}"
 
-- name: Fetch remote ansible to remote cluster
+- name: Fetch remote external secrets from remote cluster
   kubernetes.core.k8s_info:
     api_key: "{{ item.value['bearerToken'] }}"
     ca_cert: /tmp/{{ item.key }}.ca
@@ -150,13 +150,54 @@
   loop_control:
     label: "{{ item.key }}"
 
-# 'token' will be empty if the remote cluster has no golang-external-secret
+- name: Fetch remote legacy external secrets from remote cluster
+  kubernetes.core.k8s_info:
+    api_key: "{{ item.value['bearerToken'] }}"
+    ca_cert: /tmp/{{ item.key }}.ca
+    host: "{{ item.value['server_api'] }}"
+    kind: Secret
+    namespace: "{{ legacy_external_secrets_ns }}"
+    name: "{{ legacy_external_secrets_secret }}"
+    api_version: v1
+    validate_certs: "{{ validate_certs_api_endpoint }}"
+  register: remote_legacy_external_secrets_sa
+  # We are allowed to ignore errors here because a spoke might be down or unreachable
+  # if a spoke is not reachable then its ['token'] field will not be set which
+  # will leave the ['esoToken'] field empty in the dict which will make it so that
+  # the spoke gets skipped
+  ignore_errors: true
+  # We add no_log: '{{ hide_sensitive_output | default(true) }}' here because in case of a remote failure secret bits might
+  # end up in the log. Unfortunately ansible is currently not easily able to control
+  # output in a loop (see
+  # https://serverfault.com/questions/1059530/how-to-not-print-items-in-an-ansible-loop-error-without-no-log)
+  no_log: '{{ hide_sensitive_output | default(true) }}'
+  when:
+    - clusters_info[item.key]['bearerToken'] is defined
+    - clusters_info[item.key]['server_api'] is defined
+    - clusters_info[item.key]['caBundle'] is defined
+  loop: "{{ clusters_info | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# 'token' will be empty if the remote cluster has no external-secrets
 # app configured and running
-- name: Loop over returned ESO tokens
+- name: Loop over returned external secrets tokens
   ansible.builtin.set_fact:
-    clusters_info: "{{ clusters_info | default({}) | combine({item['item']['key']: {'esoToken': item['resources'][0]['data']['token'] | b64decode}}, recursive=True) }}"
+    clusters_info: "{{ clusters_info | default({}) | combine({item['item']['key']: {'esoToken': item['resources'][0]['data']['token'] | b64decode, 'activeExternalSecretsNs': external_secrets_ns, 'activeExternalSecretsSa': external_secrets_sa}}, recursive=True) }}"
   loop: "{{ remote_external_secrets_sa.results }}"
   when: item['resources'][0]['data']['token'] is defined
+  loop_control:
+    label: "{{ item['item']['key'] }}"
+
+# 'token' will be empty if the remote cluster has no legacy golang-external-secret
+# app configured and running - only check legacy if regular external secrets were not found
+- name: Loop over returned legacy external secrets tokens
+  ansible.builtin.set_fact:
+    clusters_info: "{{ clusters_info | default({}) | combine({item['item']['key']: {'esoToken': item['resources'][0]['data']['token'] | b64decode, 'activeExternalSecretsNs': legacy_external_secrets_ns, 'activeExternalSecretsSa': legacy_external_secrets_sa}}, recursive=True) }}"
+  loop: "{{ remote_legacy_external_secrets_sa.results }}"
+  when:
+    - item['resources'][0]['data']['token'] is defined
+    - clusters_info[item['item']['key']]['esoToken'] is not defined
   loop_control:
     label: "{{ item['item']['key'] }}"
 
@@ -274,8 +315,8 @@
     pod: "{{ vault_pod }}"
     command: >
       vault write auth/"{{ item.value['vault_path'] }}"/role/"{{ item.value['vault_path'] }}"-role
-        bound_service_account_names="{{ external_secrets_sa }}"
-        bound_service_account_namespaces="{{ external_secrets_ns }}"
+        bound_service_account_names="{{ item.value['activeExternalSecretsSa'] }}"
+        bound_service_account_namespaces="{{ item.value['activeExternalSecretsNs'] }}"
         policies="default,{{ vault_global_policy }}-secret,{{ vault_pushsecrets_policy }}-secret,{{ item.value['vault_path'] }}-secret" ttl="{{ vault_spoke_ttl }}"
   loop: "{{ clusters_info | dict2items }}"
   when:
