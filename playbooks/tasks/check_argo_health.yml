@@ -1,0 +1,62 @@
+---
+- name: Get all Argo CD applications as JSON
+  ansible.builtin.command: oc get applications.argoproj.io -A -o json
+  register: apps_raw
+  changed_when: false
+
+- name: Extract and analyze applications
+  ansible.builtin.set_fact:
+    apps_items: >-
+      {{
+        (apps_raw.stdout | default('{}'))
+        | from_json
+        | json_query('items')
+        | default([])
+      }}
+
+- name: Reset applications summary
+  ansible.builtin.set_fact:
+    apps_summary: []
+
+- name: Build applications summary
+  ansible.builtin.set_fact:
+    apps_summary: >-
+      {{ apps_summary + [
+          {
+            'namespace': (item.metadata.namespace | default('')),
+            'name': (item.metadata.name | default('')),
+            'sync': (item.status.sync.status | default('')),
+            'health': (item.status.health.status | default('')),
+            'bad': ((item.status.sync.status | default('')) != 'Synced')
+                   or ((item.status.health.status | default('')) != 'Healthy')
+          }
+        ]
+      }}
+  loop: "{{ apps_items }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}:{{ item.metadata.name }}"
+
+- name: Filter unhealthy or unsynced applications
+  ansible.builtin.set_fact:
+    unhealthy_apps: "{{ apps_summary | default([]) | selectattr('bad') | list }}"
+
+- name: Print unhealthy/unsynced applications to /dev/tty
+  when: unhealthy_apps | length > 0
+  ansible.builtin.shell:
+    cmd: |
+      printf "==> Unhealthy or unsynced applications:\n" > /dev/tty
+      {% for app in unhealthy_apps %}
+      printf "    {{ app.namespace }}/{{ app.name }} -> Sync: {{ app.sync }} - Health: {{ app.health }}\n" > /dev/tty
+      {% endfor %}
+      printf "==> Retrying in 60 seconds...\n" > /dev/tty
+
+- name: Fail if any applications are not healthy/synced
+  when: unhealthy_apps | length > 0
+  ansible.builtin.fail:
+    msg: "{{ unhealthy_apps | length }} application(s) are not healthy/synced"
+
+- name: Print success message
+  when: unhealthy_apps | length == 0
+  ansible.builtin.shell:
+    cmd: |
+      printf "==> All {{ apps_summary | length }} Argo applications are healthy and synced.\n" > /dev/tty
