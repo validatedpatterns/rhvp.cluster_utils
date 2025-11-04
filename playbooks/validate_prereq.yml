@@ -5,4 +5,5 @@
   gather_facts: false
   roles:
     - role: pattern_settings # set general pattern vars
+    - role: install_settings
     - role: validate_prereq

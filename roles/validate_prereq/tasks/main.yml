@@ -3,15 +3,42 @@
   ansible.builtin.shell: |
     printf "==> Checking prerequisites...\n" > /dev/tty
 
-- name: Extract global.pattern
-  ansible.builtin.set_fact:
-    _global_pattern: "{{ values_global.global.pattern | default('') | string | trim }}"
+- name: Pattern name and clustergroup name length validation
+  block:
+    - name: Print start message
+      ansible.builtin.shell: |
+        printf "    Ensuring pattern and clustergroup names are within bounds... " > /dev/tty
 
-- name: Warn on pattern name mismatch
-  ansible.builtin.shell: |
-    printf "\nWARNING: folder directory is \"%s\" and global.pattern is set to \"%s\"\n" "{{ pattern_name }}" "{{ _global_pattern }}"
-    printf "this can create problems. Please make sure they are the same!\n\n"
-  when: (pattern_name | string | trim) != _global_pattern
+    - name: Get length of pattern name
+      ansible.builtin.set_fact:
+        _pattern_name_len: "{{ pattern_name | length }}"
+
+    - name: Get length of target clustergroup
+      ansible.builtin.set_fact:
+        _clustergroup_name_len: "{{ target_clustergroup | length }}"
+
+    - name: Calculate DNS part length for ArgoCD deploy
+      ansible.builtin.set_fact:
+        _name_valid: >-
+          {{ (_pattern_name_len | int) + 2 * (_clustergroup_name_len | int) < 47 }}
+
+    - name: Print success message
+      ansible.builtin.shell: |
+        printf "OK\n" > /dev/tty
+      when: _name_valid
+
+    - name: Print failure message
+      ansible.builtin.shell: |
+        {% raw %}printf "FAIL\n\n" > /dev/tty
+        printf "    Validation Explanation:\n" > /dev/tty
+        printf "    A DNS-compatible name is constructed in the 'clustergroup' Helm chart using the following pattern:\n" > /dev/tty
+        printf "      -> {{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}\n\n" > /dev/tty
+        printf "    The total length is calculated as:\n" > /dev/tty
+        printf "      (2 * length of 'clusterGroup.name') + length of 'global.pattern' + 15 (for '-gitops-server-') + 1 (for the namespace separator '-')\n\n" > /dev/tty
+        printf "    To stay under the 63-character limit, the variable part of the name must be less than 47 characters:\n" > /dev/tty
+        printf "      (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47\n" > /dev/tty
+        exit 1{% endraw %}
+      when: not _name_valid
 
 - name: Detect whether we are running inside a container
   ansible.builtin.stat:
