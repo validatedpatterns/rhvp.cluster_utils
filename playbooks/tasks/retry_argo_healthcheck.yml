@@ -1,0 +1,27 @@
+---
+- name: Retry block for Argo health check
+  block:
+    - name: Check Argo applications health
+      ansible.builtin.include_tasks: check_argo_health.yml
+
+    - name: Set success flag
+      ansible.builtin.set_fact:
+        healthcheck_succeeded: true
+  rescue:
+    - name: Increment retry count
+      ansible.builtin.set_fact:
+        retry_count: "{{ retry_count | int + 1 }}"
+
+    - name: Fail if max retries reached
+      ansible.builtin.fail:
+        msg: "Max retries ({{ max_retries }}) reached. Some applications are still not healthy/synced."
+      when: retry_count | int >= max_retries
+
+    - name: Delay before next retry
+      ansible.builtin.pause:
+        seconds: "{{ retry_delay }}"
+      when: retry_count | int < max_retries
+
+    - name: Retry the health check recursively
+      ansible.builtin.include_tasks: retry_argo_healthcheck.yml
+      when: retry_count | int < max_retries

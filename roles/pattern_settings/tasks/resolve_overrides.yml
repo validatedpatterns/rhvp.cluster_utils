@@ -8,12 +8,3 @@
           | default(lookup("env","PWD"), true)
           | default(lookup("pipe","pwd"), true)
       }}
-
-- name: Resolve pattern_name
-  ansible.builtin.set_fact:
-    pattern_name: >-
-      {{
-        pattern_name
-          | default(lookup("env","PATTERN_NAME"), true)
-          | default((pattern_dir | basename), true)
-      }}
