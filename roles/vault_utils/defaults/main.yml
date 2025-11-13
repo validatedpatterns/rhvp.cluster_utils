@@ -29,3 +29,4 @@ external_secrets_secret: ocp-external-secrets
 unseal_secret: "vaultkeys"
 unseal_namespace: "imperative"
 vault_jwt_config: false
+vault_jwt_roles: []
