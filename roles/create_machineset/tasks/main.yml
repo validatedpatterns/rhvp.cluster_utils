@@ -1,0 +1,32 @@
+---
+- name: Query Cluster Infrastructure
+  kubernetes.core.k8s_info:
+    api_version: config.openshift.io/v1
+    kind: Infrastructure
+    name: cluster
+  register: cluster_info
+
+- name: Get Cluster Platform
+  ansible.builtin.set_fact:
+    cluster_platform: "{{ cluster_info.resources[0].status.platform | upper }}"
+
+- name: Create AWS MachineSet Manifests
+  when: cluster_platform == "AWS"
+  ansible.builtin.include_tasks: aws_create_machineset_manifests.yml
+
+- name: Print Manifests on Dry Run
+  when: dry_run
+  ansible.builtin.debug:
+    var: lookup("ansible.builtin.file", "/tmp/machineset_{{ idx }}.yaml")
+  loop: "{{ target_machineset_resources }}"
+  loop_control:
+    index_var: idx
+
+- name: Apply MachineSet Manifest
+  when: not dry_run
+  kubernetes.core.k8s:
+    state: present
+    src: "/tmp/machineset_{{ idx }}.yaml"
+  loop: "{{ target_machineset_resources }}"
+  loop_control:
+    index_var: idx
