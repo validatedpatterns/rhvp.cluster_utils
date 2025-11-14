@@ -1,0 +1,45 @@
+name: Trigger builds of utility and imperative containers
+
+on:
+  push:
+    branches:
+      - v1
+
+jobs:
+  trigger-utility-container-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.GH_WORKFLOW_AUTOMATION_CLIENT_ID }}
+          private-key: ${{ secrets.GH_WORKFLOW_AUTOMATION_PRIVATE_KEY }}
+          owner: validatedpatterns
+          repositories: |
+            utility-container
+            imperative-container
+
+      - name: Trigger utility-container workflow (main)
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          gh workflow run docker-publish.yml \
+            --repo validatedpatterns/utility-container \
+            --ref main
+
+      - name: Trigger imperative-container workflow (v1)
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          gh workflow run docker-publish.yml \
+            --repo validatedpatterns/imperative-container \
+            --ref v1
+
+      - name: Trigger imperative-container workflow (main)
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          gh workflow run docker-publish.yml \
+            --repo validatedpatterns/imperative-container \
+            --ref main
