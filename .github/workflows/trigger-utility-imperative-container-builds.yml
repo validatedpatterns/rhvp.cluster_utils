@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - v1
+      - automatically-build-utility-imperative-on-cluster-util-update
 
 jobs:
   trigger-utility-container-build:
