@@ -102,51 +102,11 @@
         not jwt_config_oidc_discovery_url == oidc_discovery_url or
         not jwt_config_default_role == default_role | default('default')
 
-- name: Get JWT role configuration
-  kubernetes.core.k8s_exec:
-    namespace: "{{ vault_ns }}"
-    pod: "{{ vault_pod }}"
-    command: >
-      vault read auth/jwt/role/{{ default_role | default('default') }} -format=json
-  register: jwt_role_config_json
-  changed_when: false
-  failed_when: false
-
-- name: Set jwt_role fact
-  ansible.builtin.set_fact:
-    jwt_role: "{{ true if jwt_role_config_json.stdout_lines | length > 0 else false }}"
-
-- name: Set JWT role configuration fact
-  ansible.builtin.set_fact:
-    jwt_role_config: "{{ jwt_role_config_json.stdout | from_json }}"
-  when: jwt_role
-
-- name: Set JWT role configuration facts
-  ansible.builtin.set_fact:
-    jwt_role_config_bound_audiences: "{{ jwt_role_config.data.bound_audiences[0] | default('') }}"
-    jwt_role_config_bound_subject: "{{ jwt_role_config.data.bound_subject }}"
-    jwt_role_config_token_ttl: "{{ jwt_role_config.data.token_ttl }}"
-    jwt_role_config_token_policies: "{{ jwt_role_config.data.token_policies[0] | default('') }}"
-  when: jwt_role
-
-- name: Write JWT role
-  kubernetes.core.k8s_exec:
-    namespace: "{{ vault_ns }}"
-    pod: "{{ vault_pod }}"
-    command: >
-      vault write auth/jwt/role/{{ default_role | default('default') }}
-        role_type=jwt
-        user_claim=sub
-        bound_audiences={{ spiffe_audience }}
-        bound_subject={{ spiffe_subject }}
-        token_ttl={{ token_ttl | default('86400') }}
-        token_policies={{ role_policy | default('{}-secret'.format(vault_global_policy)) }}
-  when: not vault_auth_jwt or
-        not jwt_role or
-        not jwt_role_config_bound_audiences == spiffe_audience or
-        not jwt_role_config_bound_subject == spiffe_subject or
-        not jwt_role_config_token_ttl == token_ttl | default('86400') or
-        not jwt_role_config_token_policies == role_policy | default('{}-secret'.format(vault_global_policy))
+- name: Run JWT role tasks
+  ansible.builtin.include_tasks: vault_jwt_roles.yaml
+  loop: "{{ vault_jwt_roles | default([]) }}"
+  loop_control:
+    loop_var: jwt_role
 
 - name: Delete router CA certificate
   kubernetes.core.k8s_exec:
