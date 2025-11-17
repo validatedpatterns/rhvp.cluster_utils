@@ -1,0 +1,7 @@
+---
+- name: Create MachineSet Based on Existing MachineSet(s)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: create_machineset

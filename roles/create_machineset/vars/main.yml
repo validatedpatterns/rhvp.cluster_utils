@@ -1,0 +1,17 @@
+dry_run: false
+ensure_two_machine_minimum: true
+kubeconfig: "{{ lookup('env', 'KUBECONFIG') }}"
+machineset_api_version: awsproviderconfig.openshift.io/v1beta1
+machineset_instance_type: m5.metal
+machineset_labels:
+  edge-gitops-role: kubevirt-worker
+machineset_machine_role: worker
+machineset_machine_type: worker
+machineset_name: metal-worker
+machineset_node_labels:
+  node-role.kubernetes.io/worker: ""
+machineset_replicas: 1
+machineset_taints: []
+machineset_user_data_namespace: openshift-machine-api
+machineset_user_data_secret: worker-user-data
+max_machineset_count: 2

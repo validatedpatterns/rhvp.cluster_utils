@@ -1,0 +1,57 @@
+---
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineSet
+metadata:
+  labels:
+    machine.openshift.io/cluster-api-cluster: "{{ infrastructure_name }}"
+{% if machineset_labels %}
+{{ machineset_labels | from_yaml | to_nice_yaml(indent=2) | indent(4, first=True) }}{% endif %}
+  name: "{{ infrastructure_name }}-{{ machineset_name }}-{{ item.spec.template.spec.providerSpec.value.placement.availabilityZone }}"
+  namespace: openshift-machine-api
+spec:
+  replicas: {{ machineset_replicas | int }}
+  selector:
+    matchLabels:
+      machine.openshift.io/cluster-api-cluster: "{{ infrastructure_name }}"
+      machine.openshift.io/cluster-api-machineset: "{{ infrastructure_name }}-{{ machineset_name }}-{{ item.spec.template.spec.providerSpec.value.placement.availabilityZone }}"
+  template:
+    metadata:
+      labels:
+        machine.openshift.io/cluster-api-cluster: "{{ infrastructure_name }}"
+        machine.openshift.io/cluster-api-machine-role: "{{ machineset_machine_role }}"
+        machine.openshift.io/cluster-api-machine-type: "{{ machineset_machine_type }}"
+        machine.openshift.io/cluster-api-machineset: "{{ infrastructure_name }}-{{ machineset_name }}-{{ item.spec.template.spec.providerSpec.value.placement.availabilityZone }}"
+    spec:
+{% if machineset_taints %}
+      taints:
+{{ machineset_taints | from_yaml | to_nice_yaml(indent=2) | indent(8, first=True) }}{% endif %}
+      metadata:
+        labels:
+{% if machineset_node_labels %}
+{{ machineset_node_labels | from_yaml | to_nice_yaml(indent=2) | indent(10, first=True) }}{% endif %}
+      providerSpec:
+        value:
+          ami:
+            id: "{{ item.spec.template.spec.providerSpec.value.ami.id }}"
+          apiVersion: {{ machineset_api_version }}
+          blockDevices: {{ item.spec.template.spec.providerSpec.value.blockDevices }}
+          credentialsSecret:
+            name: aws-cloud-credentials
+          deviceIndex: 0
+          iamInstanceProfile:
+            id: "{{ infrastructure_name }}-worker-profile"
+          instanceType: "{{ machineset_instance_type }}"
+          kind: AWSMachineProviderConfig
+          placement:
+            availabilityZone: "{{ item.spec.template.spec.providerSpec.value.placement.availabilityZone }}"
+            region: "{{ infrastructure_region }}"
+          securityGroups: {{ item.spec.template.spec.providerSpec.value.securityGroups }}
+          subnet:
+            filters:
+              - name: tag:Name
+                values:
+                  - "{{ item.spec.template.spec.providerSpec.value.subnet.filters[0]['values'][0] }}"
+          tags: {{ item.spec.template.spec.providerSpec.value.tags }}
+          userDataSecret:
+            name: "{{ machineset_user_data_secret }}"
+            namespace: "{{ machineset_user_data_namespace }}"
