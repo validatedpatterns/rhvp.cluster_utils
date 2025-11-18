@@ -1,0 +1,30 @@
+---
+- name: Set Name and Region
+  ansible.builtin.set_fact:
+    infrastructure_name: "{{ cluster_info.resources[0].status.infrastructureName }}"
+    infrastructure_region: "{{ cluster_info.resources[0].status.platformStatus.aws.region }}"
+
+- name: Query Existing MachineSet(s)
+  kubernetes.core.k8s_info:
+    api_version: machine.openshift.io/v1beta1
+    kind: MachineSet
+    namespace: openshift-machine-api
+  register: cluster_machinesets
+
+- name: Extract Target MachineSet(s)
+  ansible.builtin.set_fact:
+    target_machineset_resources: "{{ cluster_machinesets.resources[0 : max_machineset_count | int] }}"
+
+- name: Ensure Two Machine Minimum
+  ansible.builtin.set_fact:
+    machineset_replicas: 2
+  when: ensure_two_machine_minimum | bool and target_machineset_resources | length == 1
+
+- name: Apply AWS Template
+  ansible.builtin.template:
+    src: templates/aws_machineset.j2
+    dest: "/tmp/machineset_{{ idx }}.yaml"
+    mode: "0644"
+  loop: "{{ target_machineset_resources }}"
+  loop_control:
+    index_var: idx
