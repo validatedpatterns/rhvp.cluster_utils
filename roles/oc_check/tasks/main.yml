@@ -4,7 +4,7 @@
     printf "==> Checking oc availability... " > /dev/tty
 
 - name: Probe oc version (YAML output)
-  ansible.builtin.command: oc version -o yaml
+  ansible.builtin.command: oc version --client=true -o yaml
   register: _oc_probe
   failed_when: false
 
