@@ -37,8 +37,12 @@
   ansible.builtin.set_fact:
     clusters: "{{ clusters | default({}) | combine({item.metadata.name:
     {'server_api': item.spec.managedClusterClientConfigs[0].url,
-     'cluster_fqdn': item.spec.managedClusterClientConfigs[0].url | ansible.builtin.urlsplit('hostname') | regex_replace('^api\\.', '')}}, recursive=True) }}"
+     'cluster_fqdn':_cluster_fqdn }}, recursive=True) }}"
   loop: "{{ resources }}"
+  vars:
+    _cluster_fqdn: "{{ item.status.clusterClaims | selectattr('name', 'equalto', 'consoleurl.cluster.open-cluster-management.io')
+        | map(attribute='value')
+        | first | ansible.builtin.urlsplit('hostname') | regex_replace('console-openshift-console\\.apps\\.', '') }}"
   when: item.spec.managedClusterClientConfigs[0].url is defined
   loop_control:
     label: "{{ item.metadata.name }}"
