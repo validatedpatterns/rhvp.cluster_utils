@@ -108,8 +108,10 @@
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
-    command: >
-      bash -e -c "echo '{{ item.policy | b64encode }}' | base64 -d | vault policy write {{ item.name }} -"
+    command: |
+      bash -e -c 'cat <<EOF | vault policy write {{ item.name }} -
+      {{ item.policy }}
+      EOF'
   loop: "{{ vault_jwt_policies | default([]) }}"
   loop_control:
     label: "Writing JWT policy {{ item.name }}"

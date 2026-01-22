@@ -7,14 +7,13 @@
 # specific path, enabling application-level secret isolation.
 #
 # Required variables:
-#   app_prefixes: List of app prefixes to create policies for
-#                 e.g., ["apps/qtodo", "hub/infra/keycloak"]
+#   app_prefixes: List of app configs with 'prefix' key and optional 'jwt_role'
+#                 e.g., [{prefix: "apps/qtodo"}, {prefix: "hub/infra/keycloak"}]
 #
 # Optional variables:
 #   app_capabilities: Capabilities for app policies (default: read)
 #   app_update_hub_role: Whether to update hub-role with new policies (default: true)
 #   app_create_jwt_roles: Whether to create JWT roles per app (default: false)
-#   app_jwt_role_config: Dict mapping app names to JWT role config
 #
 # Example usage:
 #   - name: Create app-specific vault policies
@@ -22,50 +21,77 @@
 #       file: vault_app_policies.yaml
 #     vars:
 #       app_prefixes:
-#         - apps/qtodo
-#         - hub/infra/keycloak
+#         - prefix: apps/qtodo
+#           jwt_role:
+#             service_account_names: "qtodo-sa"
+#             service_account_namespaces: "qtodo"
+#         - prefix: hub/infra/keycloak
 #       app_update_hub_role: true
 
 - name: Debug - Show app prefixes to process
   ansible.builtin.debug:
     msg: "Processing app prefixes: {{ app_prefixes }}"
+    verbosity: 1
   when: app_prefixes is defined and app_prefixes | length > 0
 
 - name: Skip if no app prefixes defined
   ansible.builtin.debug:
     msg: "No app_prefixes defined, skipping app policy creation"
+    verbosity: 1
   when: app_prefixes is not defined or app_prefixes | length == 0
 
-# Create policy template for each app prefix
-- name: Configure app policy template
+# Build list of policy names we need
+- name: Build app policy names list
+  ansible.builtin.set_fact:
+    _app_policy_names: "{{ app_prefixes | map(attribute='prefix') | map('replace', '/', '-') | map('regex_replace', '$', '-k8s-secret') | list }}"
+  when: app_prefixes is defined and app_prefixes | length > 0
+
+# Get existing policies from Vault to check what needs to be created
+- name: Get existing Vault policies
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
-    command: >
-      bash -e -c "echo 'path \"secret/data/{{ item }}/*\" { capabilities = [\"read\"] }' > /tmp/policy-{{ item | replace('/', '-') }}.hcl"
-  loop: "{{ app_prefixes }}"
-  loop_control:
-    label: "Creating policy template for {{ item }}"
+    command: vault policy list -format=json
+  register: _existing_policies_result
+  changed_when: false
   when: app_prefixes is defined and app_prefixes | length > 0
 
-# Write the policy to Vault
+- name: Parse existing policies
+  ansible.builtin.set_fact:
+    _existing_policies: "{{ _existing_policies_result.stdout | from_json }}"
+  when:
+    - app_prefixes is defined and app_prefixes | length > 0
+    - _existing_policies_result.rc == 0
+
+# Filter to only policies that don't already exist
+- name: Determine policies to create
+  ansible.builtin.set_fact:
+    _policies_to_create: "{{ _app_policy_names | difference(_existing_policies | default([])) }}"
+  when: app_prefixes is defined and app_prefixes | length > 0
+
+- name: Debug - Show policies to create
+  ansible.builtin.debug:
+    msg: "Policies to create: {{ _policies_to_create | default([]) }} (existing: {{ _existing_policies | default([]) }})"
+    verbosity: 1
+  when: app_prefixes is defined and app_prefixes | length > 0
+
+# Create only policies that don't exist
 - name: Configure app policy in Vault
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: >
-      vault policy write {{ item | replace('/', '-') }}-k8s-secret
-      /tmp/policy-{{ item | replace('/', '-') }}.hcl
+      bash -e -c "echo 'path \"secret/data/{{ _prefix }}/*\" { capabilities = [\"read\"] }' |
+      vault policy write {{ _prefix | replace('/', '-') }}-k8s-secret -"
   loop: "{{ app_prefixes }}"
   loop_control:
-    label: "Writing policy {{ item | replace('/', '-') }}-k8s-secret"
-  when: app_prefixes is defined and app_prefixes | length > 0
-
-# Build list of new policy names
-- name: Build app policy names list
-  ansible.builtin.set_fact:
-    _app_policy_names: "{{ app_prefixes | map('replace', '/', '-') | map('regex_replace', '$', '-k8s-secret') | list }}"
-  when: app_prefixes is defined and app_prefixes | length > 0
+    label: "Writing policy {{ _prefix | replace('/', '-') }}-k8s-secret"
+  vars:
+    _prefix: "{{ item.prefix }}"
+    _policy_name: "{{ item.prefix | replace('/', '-') }}-k8s-secret"
+  when:
+    - app_prefixes is defined and app_prefixes | length > 0
+    - _policy_name in (_policies_to_create | default([]))
 
 # Get current hub-role policies
 - name: Get current hub-role policies
@@ -76,6 +102,7 @@
       vault read -format=json auth/{{ vault_hub }}/role/{{ vault_hub }}-role
   register: _hub_role_result
   failed_when: false
+  changed_when: false
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
@@ -83,7 +110,7 @@
 # Parse current policies and merge with new ones
 - name: Set current policies fact
   ansible.builtin.set_fact:
-    _current_policies: "{{ (_hub_role_result.stdout | from_json).data.token_policies | default(['default', vault_global_policy ~ '-secret', vault_pushsecrets_policy ~ '-secret', vault_hub ~ '-secret']) }}"
+    _current_policies: "{{ (_hub_role_result.stdout | from_json).data.token_policies | default(vault_hub_role_default_policies) }}"
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
@@ -91,7 +118,7 @@
 
 - name: Set default policies if hub-role not found
   ansible.builtin.set_fact:
-    _current_policies: "{{ ['default', vault_global_policy ~ '-secret', vault_pushsecrets_policy ~ '-secret', vault_hub ~ '-secret'] }}"
+    _current_policies: "{{ vault_hub_role_default_policies }}"
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
@@ -105,7 +132,23 @@
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
 
-# Update hub-role with merged policies
+# Check if hub-role policies need updating
+- name: Check if hub-role policies changed
+  ansible.builtin.set_fact:
+    _hub_role_policies_changed: "{{ _current_policies | sort != _merged_policies | sort }}"
+  when:
+    - app_prefixes is defined and app_prefixes | length > 0
+    - app_update_hub_role | default(true) | bool
+
+- name: Debug - Hub role policy change status
+  ansible.builtin.debug:
+    msg: "Hub role policies changed: {{ _hub_role_policies_changed }} (current: {{ _current_policies | sort }}, merged: {{ _merged_policies | sort }})"
+    verbosity: 1
+  when:
+    - app_prefixes is defined and app_prefixes | length > 0
+    - app_update_hub_role | default(true) | bool
+
+# Update hub-role only if policies have changed
 - name: Update hub-role with app policies
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
@@ -119,34 +162,35 @@
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
+    - _hub_role_policies_changed | bool
 
 - name: Display updated hub-role policies
   ansible.builtin.debug:
     msg: "hub-role policies updated to: {{ _merged_policies | join(', ') }}"
+    verbosity: 1
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
+    - _hub_role_policies_changed | bool
 
 # Optionally create JWT roles for app-level isolation
-# This requires app_jwt_role_config to be defined
+# Only creates roles for entries that have jwt_role defined
 - name: Configure JWT role for app (if configured)
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: >
       vault write auth/"{{ vault_hub }}"/role/"{{ _app_name }}"-role
-        bound_service_account_names="{{ _role_config.service_account_names }}"
-        bound_service_account_namespaces="{{ _role_config.service_account_namespaces }}"
-        policies="default,{{ vault_global_policy }}-secret,{{ item | replace('/', '-') }}-k8s-secret"
-        ttl="{{ _role_config.ttl | default(vault_hub_ttl) }}"
+        bound_service_account_names="{{ item.jwt_role.service_account_names }}"
+        bound_service_account_namespaces="{{ item.jwt_role.service_account_namespaces }}"
+        policies="default,{{ vault_global_policy }}-secret,{{ item.prefix | replace('/', '-') }}-k8s-secret"
+        ttl="{{ item.jwt_role.ttl | default(vault_hub_ttl) }}"
   loop: "{{ app_prefixes }}"
   loop_control:
     label: "Creating JWT role for {{ _app_name }}"
   vars:
-    _app_name: "{{ item | basename }}"
-    _role_config: "{{ app_jwt_role_config[_app_name] | default({}) }}"
+    _app_name: "{{ item.prefix | basename }}"
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_create_jwt_roles | default(false) | bool
-    - app_jwt_role_config is defined
-    - _app_name in app_jwt_role_config
+    - item.jwt_role is defined
