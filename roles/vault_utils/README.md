@@ -9,7 +9,7 @@ ansible-galaxy collection install kubernetes.core (formerly known as community.k
 ## Role Variables
 
 Defaults as to where the values-secret.yaml file is and the two ways to connect to a kubernetes cluster
-(KUBERCONFIG and ~/.kube/config respectively):
+(KUBECONFIG and ~/.kube/config respectively):
 
 ```yaml
 values_secret: "{{ lookup('env', 'HOME') }}/values-secret.yaml"

@@ -63,7 +63,6 @@ def fail_json(*args, **kwargs):
 
 @mock.patch("getpass.getpass")
 class TestMyModule(unittest.TestCase):
-
     def setUp(self):
         self.mock_module_helper = patch.multiple(
             basic.AnsibleModule, exit_json=exit_json, fail_json=fail_json
@@ -219,24 +218,6 @@ class TestMyModule(unittest.TestCase):
             ),
         ]
         mock_run_command.assert_has_calls(calls)
-
-    def test_ensure_error_wrong_onmissing_value(self, getpass):
-        with self.assertRaises(AnsibleFailJson) as ansible_err:
-            set_module_args(
-                {
-                    "values_secrets": os.path.join(
-                        self.testdir_v2, "values-secret-v2-wrong-onmissingvalue.yaml"
-                    ),
-                }
-            )
-            vault_load_secrets.main()
-
-        ret = ansible_err.exception.args[0]
-        self.assertEqual(ret["failed"], True)
-        assert (
-            ret["args"][1]
-            == "Secret has vaultPolicy set to nonExisting but no such policy exists"
-        )
 
     def test_ensure_error_wrong_vaultpolicy(self, getpass):
         with self.assertRaises(AnsibleFailJson) as ansible_err:
@@ -723,6 +704,22 @@ class TestMyModule(unittest.TestCase):
             ),
         ]
         mock_run_command.assert_has_calls(calls)
+
+    def test_ensure_error_on_wrong_missing_value(self, getpass):
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets": os.path.join(
+                        self.testdir_v2,
+                        "values-secret-v2-wrong-onmissingvalue.yaml",
+                    ),
+                }
+            )
+            vault_load_secrets.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], True)
+        assert ret["args"][1] == "onMissingValue: notexisting is invalid"
 
 
 if __name__ == "__main__":

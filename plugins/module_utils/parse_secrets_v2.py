@@ -21,34 +21,23 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 import base64
-import getpass
 import os
 
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    SecretsV2Base,
     find_dupes,
     get_ini_value,
     get_version,
     stringify_dict,
 )
 
-default_vp_vault_policies = {
-    "validatedPatternDefaultPolicy": (
-        "length=20\n"
-        'rule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\n'
-        'rule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\n'
-        'rule "charset" { charset = "0123456789" min-chars = 1 }\n'
-        'rule "charset" { charset = "!@#%^&*" min-chars = 1 }\n'
-    )
-}
-
 secret_store_namespace = "validated-patterns-secrets"
 
 
-class ParseSecretsV2:
+class ParseSecretsV2(SecretsV2Base):
 
     def __init__(self, module, syaml, secrets_backing_store):
-        self.module = module
-        self.syaml = syaml
+        super().__init__(module, syaml)
         self.secrets_backing_store = str(secrets_backing_store)
         self.secret_store_namespace = None
         self.parsed_secrets = {}
@@ -82,11 +71,8 @@ class ParseSecretsV2:
         return self.secrets_backing_store
 
     def _get_vault_policies(self, enable_default_vp_policies=True):
-        # We start off with the hard-coded default VP policy and add the user-defined ones
-        if enable_default_vp_policies:
-            policies = default_vp_vault_policies.copy()
-        else:
-            policies = {}
+        # Override base class to add YAML sanitization for policies
+        policies = super()._get_vault_policies(enable_default_vp_policies)
 
         # This is useful for embedded newlines, which occur with YAML
         # flow-type scalars (|, |- for example)
@@ -102,20 +88,6 @@ class ParseSecretsV2:
         # We also check for None here to cover when there is no jinja filter is used (unit tests)
         return [] if secrets == "None" or secrets is None else secrets
 
-    def _get_field_on_missing_value(self, f):
-        # By default if 'onMissingValue' is missing we assume we need to
-        # error out whenever the value is missing
-        return f.get("onMissingValue", "error")
-
-    def _get_field_value(self, f):
-        return f.get("value", None)
-
-    def _get_field_path(self, f):
-        return f.get("path", None)
-
-    def _get_field_ini_file(self, f):
-        return f.get("ini_file", None)
-
     def _get_field_annotations(self, f):
         return f.get("annotations", {})
 
@@ -123,9 +95,7 @@ class ParseSecretsV2:
         return f.get("labels", {})
 
     def _get_field_kind(self, f):
-        # value: null will be interpreted with None, so let's just
-        # check for the existence of the field, as we use 'value: null' to say
-        # "we want a value/secret and not a file path"
+        # Override the base class implementation to include field name in error message
         found = []
         for i in ["value", "path", "ini_file"]:
             if i in f:
@@ -140,15 +110,6 @@ class ParseSecretsV2:
         if len(found) == 0:
             return ""
         return found[0]
-
-    def _get_field_prompt(self, f):
-        return f.get("prompt", None)
-
-    def _get_field_base64(self, f):
-        return bool(f.get("base64", False))
-
-    def _get_field_override(self, f):
-        return bool(f.get("override", False))
 
     def _get_secret_store_namespace(self):
         return str(self.syaml.get("secretStoreNamespace", secret_store_namespace))
@@ -252,82 +213,6 @@ class ParseSecretsV2:
 
         return total_secrets
 
-    # This function could use some rewriting and it should call a specific validation function
-    # for each type (value, path, ini_file)
-    def _validate_field(self, f):
-        # These fields are mandatory
-        try:
-            unused = f["name"]
-        except KeyError:
-            return (False, f"Field {f} is missing name")
-
-        on_missing_value = self._get_field_on_missing_value(f)
-        if on_missing_value not in ["error", "generate", "prompt"]:
-            return (False, f"onMissingValue: {on_missing_value} is invalid")
-
-        value = self._get_field_value(f)
-        path = self._get_field_path(f)
-        ini_file = self._get_field_ini_file(f)
-        kind = self._get_field_kind(f)
-        if kind == "ini_file":
-            # if we are using ini_file then at least ini_key needs to be defined
-            # ini_section defaults to 'default' when omitted
-            ini_key = f.get("ini_key", None)
-            if ini_key is None:
-                return (
-                    False,
-                    "ini_file requires at least ini_key to be defined",
-                )
-
-        # Test if base64 is a correct boolean (defaults to False)
-        unused = self._get_field_base64(f)
-        unused = self._get_field_override(f)
-
-        vault_policy = f.get("vaultPolicy", None)
-        if vault_policy is not None and vault_policy not in self._get_vault_policies():
-            return (
-                False,
-                f"Secret has vaultPolicy set to {vault_policy} but no such policy exists",
-            )
-
-        if on_missing_value in ["error"]:
-            if (
-                (value is None or len(value) < 1)
-                and (path is None or len(path) < 1)
-                and (ini_file is None or len(ini_file) < 1)
-            ):
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'error' and has neither value nor path nor ini_file set",
-                )
-            if path is not None and not os.path.isfile(os.path.expanduser(path)):
-                return (False, f"Field has non-existing path: {path}")
-
-            if ini_file is not None and not os.path.isfile(
-                os.path.expanduser(ini_file)
-            ):
-                return (False, f"Field has non-existing ini_file: {ini_file}")
-
-        if on_missing_value in ["prompt"]:
-            # When we prompt, the user needs to set one of the following:
-            # - value: null # prompt for a secret without a default value
-            # - value: 123 # prompt for a secret but use a default value
-            # - path: null # prompt for a file path without a default value
-            # - path: /tmp/ca.crt # prompt for a file path with a default value
-            if "value" not in f and "path" not in f:
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'prompt' but has no value nor path fields",
-                )
-
-            if "override" in f:
-                return (
-                    False,
-                    "'override' attribute requires 'onMissingValue' to be set to 'generate'",
-                )
-
-        return (True, "")
-
     def _validate_secrets(self):
         backing_store = self._get_backingstore()
         secrets = self._get_secrets()
@@ -414,47 +299,11 @@ class ParseSecretsV2:
         if not ret:
             self.module.fail_json(msg)
 
-    def _get_secret_value(self, name, field):
-        on_missing_value = self._get_field_on_missing_value(field)
-        # We cannot use match + case as RHEL8 has python 3.9 (it needs 3.10)
-        # We checked for errors in _validate_secrets() already
-        if on_missing_value == "error":
-            return self._sanitize_yaml_value(field.get("value"))
-        elif on_missing_value == "prompt":
-            prompt = self._get_field_prompt(field)
-            if prompt is None:
-                prompt = f"Type secret for {name}/{field['name']}: "
-            value = self._get_field_value(field)
-            if value is not None:
-                prompt += f" [{value}]"
-            prompt += ": "
-            return getpass.getpass(prompt)
-        return None
-
-    def _get_file_path(self, name, field):
-        on_missing_value = self._get_field_on_missing_value(field)
-        if on_missing_value == "error":
-            return os.path.expanduser(field.get("path"))
-        elif on_missing_value == "prompt":
-            prompt = self._get_field_prompt(field)
-            path = self._get_field_path(field)
-            if path is None:
-                path = ""
-
-            if prompt is None:
-                text = f"Type path for file {name}/{field['name']} [{path}]: "
-            else:
-                text = f"{prompt} [{path}]: "
-
-            newpath = getpass.getpass(text)
-            if newpath == "":  # Set the default if no string was entered
-                newpath = path
-
-            if os.path.isfile(os.path.expanduser(newpath)):
-                return newpath
-            self.module.fail_json(f"File {newpath} not found, exiting")
-
-        self.module.fail_json("File with wrong onMissingValue")
+    def _process_secret_value(self, value):
+        """
+        Override base class to add YAML sanitization
+        """
+        return self._sanitize_yaml_value(value)
 
     def _inject_field(self, secret_name, f):
         on_missing_value = self._get_field_on_missing_value(f)
