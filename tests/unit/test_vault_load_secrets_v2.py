@@ -63,7 +63,6 @@ def fail_json(*args, **kwargs):
 
 @mock.patch("getpass.getpass")
 class TestMyModule(unittest.TestCase):
-
     def setUp(self):
         self.mock_module_helper = patch.multiple(
             basic.AnsibleModule, exit_json=exit_json, fail_json=fail_json
@@ -720,7 +719,7 @@ class TestMyModule(unittest.TestCase):
 
         ret = ansible_err.exception.args[0]
         self.assertEqual(ret["failed"], True)
-        assert (ret["args"][1] == "onMissingValue: notexisting is invalid")        
+        assert ret["args"][1] == "onMissingValue: notexisting is invalid"
 
 
 if __name__ == "__main__":
