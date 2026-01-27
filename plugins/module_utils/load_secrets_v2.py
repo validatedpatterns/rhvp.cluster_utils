@@ -224,7 +224,9 @@ class LoadSecretsV2(SecretsV2Base):
         b64 = self._get_field_base64(f)
         vault_policy = f.get("vaultPolicy")
 
-        gen_cmd = f"vault read -field=password sys/policies/password/{vault_policy}/generate"
+        gen_cmd = (
+            f"vault read -field=password sys/policies/password/{vault_policy}/generate"
+        )
         if b64:
             gen_cmd += " | base64 --wrap=0"
 
