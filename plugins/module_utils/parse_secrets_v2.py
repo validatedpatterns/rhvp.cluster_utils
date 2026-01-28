@@ -388,3 +388,19 @@ class ParseSecretsV2(SecretsV2Base):
             self.parsed_secrets[secret_name]["fields"][f["name"]] = secret
 
         return
+
+    def get_unique_vault_prefixes(self):
+        """
+        Extract all unique vault prefixes from parsed secrets.
+
+        This is useful for creating fine-grained Vault policies for each
+        unique prefix path (e.g., apps/qtodo, hub/infra/keycloak).
+
+        Returns:
+            list: Sorted list of unique vault prefixes
+        """
+        prefixes = set()
+        for secret in self.parsed_secrets.values():
+            for prefix in secret.get("vault_prefixes", []):
+                prefixes.add(prefix)
+        return sorted(list(prefixes))
