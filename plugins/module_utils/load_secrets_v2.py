@@ -21,34 +21,23 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 import base64
-import getpass
 import os
 import time
 
 from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_common import (
+    SecretsV2Base,
     find_dupes,
     get_ini_value,
     get_version,
 )
 
-default_vp_vault_policies = {
-    "validatedPatternDefaultPolicy": (
-        "length=20\n"
-        'rule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }\n'
-        'rule "charset" { charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" min-chars = 1 }\n'
-        'rule "charset" { charset = "0123456789" min-chars = 1 }\n'
-        'rule "charset" { charset = "!@#%^&*" min-chars = 1 }\n'
-    )
-}
 
-
-class LoadSecretsV2:
+class LoadSecretsV2(SecretsV2Base):
 
     def __init__(self, module, syaml, namespace, pod):
-        self.module = module
+        super().__init__(module, syaml)
         self.namespace = namespace
         self.pod = pod
-        self.syaml = syaml
 
     def _run_command(self, command, attempts=1, sleep=3, checkrc=True):
         """
@@ -86,193 +75,76 @@ class LoadSecretsV2:
         """
         return str(self.syaml.get("backingStore", "vault"))
 
-    def _get_vault_policies(self, enable_default_vp_policies=True):
-        # We start off with the hard-coded default VP policy and add the user-defined ones
-        if enable_default_vp_policies:
-            policies = default_vp_vault_policies.copy()
-        else:
-            policies = {}
-        policies.update(self.syaml.get("vaultPolicies", {}))
-        return policies
-
     def _get_secrets(self):
         return self.syaml.get("secrets", {})
-
-    def _get_field_on_missing_value(self, f):
-        # By default if 'onMissingValue' is missing we assume we need to
-        # error out whenever the value is missing
-        return f.get("onMissingValue", "error")
-
-    def _get_field_value(self, f):
-        return f.get("value", None)
-
-    def _get_field_path(self, f):
-        return f.get("path", None)
-
-    def _get_field_ini_file(self, f):
-        return f.get("ini_file", None)
-
-    def _get_field_kind(self, f):
-        # value: null will be interpreted with None, so let's just
-        # check for the existence of the field, as we use 'value: null' to say
-        # "we want a value/secret and not a file path"
-        found = []
-        for i in ["value", "path", "ini_file"]:
-            if i in f:
-                found.append(i)
-
-        if len(found) > 1:  # you can only have one of value, path and ini_file
-            self.module.fail_json(f"Both '{found[0]}' and '{found[1]}' cannot be used")
-
-        if len(found) == 0:
-            return ""
-        return found[0]
-
-    def _get_field_prompt(self, f):
-        return f.get("prompt", None)
-
-    def _get_field_base64(self, f):
-        return bool(f.get("base64", False))
-
-    def _get_field_override(self, f):
-        return bool(f.get("override", False))
-
-    # This function could use some rewriting and it should call a specific validation function
-    # for each type (value, path, ini_file)
-    def _validate_field(self, f):
-        # These fields are mandatory
-        try:
-            unused = f["name"]
-        except KeyError:
-            return (False, f"Field {f} is missing name")
-
-        on_missing_value = self._get_field_on_missing_value(f)
-        if on_missing_value not in ["error", "generate", "prompt"]:
-            return (False, f"onMissingValue: {on_missing_value} is invalid")
-
-        value = self._get_field_value(f)
-        path = self._get_field_path(f)
-        ini_file = self._get_field_ini_file(f)
-        kind = self._get_field_kind(f)
-        if kind == "ini_file":
-            # if we are using ini_file then at least ini_key needs to be defined
-            # ini_section defaults to 'default' when omitted
-            ini_key = f.get("ini_key", None)
-            if ini_key is None:
-                return (
-                    False,
-                    "ini_file requires at least ini_key to be defined",
-                )
-
-        # Test if base64 is a correct boolean (defaults to False)
-        unused = self._get_field_base64(f)
-        unused = self._get_field_override(f)
-
-        vault_policy = f.get("vaultPolicy", None)
-        if vault_policy is not None and vault_policy not in self._get_vault_policies():
-            return (
-                False,
-                f"Secret has vaultPolicy set to {vault_policy} but no such policy exists",
-            )
-
-        if on_missing_value in ["error"]:
-            if (
-                (value is None or len(value) < 1)
-                and (path is None or len(path) < 1)
-                and (ini_file is None or len(ini_file) < 1)
-            ):
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'error' and has neither value nor path nor ini_file set",
-                )
-            if path is not None and not os.path.isfile(os.path.expanduser(path)):
-                return (False, f"Field has non-existing path: {path}")
-
-            if ini_file is not None and not os.path.isfile(
-                os.path.expanduser(ini_file)
-            ):
-                return (False, f"Field has non-existing ini_file: {ini_file}")
-
-            if "override" in f:
-                return (
-                    False,
-                    "'override' attribute requires 'onMissingValue' to be set to 'generate'",
-                )
-
-        if on_missing_value in ["generate"]:
-            if value is not None:
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'generate' but has a value set",
-                )
-            if path is not None:
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'generate' but has a path set",
-                )
-            if vault_policy is None:
-                return (
-                    False,
-                    "Secret has no vaultPolicy but onMissingValue is set to 'generate'",
-                )
-
-        if on_missing_value in ["prompt"]:
-            # When we prompt, the user needs to set one of the following:
-            # - value: null # prompt for a secret without a default value
-            # - value: 123 # prompt for a secret but use a default value
-            # - path: null # prompt for a file path without a default value
-            # - path: /tmp/ca.crt # prompt for a file path with a default value
-            if "value" not in f and "path" not in f:
-                return (
-                    False,
-                    "Secret has onMissingValue set to 'prompt' but has no value nor path fields",
-                )
-
-            if "override" in f:
-                return (
-                    False,
-                    "'override' attribute requires 'onMissingValue' to be set to 'generate'",
-                )
-
-        return (True, "")
 
     def _validate_secrets(self):
         secrets = self._get_secrets()
         if len(secrets) == 0:
             self.module.fail_json("No secrets found")
 
-        names = []
-        for s in secrets:
-            # These fields are mandatory
-            for i in ["name"]:
-                try:
-                    unused = s[i]
-                except KeyError:
-                    return (False, f"Secret {s['name']} is missing {i}")
-            names.append(s["name"])
+        # Validate each secret and collect names for duplicate checking
+        secret_names = []
+        for secret in secrets:
+            result = self._validate_secret(secret)
+            if not result[0]:
+                return result
+            secret_names.append(secret["name"])
 
-            vault_prefixes = s.get("vaultPrefixes", ["hub"])
-            # This checks for the case when vaultPrefixes: is specified but empty
-            if vault_prefixes is None or len(vault_prefixes) == 0:
-                return (False, f"Secret {s['name']} has empty vaultPrefixes")
-
-            fields = s.get("fields", [])
-            if len(fields) == 0:
-                return (False, f"Secret {s['name']} does not have any fields")
-
-            field_names = []
-            for i in fields:
-                (ret, msg) = self._validate_field(i)
-                if not ret:
-                    return (False, msg)
-                field_names.append(i["name"])
-            field_dupes = find_dupes(field_names)
-            if len(field_dupes) > 0:
-                return (False, f"You cannot have duplicate field names: {field_dupes}")
-
-        dupes = find_dupes(names)
+        # Check for duplicate secret names
+        dupes = find_dupes(secret_names)
         if len(dupes) > 0:
             return (False, f"You cannot have duplicate secret names: {dupes}")
+
+        return (True, "")
+
+    def _validate_secret(self, secret):
+        """Validate a single secret configuration"""
+        # Check mandatory fields
+        if "name" not in secret:
+            return (False, f"Secret {secret} is missing name")
+
+        secret_name = secret["name"]
+
+        # Validate vault prefixes
+        result = self._validate_vault_prefixes(secret)
+        if not result[0]:
+            return result
+
+        # Validate fields
+        result = self._validate_secret_fields(secret)
+        if not result[0]:
+            return result
+
+        return (True, "")
+
+    def _validate_vault_prefixes(self, secret):
+        """Validate vault prefixes for a secret"""
+        vault_prefixes = secret.get("vaultPrefixes", ["hub"])
+        # This checks for the case when vaultPrefixes: is specified but empty
+        if vault_prefixes is None or len(vault_prefixes) == 0:
+            return (False, f"Secret {secret['name']} has empty vaultPrefixes")
+        return (True, "")
+
+    def _validate_secret_fields(self, secret):
+        """Validate all fields for a secret"""
+        fields = secret.get("fields", [])
+        if len(fields) == 0:
+            return (False, f"Secret {secret['name']} does not have any fields")
+
+        # Validate each field and collect names for duplicate checking
+        field_names = []
+        for field in fields:
+            result = self._validate_field(field)
+            if not result[0]:
+                return result
+            field_names.append(field["name"])
+
+        # Check for duplicate field names
+        field_dupes = find_dupes(field_names)
+        if len(field_dupes) > 0:
+            return (False, f"You cannot have duplicate field names: {field_dupes}")
+
         return (True, "")
 
     def inject_vault_policies(self):
@@ -303,52 +175,9 @@ class LoadSecretsV2:
             self.module.fail_json(
                 f"Currently only the 'vault' backingStore is supported: {backing_store}"
             )
-
         (ret, msg) = self._validate_secrets()
         if not ret:
             self.module.fail_json(msg)
-
-    def _get_secret_value(self, name, field):
-        on_missing_value = self._get_field_on_missing_value(field)
-        # We cannot use match + case as RHEL8 has python 3.9 (it needs 3.10)
-        # We checked for errors in _validate_secrets() already
-        if on_missing_value == "error":
-            return field.get("value")
-        elif on_missing_value == "prompt":
-            prompt = self._get_field_prompt(field)
-            if prompt is None:
-                prompt = f"Type secret for {name}/{field['name']}: "
-            value = self._get_field_value(field)
-            if value is not None:
-                prompt += f" [{value}]"
-            prompt += ": "
-            return getpass.getpass(prompt)
-        return None
-
-    def _get_file_path(self, name, field):
-        on_missing_value = self._get_field_on_missing_value(field)
-        if on_missing_value == "error":
-            return os.path.expanduser(field.get("path"))
-        elif on_missing_value == "prompt":
-            prompt = self._get_field_prompt(field)
-            path = self._get_field_path(field)
-            if path is None:
-                path = ""
-
-            if prompt is None:
-                text = f"Type path for file {name}/{field['name']} [{path}]: "
-            else:
-                text = f"{prompt} [{path}]: "
-
-            newpath = getpass.getpass(text)
-            if newpath == "":  # Set the default if no string was entered
-                newpath = path
-
-            if os.path.isfile(os.path.expanduser(newpath)):
-                return newpath
-            self.module.fail_json(f"File {newpath} not found, exiting")
-
-        self.module.fail_json("File with wrong onMissingValue")
 
     def _vault_secret_attr_exists(self, mount, prefix, secret_name, attribute):
         cmd = (
@@ -363,79 +192,105 @@ class LoadSecretsV2:
         return False
 
     def _inject_field(self, secret_name, f, mount, prefixes, first=False):
-        on_missing_value = self._get_field_on_missing_value(f)
-        override = self._get_field_override(f)
-        kind = self._get_field_kind(f)
-        # If we're generating the password then we just push the secret in the vault directly
         verb = "put" if first else "patch"
+        kind = self._get_field_kind(f)
+
+        match kind:
+            case "value" | "":
+                self._inject_value_field(secret_name, f, mount, prefixes, verb)
+            case "path":
+                self._inject_path_field(secret_name, f, mount, prefixes, verb)
+            case "ini_file":
+                self._inject_ini_field(secret_name, f, mount, prefixes, verb)
+
+    def _inject_value_field(self, secret_name, f, mount, prefixes, verb):
+        """Inject a value-based field into vault"""
+        on_missing_value = self._get_field_on_missing_value(f)
+
+        if on_missing_value == "generate":
+            self._inject_generated_secret(secret_name, f, mount, prefixes, verb)
+        else:
+            self._inject_provided_secret(secret_name, f, mount, prefixes, verb)
+
+    def _inject_generated_secret(self, secret_name, f, mount, prefixes, verb):
+        """Generate and inject a secret using vault policy"""
+        kind = self._get_field_kind(f)
+        if kind == "path":
+            self.module.fail_json(
+                "You cannot have onMissingValue set to 'generate' with a path"
+            )
+
+        override = self._get_field_override(f)
         b64 = self._get_field_base64(f)
-        if kind in ["value", ""]:
-            if on_missing_value == "generate":
-                if kind == "path":
-                    self.module.fail_json(
-                        "You cannot have onMissingValue set to 'generate' with a path"
-                    )
-                vault_policy = f.get("vaultPolicy")
-                gen_cmd = f"vault read -field=password sys/policies/password/{vault_policy}/generate"
-                if b64:
-                    gen_cmd += " | base64 --wrap=0"
-                for prefix in prefixes:
-                    # if the override field is False and the secret attribute exists at the prefix then we just
-                    # skip, as we do not want to overwrite the existing secret
-                    if not override and self._vault_secret_attr_exists(
-                        mount, prefix, secret_name, f["name"]
-                    ):
-                        continue
-                    cmd = (
-                        f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                        f"\"{gen_cmd} | vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=-\""
-                    )
-                    self._run_command(cmd, attempts=3)
-                return
+        vault_policy = f.get("vaultPolicy")
 
-            # If we're not generating the secret inside the vault directly we either read it from the file ("error")
-            # or we are prompting the user for it
-            secret = self._get_secret_value(secret_name, f)
-            if b64:
-                secret = base64.b64encode(secret.encode()).decode("utf-8")
-            for prefix in prefixes:
-                cmd = (
-                    f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                    f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
-                )
-                self._run_command(cmd, attempts=3)
+        gen_cmd = (
+            f"vault read -field=password sys/policies/password/{vault_policy}/generate"
+        )
+        if b64:
+            gen_cmd += " | base64 --wrap=0"
 
-        elif kind == "path":  # path. we upload files
-            # If we're generating the password then we just push the secret in the vault directly
-            verb = "put" if first else "patch"
-            path = self._get_file_path(secret_name, f)
-            for prefix in prefixes:
-                if b64:
-                    b64_cmd = "| base64 --wrap=0 "
-                else:
-                    b64_cmd = ""
-                cmd = (
-                    f"cat '{path}' | oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                    f"'cat - {b64_cmd}> /tmp/vcontent'; "
-                    f"oc exec -n {self.namespace} {self.pod} -i -- sh -c '"
-                    f"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=@/tmp/vcontent; "
-                    f"rm /tmp/vcontent'"
-                )
-                self._run_command(cmd, attempts=3)
-        elif kind == "ini_file":  # ini_file. we parse an ini_file
-            verb = "put" if first else "patch"
-            ini_file = os.path.expanduser(f.get("ini_file"))
-            ini_section = f.get("ini_section", "default")
-            ini_key = f.get("ini_key")
-            secret = get_ini_value(ini_file, ini_section, ini_key)
-            if b64:
-                secret = base64.b64encode(secret.encode()).decode("utf-8")
-            for prefix in prefixes:
-                cmd = (
-                    f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
-                    f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
-                )
-                self._run_command(cmd, attempts=3)
+        for prefix in prefixes:
+            # Skip if secret exists and override is False
+            if not override and self._vault_secret_attr_exists(
+                mount, prefix, secret_name, f["name"]
+            ):
+                continue
+
+            cmd = (
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"\"{gen_cmd} | vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=-\""
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _inject_provided_secret(self, secret_name, f, mount, prefixes, verb):
+        """Inject a user-provided secret value"""
+        secret = self._get_secret_value(secret_name, f)
+        secret = self._encode_secret_if_needed(secret, f)
+
+        for prefix in prefixes:
+            cmd = (
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _inject_path_field(self, secret_name, f, mount, prefixes, verb):
+        """Inject a file-based field into vault"""
+        path = self._get_file_path(secret_name, f)
+        b64_cmd = "| base64 --wrap=0 " if self._get_field_base64(f) else ""
+
+        for prefix in prefixes:
+            cmd = (
+                f"cat '{path}' | oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"'cat - {b64_cmd}> /tmp/vcontent'; "
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c '"
+                f"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}=@/tmp/vcontent; "
+                f"rm /tmp/vcontent'"
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _inject_ini_field(self, secret_name, f, mount, prefixes, verb):
+        """Inject an INI file-based field into vault"""
+        ini_file = os.path.expanduser(f.get("ini_file"))
+        ini_section = f.get("ini_section", "default")
+        ini_key = f.get("ini_key")
+
+        secret = get_ini_value(ini_file, ini_section, ini_key)
+        secret = self._encode_secret_if_needed(secret, f)
+
+        for prefix in prefixes:
+            cmd = (
+                f"oc exec -n {self.namespace} {self.pod} -i -- sh -c "
+                f"\"vault kv {verb} -mount={mount} {prefix}/{secret_name} {f['name']}='{secret}'\""
+            )
+            self._run_command(cmd, attempts=3)
+
+    def _encode_secret_if_needed(self, secret, f):
+        """Apply base64 encoding if required"""
+        if self._get_field_base64(f):
+            return base64.b64encode(secret.encode()).decode("utf-8")
+        return secret
 
     # This assumes that self.sanitize_values() has already been called
     # so we do a lot less validation as it has already happened

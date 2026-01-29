@@ -102,6 +102,21 @@
         not jwt_config_oidc_discovery_url == oidc_discovery_url or
         not jwt_config_default_role == default_role | default('default')
 
+# Create JWT auth policies from vault_jwt_policies variable
+# These are manually defined policies for SPIFFE workloads that need direct Vault access
+- name: Write JWT policies directly to Vault
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: |
+      bash -e -c 'cat <<EOF | vault policy write {{ item.name }} -
+      {{ item.policy }}
+      EOF'
+  loop: "{{ vault_jwt_policies | default([]) }}"
+  loop_control:
+    label: "Writing JWT policy {{ item.name }}"
+  when: vault_jwt_policies is defined and vault_jwt_policies | length > 0
+
 - name: Run JWT role tasks
   ansible.builtin.include_tasks: vault_jwt_roles.yaml
   loop: "{{ vault_jwt_roles | default([]) }}"
