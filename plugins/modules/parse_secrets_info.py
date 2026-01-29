@@ -152,6 +152,7 @@ def run(module):
     results["parsed_secrets"] = parsed_secret_obj.parsed_secrets
     results["kubernetes_secret_objects"] = parsed_secret_obj.kubernetes_secret_objects
     results["secret_store_namespace"] = parsed_secret_obj.secret_store_namespace
+    results["unique_vault_prefixes"] = parsed_secret_obj.get_unique_vault_prefixes()
 
     module.exit_json(**results)
 

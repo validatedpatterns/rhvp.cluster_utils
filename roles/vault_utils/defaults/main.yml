@@ -30,3 +30,33 @@ unseal_secret: "vaultkeys"
 unseal_namespace: "imperative"
 vault_jwt_config: false
 vault_jwt_roles: []
+
+# Default policies that VP framework requires for hub-role
+# Patterns can extend this list but these are always included
+vault_hub_role_default_policies:
+  - default
+  - "{{ vault_global_policy }}-secret"
+  - "{{ vault_pushsecrets_policy }}-secret"
+  - "{{ vault_hub }}-secret"
+
+# JWT auth policies for workloads needing direct Vault access
+# List of {name: "policy-name", policy: "HCL policy content"}
+vault_jwt_policies: []
+
+# App-specific Vault policy configuration (vault_app_policies.yaml)
+# List of app configs, each with 'prefix' and optional 'jwt_role' settings
+# Example:
+#   app_prefixes:
+#     - prefix: apps/qtodo
+#       jwt_role:
+#         service_account_names: "qtodo-sa"
+#         service_account_namespaces: "qtodo"
+#         ttl: "15m"
+#     - prefix: hub/infra/keycloak
+app_prefixes: []
+# Capabilities for app policies
+app_capabilities: '[\"read\"]'
+# Whether to update hub-role with new app policies
+app_update_hub_role: true
+# Whether to create JWT roles per app (only for entries with jwt_role defined)
+app_create_jwt_roles: false

@@ -18,6 +18,7 @@ super-linter: ## Runs super linter locally
 					-e VALIDATE_JSON_PRETTIER=false \
 					-e VALIDATE_MARKDOWN_PRETTIER=false \
 					-e VALIDATE_PYTHON_PYLINT=false \
+					-e VALIDATE_PYTHON_PYINK=false \
 					-e VALIDATE_PYTHON_RUFF_FORMAT=false \
 					-e VALIDATE_SHELL_SHFMT=false \
 					-e VALIDATE_YAML=false \
@@ -34,12 +35,12 @@ ansible-lint: ## run ansible lint on ansible/ folder
 
 .PHONY: ansible-sanitytest
 ansible-sanitytest: ## run ansible unit tests
-	ansible-test sanity --docker default
+	ansible-test sanity --docker default --python 3.11 --python 3.12
 
 .PHONY: ansible-unittest
 ansible-unittest: ## run ansible unit tests
 	rm -rf tests/output
-	ansible-test units --docker
+	ansible-test units --docker --python 3.11 --python 3.12
 
 .PHONY: test
 test: ansible-sanitytest ansible-unittest
