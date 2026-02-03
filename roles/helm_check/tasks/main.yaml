@@ -1,22 +1,18 @@
 ---
-- name: Announce helm check
-  ansible.builtin.shell: |
-    printf "==> Checking Helm availability... " > /dev/tty
-
-- name: Probe helm version
+- name: Check Helm availability
   ansible.builtin.command: helm version --short
   register: _helm_probe
   failed_when: false
 
 - name: Report Helm version to TTY (if installed)
-  ansible.builtin.shell: |
-    printf "OK (%s)\n" "{{ _helm_probe.stdout }}" > /dev/tty
+  ansible.builtin.debug:
+    msg: "OK (%s) {{ _helm_probe.stdout }}"
   when: _helm_probe.rc == 0
 
 - name: Print Helm missing/error message and exit (if not installed)
-  ansible.builtin.shell: |
-    printf "ERROR\n" > /dev/tty
-    printf "    Helm is not installed or not on PATH.\n" > /dev/tty
-    printf "    Hint: Install Helm 3 and ensure 'helm' is resolvable.\n" > /dev/tty
-    exit 1
+  ansible.builtin.fail:
+    msg: |
+      ERROR:
+          Helm is not installed or not on PATH.
+          Hint: Install Helm 3 and ensure 'helm' is resolvable.
   when: _helm_probe.rc != 0
