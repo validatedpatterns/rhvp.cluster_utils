@@ -4,9 +4,9 @@
 
 - name: Validate target_origin is usable
   ansible.builtin.shell: |
-    printf "ERROR\n" > /dev/tty
-    printf "    No Git remote found for branch '%s' in '%s'.\n" "{{ target_branch }}" "{{ pattern_dir }}" > /dev/tty
-    printf "    Set TARGET_ORIGIN/TARGET_BRANCH or configure a remote for the branch.\n" > /dev/tty
+    printf "ERROR\n"
+    printf "    No Git remote found for branch '%s' in '%s'.\n" "{{ target_branch }}" "{{ pattern_dir }}"
+    printf "    Set TARGET_ORIGIN/TARGET_BRANCH or configure a remote for the branch.\n"
     exit 1
   when: (target_origin | default("") | trim) == ""
 
@@ -19,8 +19,8 @@
 
 - name: Fail if remote URL cannot be determined
   ansible.builtin.shell: |
-    printf "ERROR\n" > /dev/tty
-    printf "    Could not resolve URL for remote '%s' in '%s'.\n" "{{ target_origin }}" "{{ pattern_dir }}" > /dev/tty
+    printf "ERROR\n"
+    printf "    Could not resolve URL for remote '%s' in '%s'.\n" "{{ target_origin }}" "{{ pattern_dir }}"
     exit 1
   when: (_repo_raw.rc != 0) or ((_repo_raw.stdout | default("") | trim) == "")
 

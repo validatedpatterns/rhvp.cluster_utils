@@ -40,15 +40,15 @@
   ansible.builtin.set_fact:
     unhealthy_apps: "{{ apps_summary | default([]) | selectattr('bad') | list }}"
 
-- name: Print unhealthy/unsynced applications to /dev/tty
+- name: Print unhealthy/unsynced applications
   when: unhealthy_apps | length > 0
   ansible.builtin.shell:
     cmd: |
-      printf "==> Unhealthy or unsynced applications:\n" > /dev/tty
+      printf "==> Unhealthy or unsynced applications:\n"
       {% for app in unhealthy_apps %}
-      printf "    {{ app.namespace }}/{{ app.name }} -> Sync: {{ app.sync }} - Health: {{ app.health }}\n" > /dev/tty
+      printf "    {{ app.namespace }}/{{ app.name }} -> Sync: {{ app.sync }} - Health: {{ app.health }}\n"
       {% endfor %}
-      printf "==> Retrying in 60 seconds...\n" > /dev/tty
+      printf "==> Retrying in 60 seconds...\n"
 
 - name: Fail if any applications are not healthy/synced
   when: unhealthy_apps | length > 0
@@ -59,4 +59,4 @@
   when: unhealthy_apps | length == 0
   ansible.builtin.shell:
     cmd: |
-      printf "==> All {{ apps_summary | length }} Argo applications are healthy and synced.\n" > /dev/tty
+      printf "==> All {{ apps_summary | length }} Argo applications are healthy and synced.\n"

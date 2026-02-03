@@ -1,7 +1,7 @@
 ---
 - name: Announce repository check
   ansible.builtin.shell: |
-    printf "Checking origin reachability:\n" > /dev/tty
+    printf "Checking origin reachability:"
 
 - name: Set upstream_url from values-global.yaml
   ansible.builtin.set_fact:
@@ -16,21 +16,21 @@
 
 - name: Print upstream notice (if present)
   ansible.builtin.shell: |
-    printf "Upstream URL set to: %s\n" "{{ _upstream_url }}" > /dev/tty
+    printf "Upstream URL set to: %s\n" "{{ _upstream_url }}"
   when: _upstream_url | trim != ''
 
 - name: Fail if repo URL is empty
   ansible.builtin.shell: |
-    printf "  (no repository URL available)\n" > /dev/tty
-    printf "ERROR\n" > /dev/tty
-    printf "    Could not determine repository URL to validate.\n" > /dev/tty
-    printf "    Ensure _target_repo is resolved (install_settings role) or set an upstream URL in values-global.yaml.\n" > /dev/tty
+    printf "  (no repository URL available)\n"
+    printf "ERROR\n"
+    printf "    Could not determine repository URL to validate.\n"
+    printf "    Ensure _target_repo is resolved (install_settings role) or set an upstream URL in values-global.yaml.\n"
     exit 1
   when: _repo_to_check == ''
 
 - name: Print URL/branch header
   ansible.builtin.shell: |
-    printf "  %s - branch '%s': " "{{ _repo_to_check }}" "{{ target_branch }}" > /dev/tty
+    printf "  %s - branch '%s': " "{{ _repo_to_check }}" "{{ target_branch }}"
 
 - name: Validate remote branch exists  # noqa: command-instead-of-module
   ansible.builtin.command: >
@@ -40,11 +40,11 @@
 
 - name: Report OK
   ansible.builtin.shell: |
-    printf "OK\n" > /dev/tty
+    printf "OK"
   when: _lsremote.rc == 0
 
 - name: Report NOT FOUND and exit
   ansible.builtin.shell: |
-    printf "NOT FOUND\n" > /dev/tty
+    printf "NOT FOUND"
     exit 1
   when: _lsremote.rc != 0

@@ -17,8 +17,8 @@
 
   tasks:
     - name: Print start message
-      ansible.builtin.shell: |
-        printf "==> Waiting for all argo applications to be healthy/synced.\n" > /dev/tty
+      ansible.builtin.debug:
+        msg: "==> Waiting for all argo applications to be healthy/synced.\n"
 
     - name: Ensure oc is installed
       ansible.builtin.include_role:

@@ -19,9 +19,9 @@
 - name: Print start message
   ansible.builtin.shell:
     cmd: |
-      printf "==> Validating clustergroup schema of: " > /dev/tty
-      for f in {{ values_files_sorted | map('basename') | list | join(' ') }}; do printf " $f" > /dev/tty; done
-      printf "\n" > /dev/tty
+      printf "==> Validating clustergroup schema of: "
+      for f in {{ values_files_sorted | map('basename') | list | join(' ') }}; do printf " $f"; done
+      printf ""
 
 - name: Determine clustergroup chart CLI extras
   ansible.builtin.set_fact:
@@ -47,12 +47,12 @@
   when: (helm_validate.results | selectattr('rc', 'ne', 0) | list | length) > 0
   ansible.builtin.shell:
     cmd: |
-      printf "Schema validation failed for the following values files:\n" > /dev/tty
+      printf "Schema validation failed for the following values files:"
       {% for result in helm_validate.results %}
       {% if result.rc != 0 %}
-      printf "  - {{ result.item | basename }} (exit code: {{ result.rc }})\n" > /dev/tty
-      printf "    To reproduce: cd {{ pattern_dir }} && helm template {{ clustergroup_chart }} {{ clustergroup_version_cli }} {{ extra_helm_opts }} -f \"{{ result.item }}\"\n" > /dev/tty
+      printf "  - {{ result.item | basename }} (exit code: {{ result.rc }})\n"
+      printf "    To reproduce: cd {{ pattern_dir }} && helm template {{ clustergroup_chart }} {{ clustergroup_version_cli }} {{ extra_helm_opts }} -f \"{{ result.item }}\"\n"
       {% endif %}
       {% endfor %}
-      printf "\nRe-run the above commands to see the detailed error output.\n" > /dev/tty
+      printf "\nRe-run the above commands to see the detailed error output.\n"
       exit 1

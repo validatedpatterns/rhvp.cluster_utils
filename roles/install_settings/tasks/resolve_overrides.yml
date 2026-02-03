@@ -28,8 +28,8 @@
 
     - name: Fail if unable to determine target_branch
       ansible.builtin.shell: |
-        printf "ERROR\n" > /dev/tty
-        printf "    Could not determine target branch in '%s'.\n" "{{ pattern_dir }}" > /dev/tty
+        printf "ERROR\n"
+        printf "    Could not determine target branch in '%s'.\n" "{{ pattern_dir }}"
         exit 1
       when: (target_branch | trim == "") and (_br.rc != 0 or (_br.stdout | default('') | trim == ""))
 
@@ -59,9 +59,9 @@
 
     - name: Fail if unable to determine target_origin
       ansible.builtin.shell: |
-        printf "ERROR\n" > /dev/tty
-        printf "    Could not determine target_origin for branch '%s' in '%s'.\n" "{{ target_branch }}" "{{ pattern_dir }}" > /dev/tty
-        printf "    Ensure the branch has a remote configured or pass TARGET_ORIGIN explicitly.\n" > /dev/tty
+        printf "ERROR\n"
+        printf "    Could not determine target_origin for branch '%s' in '%s'.\n" "{{ target_branch }}" "{{ pattern_dir }}"
+        printf "    Ensure the branch has a remote configured or pass TARGET_ORIGIN explicitly.\n"
         exit 1
       when: (target_origin | trim == "") and (_origin.rc != 0 or (_origin.stdout | default('') | trim == ""))
 

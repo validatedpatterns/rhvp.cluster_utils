@@ -12,10 +12,10 @@
 
 - name: Fail if values_secrets_data is missing
   ansible.builtin.shell: |
-    printf "ERROR\n" > /dev/tty
-    printf "    values_secrets_data was not found.\n" > /dev/tty
-    printf "    The find_vp_secrets role should set it.\n" > /dev/tty
-    printf "    Ensure your values/secret files are present and readable.\n" > /dev/tty
+    printf "ERROR\n"
+    printf "    values_secrets_data was not found.\n"
+    printf "    The find_vp_secrets role should set it.\n"
+    printf "    Ensure your values/secret files are present and readable.\n"
     exit 1
   when: values_secrets_data is not defined
 

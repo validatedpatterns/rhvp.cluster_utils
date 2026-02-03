@@ -1,7 +1,7 @@
 ---
 - name: Announce oc check
   ansible.builtin.shell: |
-    printf "==> Checking oc availability... " > /dev/tty
+    printf "==> Checking oc availability... "
 
 - name: Probe oc version (YAML output)
   ansible.builtin.command: oc version --client=true -o yaml
@@ -15,13 +15,13 @@
 
 - name: Report oc version to TTY (if installed)
   ansible.builtin.shell: |
-    printf "OK (%s)\n" "{{ _oc_version.releaseClientVersion | default('unknown') }}" > /dev/tty
+    printf "OK (%s)\n" "{{ _oc_version.releaseClientVersion | default('unknown') }}"
   when: _oc_probe.rc == 0
 
 - name: Print oc missing/error message and exit (if not installed)
   ansible.builtin.shell: |
-    printf "ERROR\n" > /dev/tty
-    printf "    oc is not installed or not on PATH.\n" > /dev/tty
-    printf "    Hint: Install oc and ensure 'oc' is resolvable.\n" > /dev/tty
+    printf "ERROR\n"
+    printf "    oc is not installed or not on PATH.\n"
+    printf "    Hint: Install oc and ensure 'oc' is resolvable.\n"
     exit 1
   when: _oc_probe.rc != 0

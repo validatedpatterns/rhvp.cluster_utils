@@ -5,25 +5,25 @@
 
 - name: Print cluster validation header
   ansible.builtin.shell: |
-    printf "==> Checking cluster:\n" > /dev/tty
+    printf "==> Checking cluster:"
 
 - name: Check that we are logged into a cluster
   ansible.builtin.shell: |
-    printf "    cluster-info: " > /dev/tty
+    printf "    cluster-info: "
     if oc cluster-info >/dev/null 2>&1; then
-      printf "OK\n" > /dev/tty
+      printf "OK"
     else
-      printf "Error\n" > /dev/tty
+      printf "Error"
       exit 1
     fi
 
 - name: Ensure we have storage classes defined
   ansible.builtin.shell: |
     set -o pipefail
-    printf "    storageclass: " > /dev/tty
+    printf "    storageclass: "
     count="$(oc get storageclass -o name 2>/dev/null | wc -l | tr -d ' ')"
     if [ "${count}" -eq 0 ]; then
-      printf "WARNING: No storageclass found\n" > /dev/tty
+      printf "WARNING: No storageclass found"
     else
-      printf "OK\n" > /dev/tty
+      printf "OK"
     fi

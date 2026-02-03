@@ -1,14 +1,10 @@
 ---
 - name: Announce prerequisite checks (host)
-  ansible.builtin.shell: |
-    printf "==> Checking prerequisites...\n" > /dev/tty
+  ansible.builtin.debug:
+    msg: "==> Checking prerequisites..."
 
 - name: Pattern name and clustergroup name length validation
   block:
-    - name: Print start message
-      ansible.builtin.shell: |
-        printf "    Ensuring pattern and clustergroup names are within bounds... " > /dev/tty
-
     - name: Get length of pattern name
       ansible.builtin.set_fact:
         _pattern_name_len: "{{ pattern_name | length }}"
@@ -24,20 +20,20 @@
 
     - name: Print success message
       ansible.builtin.shell: |
-        printf "OK\n" > /dev/tty
+        printf "OK"
       when: _name_valid
 
     - name: Print failure message
-      ansible.builtin.shell: |
-        {% raw %}printf "FAIL\n\n" > /dev/tty
-        printf "    Validation Explanation:\n" > /dev/tty
-        printf "    A DNS-compatible name is constructed in the 'clustergroup' Helm chart using the following pattern:\n" > /dev/tty
-        printf "      -> {{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}\n\n" > /dev/tty
-        printf "    The total length is calculated as:\n" > /dev/tty
-        printf "      (2 * length of 'clusterGroup.name') + length of 'global.pattern' + 15 (for '-gitops-server-') + 1 (for the namespace separator '-')\n\n" > /dev/tty
-        printf "    To stay under the 63-character limit, the variable part of the name must be less than 47 characters:\n" > /dev/tty
-        printf "      (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47\n" > /dev/tty
-        exit 1{% endraw %}
+      ansible.builtin.fail:
+        msg: |
+          FAIL
+            Validation Explanation:
+            A DNS-compatible name is constructed in the 'clustergroup' Helm chart using the following pattern:
+              -> {{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}
+            The total length is calculated as:\n"
+              (2 * length of 'clusterGroup.name') + length of 'global.pattern' + 15 (for '-gitops-server-') + 1 (for the namespace separator '-')
+            To stay under the 63-character limit, the variable part of the name must be less than 47 characters:
+              (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47
       when: not _name_valid
 
 - name: Detect whether we are running inside a container
@@ -50,22 +46,22 @@
   block:
     - name: Check python-kubernetes (host)
       ansible.builtin.shell: |
-        printf "    Looking for python-kubernetes module... " > /dev/tty
+        printf "    Looking for python-kubernetes module... "
         if {{ (ansible_python_interpreter | default('/usr/bin/python3')) }} -c 'import kubernetes' >/dev/null 2>&1; then
-          printf "OK\n" > /dev/tty
+          printf "OK\n"
         else
-          printf "Not found\n" > /dev/tty
+          printf "Not found\n"
           exit 1
         fi
 
     - name: Check kubernetes.core collection (host)
       ansible.builtin.shell: |
         set -o pipefail
-        printf "    Looking for kubernetes.core collection... " > /dev/tty
+        printf "    Looking for kubernetes.core collection... "
         if ansible-galaxy collection list | grep -q 'kubernetes.core'; then
-          printf "OK\n" > /dev/tty
+          printf "OK\n"
         else
-          printf "Not found\n" > /dev/tty
+          printf "Not found\n"
           exit 1
         fi
 
@@ -78,6 +74,6 @@
 
     - name: Enforce multiSourceConfig is enabled (container)
       ansible.builtin.shell: |
-        printf "You must set \".main.multiSourceConfig.enabled: true\" in 'values-global.yaml'.\n" > /dev/tty
+        printf "You must set \".main.multiSourceConfig.enabled: true\" in 'values-global.yaml'.\n"
         exit 1
       when: not _msc_enabled

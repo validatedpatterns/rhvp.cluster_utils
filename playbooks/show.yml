@@ -11,4 +11,4 @@
   tasks:
     - name: Print rendered pattern-install chart manifests
       ansible.builtin.shell: |
-        printf "\n%s\n" "{{ pattern_install_rendered_yaml }}" > /dev/tty
+        printf "\n%s\n" "{{ pattern_install_rendered_yaml }}"

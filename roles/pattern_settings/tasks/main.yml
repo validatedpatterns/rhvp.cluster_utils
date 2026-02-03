@@ -8,9 +8,9 @@
 
 - name: Fail if global.pattern is missing
   ansible.builtin.shell: |
-    printf "ERROR\n" > /dev/tty
-    printf "    values-global.yaml does not define .global.pattern.\n" > /dev/tty
-    printf "    Please set a value for pattern under the 'global' key.\n" > /dev/tty
+    printf "ERROR\n"
+    printf "    values-global.yaml does not define .global.pattern.\n"
+    printf "    Please set a value for pattern under the 'global' key.\n"
     exit 1
   when: (values_global.global.pattern | default('') | string | trim) == ""
 
@@ -25,9 +25,9 @@
 
 - name: Fail if main.clusterGroupName is missing
   ansible.builtin.shell: |
-    printf "ERROR\n" > /dev/tty
-    printf "    values-global.yaml does not define .main.clusterGroupName.\n" > /dev/tty
-    printf "    Please set a value for clusterGroupName under the 'main' key.\n" > /dev/tty
+    printf "ERROR\n"
+    printf "    values-global.yaml does not define .main.clusterGroupName.\n"
+    printf "    Please set a value for clusterGroupName under the 'main' key.\n"
     exit 1
   when: (values_global.main.clusterGroupName | default('') | string | trim) == ""
 
