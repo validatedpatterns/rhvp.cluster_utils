@@ -173,19 +173,8 @@ class CallbackModule(CallbackModule_default):
             stderr=self.get_option("display_failed_stderr"),
         )
 
-    def _display_diff(self, res):
-        """Display diff if present and changed."""
-        if res.get("diff") and res.get("changed", False):
-            diff = self._get_diff(res["diff"])
-            if diff:
-                self._display.display(diff)
-
     def v2_on_file_diff(self, result):
-        if result._task.loop and "results" in result._result:
-            for res in result._result["results"]:
-                self._display_diff(res)
-        else:
-            self._display_diff(result._result)
+        return
 
     def v2_playbook_on_stats(self, stats):
         return
@@ -197,22 +186,7 @@ class CallbackModule(CallbackModule_default):
         self._display.display("  Ran out of hosts!", color=C.COLOR_ERROR)
 
     def v2_playbook_on_start(self, playbook):
-        check_mode = context.CLIARGS["check"] and self.get_option("check_mode_markers")
-        check_str = " in check mode" if check_mode else ""
-        self._display.display(
-            f"Executing playbook {basename(playbook._file_name)}{check_str}"
-        )
-
-        if self._display.verbosity > 3:
-            if context.CLIARGS.get("args"):
-                self._display.display(
-                    f"Positional arguments: {' '.join(context.CLIARGS['args'])}",
-                    color=C.COLOR_VERBOSE,
-                    screen_only=True,
-                )
-            for argument, val in context.CLIARGS.items():
-                if argument != "args" and val:
-                    self._display.vvvv(f"{argument}: {val}")
+        return
 
     def v2_runner_retry(self, result):
         msg = f"  Retrying... ({result._result['attempts']} of {result._result['retries']})"
