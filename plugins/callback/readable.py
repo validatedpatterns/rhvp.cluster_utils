@@ -187,48 +187,8 @@ class CallbackModule(CallbackModule_default):
         else:
             self._display_diff(result._result)
 
-    def _format_stats_line(self, host, stats, use_color=True):
-        """Format a single host's stats line."""
-        color = lambda name, val, c: colorize(name, val, c if use_color else None)
-        return (
-            f"  {hostcolor(host, stats, use_color)} : "
-            f"{color('ok', stats['ok'], C.COLOR_OK)} "
-            f"{color('changed', stats['changed'], C.COLOR_CHANGED)} "
-            f"{color('unreachable', stats['unreachable'], C.COLOR_UNREACHABLE)} "
-            f"{color('failed', stats['failures'], C.COLOR_ERROR)} "
-            f"{color('rescued', stats['rescued'], C.COLOR_OK)} "
-            f"{color('ignored', stats['ignored'], C.COLOR_WARN)}"
-        )
-
     def v2_playbook_on_stats(self, stats):
-        self._display.display("\n- Play recap -", screen_only=True)
-
-        for host in sorted(stats.processed.keys()):
-            t = stats.summarize(host)
-            self._display.display(
-                self._format_stats_line(host, t, use_color=True), screen_only=True
-            )
-            self._display.display(
-                self._format_stats_line(host, t, use_color=False), log_only=True
-            )
-
-        if not (stats.custom and self.get_option("show_custom_stats")):
-            return
-
-        self._display.banner("CUSTOM STATS: ")
-        for k in sorted(stats.custom.keys()):
-            if k == "_run":
-                continue
-            stat_val = self._dump_results(stats.custom[k], indent=1).replace("\n", "")
-            self._display.display(f"\t{k}: {stat_val}")
-
-        if "_run" in stats.custom:
-            self._display.display("", screen_only=True)
-            stat_val_run = self._dump_results(stats.custom["_run"], indent=1).replace(
-                "\n", ""
-            )
-            self._display.display(f"\tRUN: {stat_val_run}")
-        self._display.display("", screen_only=True)
+        return
 
     def v2_playbook_on_no_hosts_matched(self):
         self._display.display("  No hosts found!", color=C.COLOR_DEBUG)
