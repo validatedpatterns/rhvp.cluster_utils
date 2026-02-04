@@ -3,19 +3,18 @@
   ansible.builtin.include_role:
     name: oc_check
 
-- name: Print cluster validation header
-  ansible.builtin.shell: |
-    printf "==> Checking cluster:"
-
 - name: Check that we are logged into a cluster
   ansible.builtin.shell: |
-    printf "    cluster-info: "
-    if oc cluster-info >/dev/null 2>&1; then
-      printf "OK"
-    else
-      printf "Error"
-      exit 1
-    fi
+    oc cluster-info >/dev/null 2>&1
+  register: check_oc_cluster
+  ignore_errors: true
+
+- name: Error out if we cannot get to the cluster
+  ansible.builtin.fail:
+    msg: |
+      We could not log into the cluster. Please check your KUBECONFIG variable
+      or your ~/.kube/config settings.
+  when: check_oc_cluster is failed
 
 - name: Ensure we have storage classes defined
   ansible.builtin.shell: |

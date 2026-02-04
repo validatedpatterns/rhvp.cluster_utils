@@ -125,6 +125,9 @@ class CallbackModule(CallbackModule_default):
         return f"{base_msg} | item: {item_value}" if item_value else base_msg
 
     def v2_runner_on_failed(self, result, ignore_errors=False):
+        if ignore_errors:
+            self._display.display("  error (ignored)", C.COLOR_WARN)
+            return
         self._preprocess_result(result)
         msg = self._build_msg_with_item("failed", result)
         task_result = self._process_result_output(result, msg)
@@ -166,7 +169,7 @@ class CallbackModule(CallbackModule_default):
         self.v2_runner_on_skipped(result)
 
     def v2_runner_item_on_failed(self, result):
-        self.v2_runner_on_failed(result)
+        self.v2_runner_on_failed(result, ignore_errors=result._task.ignore_errors)
 
     def v2_runner_item_on_ok(self, result):
         self.v2_runner_on_ok(result)
