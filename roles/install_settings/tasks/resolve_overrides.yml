@@ -64,7 +64,7 @@
     - name: Set target_origin using git
       ansible.builtin.set_fact:
         target_origin: "{{ _origin.stdout | trim }}"
-      when: target_origin == "" and _origin.rc == 0
+      when: target_origin == "" and _origin is not failed
 
     - name: Ensure target_origin is set
       ansible.builtin.assert:

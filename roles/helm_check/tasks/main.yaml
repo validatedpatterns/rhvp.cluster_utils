@@ -6,7 +6,7 @@
 
 - name: Print Helm missing/error message and exit (if not installed)
   ansible.builtin.assert:
-    that: _helm_probe.rc == 0
+    that: _helm_probe is not failed
     fail_msg: |
       Helm is not installed or not on PATH.
       Try running your command again with the './pattern.sh' script, inside the

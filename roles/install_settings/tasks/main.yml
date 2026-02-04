@@ -14,7 +14,7 @@
     - name: Set target_remote_url fact
       ansible.builtin.set_fact:
         target_remote_url: "{{ _repo_raw.stdout | trim }}"
-      when: _repo_raw.rc == 0 and _repo_raw.stdout | trim != ""
+      when: _repo_raw is not failed and _repo_raw.stdout | trim != ""
 
     - name: Ensure target_remote_url is set
       ansible.builtin.assert:

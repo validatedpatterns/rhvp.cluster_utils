@@ -24,7 +24,7 @@
 
 - name: Print error message on failure
   ansible.builtin.assert:
-    that: _lsremote.rc != 0
+    that: _lsremote is not failed
     fail_msg: |
       Branch '{{ target_branch }}' is not reachable on remote repo '{{ _repo_to_check }}'.
       Ensure that your branch is pushed to the origin repo.

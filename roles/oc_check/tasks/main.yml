@@ -6,7 +6,7 @@
 
 - name: Print oc missing/error message and exit (if not installed)
   ansible.builtin.assert:
-    that: _oc_probe.rc == 0
+    that: _oc_probe is not failed
     fail_msg: |
       oc is not installed or not on PATH.
       Try running your command again with the './pattern.sh' script, inside the
