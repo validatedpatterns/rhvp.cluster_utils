@@ -206,6 +206,12 @@ class CallbackModule(CallbackModule_default):
         if result._result.get("results"):
             return
 
+        # Handle fail tasks that succeeded due to failed_when=false
+        if self._is_fail_task(result):
+            # For fail tasks that didn't actually fail, just show ok
+            self._display.display("  ok", C.COLOR_OK)
+            return
+
         # Handle debug tasks specially
         if result._task.action in NO_STDOUT_TASKS:
             debug_msg = result._result.get("msg", "")
