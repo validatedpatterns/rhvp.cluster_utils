@@ -53,18 +53,19 @@ class CallbackModule(CallbackModule_default):
         self._handle_warnings(result._result)
 
     def _process_result_output(self, result, msg):
-        task_host = result._host.get_name()
-        task_result = f"{task_host} {msg}"
+        # task_host = f"{result._host.get_name()} "
+        task_host = ""
+        task_result = f"{task_host}{msg}"
 
         if self._run_is_verbose(result):
             task_result = (
-                f"{task_host} {msg}: {self._dump_results(result._result, indent=4)}"
+                f"{task_host}{msg}: {self._dump_results(result._result, indent=4)}"
             )
             return task_result
 
         if self.delegated_vars:
             task_delegate_host = self.delegated_vars["ansible_host"]
-            task_result = f"{task_host} -> {task_delegate_host} {msg}"
+            task_result = f"{task_host}-> {task_delegate_host} {msg}"
 
         if (
             result._result.get("msg")
@@ -91,7 +92,7 @@ class CallbackModule(CallbackModule_default):
             else ""
         )
         suffix_str = f" ({suffix})" if suffix else ""
-        self._display.display(f"{name}{suffix_str}{check_mode}...")
+        self._display.display(f"{name}{suffix_str}{check_mode}...", newline=False)
 
     def v2_playbook_on_task_start(self, task, is_conditional):
         self._display_task_start(task)
