@@ -18,10 +18,9 @@
           ansible.builtin.set_fact:
             disable_validate_origin: >-
               {{
-                (
-                  disable_validate_origin
-                  | default(lookup('env', 'DISABLE_VALIDATE_ORIGIN'), true)
-                  | default('false', false)
+                disable_validate_origin | default(
+                  lookup('env', 'DISABLE_VALIDATE_ORIGIN') or 'false',
+                  true
                 ) | bool
               }}
 
