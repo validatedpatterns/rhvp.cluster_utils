@@ -28,8 +28,8 @@
         msg: |
           FAIL - Validation Explanation:
           A DNS-compatible name is constructed in the 'clustergroup' Helm chart using the following pattern:
-            -> {{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}
-          The total length is calculated as:\n"
+            -> {% raw %}{{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}{% endraw %}
+          The total length is calculated as:
             (2 * length of 'clusterGroup.name') + length of 'global.pattern' + 15 (for '-gitops-server-') + 1 (for the namespace separator '-')
           To stay under the 63-character limit, the variable part of the name must be less than 47 characters:
             (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47
