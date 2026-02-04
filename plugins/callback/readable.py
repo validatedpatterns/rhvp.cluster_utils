@@ -152,16 +152,16 @@ class CallbackModule(CallbackModule_default):
 
     def _is_fail_task(self, result):
         """Check if this is a fail task that should use simple message output."""
-        return result._task.action in ('fail', 'ansible.builtin.fail')
+        return result._task.action in ("fail", "ansible.builtin.fail")
 
-    def _handle_exception(self, result_dict, use_stderr=None):
+    def _handle_exception(self, result, use_stderr=None):
         """Override exception handling to suppress for fail tasks."""
         # Skip exception handling for fail tasks - we just want to show the msg
-        if hasattr(self, '_current_task') and self._current_task:
-            if self._current_task.action in ('fail', 'ansible.builtin.fail'):
+        if hasattr(self, "_current_task") and self._current_task:
+            if self._current_task.action in ("fail", "ansible.builtin.fail"):
                 return
 
-        super()._handle_exception(result_dict, use_stderr)
+        super()._handle_exception(result, use_stderr)
 
     def v2_playbook_on_task_start(self, task, is_conditional):
         # Store current task for exception handling
@@ -182,10 +182,10 @@ class CallbackModule(CallbackModule_default):
 
         # For fail tasks, just display the message cleanly
         if self._is_fail_task(result):
-            if result._result.get('warnings'):
-                for warning in result._result['warnings']:
+            if result._result.get("warnings"):
+                for warning in result._result["warnings"]:
                     self._display.warning(warning)
-            msg = result._result.get('msg', 'Task failed')
+            msg = result._result.get("msg", "Task failed")
             self._display.display(f"  {msg}")
             return
 
