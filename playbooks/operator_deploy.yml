@@ -32,11 +32,6 @@
 
     - name: Apply rendered pattern-install chart manifests (with retry)
       block:
-        - name: Preview manifest that will be applied
-          ansible.builtin.shell: |
-            printf "==> Applying the following manifest to the cluster:\n\n"
-            printf "%s\n" "{{ pattern_install_rendered_yaml }}"
-
         - name: Apply via oc with retry
           ansible.builtin.command: oc apply -f -
           args:
@@ -48,11 +43,12 @@
           until: _apply.rc == 0
 
         - name: Print success message
-          ansible.builtin.shell: printf "==> Installation succeeded!\n"
+          ansible.builtin.debug:
+            msg: "Installation succeeded!"
 
       rescue:
-        - name: Print failure summary and abort
-          ansible.builtin.shell: |
-            printf "==> Installation failed. Error:\n"
-            printf "%s\n" "{{ _apply.stderr | default(_apply.stdout) | default('') }}"
-            exit 1
+        - name: Print failure summary
+          ansible.builtin.fail:
+            msg: |
+              Failed to install pattern after 10 retries. Error:
+              {{ _apply.stderr | default(_apply.stdout) | default('') }}

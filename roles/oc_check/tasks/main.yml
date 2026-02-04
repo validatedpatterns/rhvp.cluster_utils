@@ -1,27 +1,22 @@
 ---
-- name: Announce oc check
-  ansible.builtin.shell: |
-    printf "==> Checking oc availability... "
-
-- name: Probe oc version (YAML output)
+- name: Check oc availability
   ansible.builtin.command: oc version --client=true -o yaml
   register: _oc_probe
   failed_when: false
 
+- name: Print oc missing/error message and exit (if not installed)
+  ansible.builtin.assert:
+    that: _oc_probe.rc == 0
+    fail_msg: |
+      oc is not installed or not on PATH.
+      Try running your command again with the './pattern.sh' script, inside the
+      utility-container, or locally after installing oc and verifying it is available on PATH.
+
 - name: Parse oc version output
   ansible.builtin.set_fact:
     _oc_version: "{{ _oc_probe.stdout | from_yaml }}"
-  when: _oc_probe.rc == 0
 
-- name: Report oc version to TTY (if installed)
-  ansible.builtin.shell: |
-    printf "OK (%s)\n" "{{ _oc_version.releaseClientVersion | default('unknown') }}"
-  when: _oc_probe.rc == 0
-
-- name: Print oc missing/error message and exit (if not installed)
-  ansible.builtin.shell: |
-    printf "ERROR\n"
-    printf "    oc is not installed or not on PATH.\n"
-    printf "    Hint: Install oc and ensure 'oc' is resolvable.\n"
-    exit 1
-  when: _oc_probe.rc != 0
+- name: Report oc version
+  ansible.builtin.debug:
+    msg: |
+      {{ _oc_version.releaseClientVersion | default('unknown') | trim }}

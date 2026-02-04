@@ -3,35 +3,13 @@
   ansible.builtin.include_role:
     name: helm_check
 
-- name: Print helm template command
-  ansible.builtin.debug:
-    msg: |
-      ==> Running: helm template {{ pattern_install_chart }} --name-template
-      {{ pattern_name }} {{ _install_helm_opts }}"
-
-- name: Run helm template
-  ansible.builtin.command: >
-    helm template  --include-crds {{ pattern_install_chart }}
-    --name-template {{ pattern_name }}
-    {{ _install_helm_opts }}
+- name: Run helm template command
+  ansible.builtin.command: |
+    {{ helm_template_command }}
   args:
     chdir: "{{ pattern_dir }}"
   register: _helm_template
-  failed_when: false
-
-- name: Fail if helm template failed
-  ansible.builtin.fail:
-    msg: |
-      ERROR:
-          Helm template failed in: {{ pattern_dir }}
-          Chart: {{ pattern_install_chart }}
-          Name:  {{ pattern_name }}
-          Exit code: {{ _helm_template.rc }}
-          Command output:
-            {{ _helm_template.stderr | default(_helm_template.stdout) }}
-  when: _helm_template.rc != 0
 
 - name: Set rendered YAML fact
   ansible.builtin.set_fact:
     pattern_install_rendered_yaml: "{{ _helm_template.stdout }}"
-  when: _helm_template.rc == 0

@@ -6,13 +6,12 @@
   ansible.builtin.set_fact:
     values_global: "{{ lookup('file', pattern_dir + '/values-global.yaml') | from_yaml }}"
 
-- name: Fail if global.pattern is missing
-  ansible.builtin.shell: |
-    printf "ERROR\n"
-    printf "    values-global.yaml does not define .global.pattern.\n"
-    printf "    Please set a value for pattern under the 'global' key.\n"
-    exit 1
-  when: (values_global.global.pattern | default('') | string | trim) == ""
+- name: Ensure .global.pattern is set
+  ansible.builtin.assert:
+    that: (values_global.global.pattern | default('') | string | trim) != ""
+    fail_msg: |
+      values-global.yaml does not define .global.pattern.
+      Please set a value for pattern under the 'global' key.
 
 - name: Resolve pattern_name
   ansible.builtin.set_fact:
@@ -23,13 +22,12 @@
           | default((values_global.global.pattern | string | trim), true)
       }}
 
-- name: Fail if main.clusterGroupName is missing
-  ansible.builtin.shell: |
-    printf "ERROR\n"
-    printf "    values-global.yaml does not define .main.clusterGroupName.\n"
-    printf "    Please set a value for clusterGroupName under the 'main' key.\n"
-    exit 1
-  when: (values_global.main.clusterGroupName | default('') | string | trim) == ""
+- name: Ensure main.clusterGroupName is set
+  ansible.builtin.assert:
+    that: (values_global.main.clusterGroupName | default('') | string | trim) != ""
+    fail_msg: |
+      values-global.yaml does not define .main.clusterGroupName.
+      Please set a value for clusterGroupName under the 'main' key.
 
 - name: Set fact for main clustergroup
   ansible.builtin.set_fact:
