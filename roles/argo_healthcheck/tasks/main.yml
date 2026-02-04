@@ -35,9 +35,9 @@
   loop: "{{ apps_items }}"
 
 - name: Print status lines
-  ansible.builtin.shell:
-    cmd: |
-      printf "    {{ item.namespace }} {{ item.name }} -> Sync: {{ item.sync }} - Health: {{ item.health }}\n"
+  ansible.builtin.debug:
+    msg: |
+          {{ item.namespace }} {{ item.name }} -> Sync: {{ item.sync }} - Health: {{ item.health }}
   loop: "{{ apps_summary | default([]) }}"
   loop_control:
     label: "{{ item.namespace }}:{{ item.name }}"
