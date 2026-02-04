@@ -17,8 +17,7 @@
       Validating that branch '{{ target_branch }}' is reachable on remote repo '{{ _repo_to_check }}'
 
 - name: Validate remote branch exists is reachable on remote repo
-  ansible.builtin.command: >
-    git ls-remote --exit-code --heads {{ _repo_to_check }} {{ target_branch }}  # noqa: command-instead-of-module
+  ansible.builtin.command: git ls-remote --exit-code --heads {{ _repo_to_check }} {{ target_branch }}  # noqa: command-instead-of-module
   register: _lsremote
   failed_when: false
 
