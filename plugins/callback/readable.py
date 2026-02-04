@@ -125,14 +125,6 @@ class CallbackModule(CallbackModule_default):
         suffix_str = f" ({suffix})" if suffix else ""
         self._display.display(f"{name}{suffix_str}{check_mode}...", newline=False)
 
-    def v2_playbook_on_task_start(self, task, is_conditional):
-        self._finalize_loop_if_needed()
-        self._display_task_start(task)
-
-    def v2_playbook_on_handler_task_start(self, task):
-        self._finalize_loop_if_needed()
-        self._display_task_start(task, suffix="via handler")
-
     def v2_playbook_on_play_start(self, play):
         self._finalize_loop_if_needed()
         name = play.get_name().strip()
@@ -158,39 +150,17 @@ class CallbackModule(CallbackModule_default):
         item_value = self._get_item_label(result._result)
         return f"{base_msg} | item: {item_value}" if item_value else base_msg
 
-    def _should_use_simple_failure_output(self, result):
-        """Determine if we should use simple failure output without full details."""
-        # Use simple output if the task has 'simple_failure' tag or variable
-        if hasattr(result._task, 'tags') and 'simple_failure' in result._task.tags:
-            return True
-
-        # Use simple output if task variables contain simple_failure: true
-        task_vars = getattr(result._task, 'vars', {})
-        if task_vars.get('simple_failure', False):
-            return True
-
-        # Use simple output for ansible.builtin.fail tasks
-        if result._task.action in ('fail', 'ansible.builtin.fail'):
-            return True
-
-        return False
+    def _is_fail_task(self, result):
+        """Check if this is a fail task that should use simple message output."""
+        return result._task.action in ('fail', 'ansible.builtin.fail')
 
     def _handle_exception(self, result_dict, use_stderr=None):
-        """Override exception handling to suppress for simple failures."""
-        # Check if we're in a context where we want simple output
-        # Note: This is called before v2_runner_on_failed, so we need to check the current task
+        """Override exception handling to suppress for fail tasks."""
+        # Skip exception handling for fail tasks - we just want to show the msg
         if hasattr(self, '_current_task') and self._current_task:
-            # Create a mock result to check if this should use simple output
-            class MockResult:
-                def __init__(self, task):
-                    self._task = task
-                    self._result = result_dict
+            if self._current_task.action in ('fail', 'ansible.builtin.fail'):
+                return
 
-            mock_result = MockResult(self._current_task)
-            if self._should_use_simple_failure_output(mock_result):
-                return  # Skip exception handling for simple failures
-
-        # Use parent's exception handling for regular failures
         super()._handle_exception(result_dict, use_stderr)
 
     def v2_playbook_on_task_start(self, task, is_conditional):
@@ -210,19 +180,16 @@ class CallbackModule(CallbackModule_default):
             self._display.display("  error (ignored)", C.COLOR_WARN)
             return
 
-        # Check if we should use simple failure output BEFORE any processing
-        if self._should_use_simple_failure_output(result):
-            # For simple output, completely bypass parent error handling
-            # Only handle warnings and display the clean message
+        # For fail tasks, just display the message cleanly
+        if self._is_fail_task(result):
             if result._result.get('warnings'):
                 for warning in result._result['warnings']:
                     self._display.warning(warning)
-
-            simple_msg = result._result.get('msg', 'Task failed')
-            self._display.display(f"  {simple_msg}")
+            msg = result._result.get('msg', 'Task failed')
+            self._display.display(f"  {msg}")
             return
 
-        # Use full detailed output for other failures
+        # Full detailed output for other failures
         self._preprocess_result(result)
         msg = self._build_msg_with_item("failed", result)
         task_result = self._process_result_output(result, msg)

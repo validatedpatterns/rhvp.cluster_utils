@@ -53,8 +53,6 @@
   when: unhealthy_apps | length > 0
   ansible.builtin.fail:
     msg: "{{ unhealthy_apps | length }} application(s) are not healthy/synced"
-  tags: 
-    - simple_failure
 
 - name: Print success message
   when: unhealthy_apps | length == 0
