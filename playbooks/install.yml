@@ -11,7 +11,7 @@
   gather_facts: false
 
   vars:
-    max_retries: 30
+    max_retries: 60
     retry_count: 0
     retry_delay: 60
 

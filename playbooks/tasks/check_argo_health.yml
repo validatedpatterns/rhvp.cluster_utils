@@ -1,61 +1,31 @@
 ---
-- name: Get all Argo CD applications as JSON
-  ansible.builtin.command: oc get applications.argoproj.io -A -o json
-  register: apps_raw
-  changed_when: false
+- name: Get all Argo CD applications
+  kubernetes.core.k8s_info:
+    api_version: argoproj.io/v1alpha1
+    kind: Application
+  register: argo_apps
 
-- name: Extract and analyze applications
+- name: Process Application Statuses
   ansible.builtin.set_fact:
-    apps_items: >-
-      {{
-        (apps_raw.stdout | default('{}'))
-        | from_json
-        | json_query('items')
-        | default([])
-      }}
-
-- name: Reset applications summary
-  ansible.builtin.set_fact:
-    apps_summary: []
-
-- name: Build applications summary
-  ansible.builtin.set_fact:
-    apps_summary: >-
-      {{ apps_summary + [
-          {
-            'namespace': (item.metadata.namespace | default('')),
-            'name': (item.metadata.name | default('')),
-            'sync': (item.status.sync.status | default('')),
-            'health': (item.status.health.status | default('')),
-            'bad': ((item.status.sync.status | default('')) != 'Synced')
-                   or ((item.status.health.status | default('')) != 'Healthy')
-          }
-        ]
-      }}
-  loop: "{{ apps_items }}"
-  loop_control:
-    label: "{{ item.metadata.namespace }}:{{ item.metadata.name }}"
-
-- name: Filter unhealthy or unsynced applications
-  ansible.builtin.set_fact:
-    unhealthy_apps: "{{ apps_summary | default([]) | selectattr('bad') | list }}"
-
-- name: Print unhealthy/unsynced applications
-  when: unhealthy_apps | length > 0
-  ansible.builtin.debug:
-    msg: |
-      ==> Unhealthy or unsynced applications (will retry in 60 seconds):
-      {% for app in unhealthy_apps %}
-          {{ app.namespace }}/{{ app.name }} -> Sync: {{ app.sync }} - Health: {{ app.health }}
+    apps_summary: "{{ summary_yaml | from_yaml }}"
+  vars:
+    summary_yaml: |
+      {% for item in argo_apps.resources -%}
+      - namespace: {{ item.metadata.namespace }}
+        name: {{ item.metadata.name }}
+        sync: {{ item.status.sync.status | default('Unknown') }}
+        health: {{ item.status.health.status | default('Unknown') }}
+        bad: {{ (item.status.sync.status | default('Unknown') != 'Synced' or item.status.health.status | default('Unknown') != 'Healthy') | lower }}
       {% endfor %}
 
-- name: Fail if any applications are not healthy/synced
-  when: unhealthy_apps | length > 0
-  ansible.builtin.fail:
-    msg: "{{ unhealthy_apps | length }} application(s) are not healthy/synced"
-
-- name: Print success message
-  when: unhealthy_apps | length == 0
-  ansible.builtin.debug:
-    msg: |
-      ==> All {{ apps_summary | length }} Argo applications are healthy and synced.
+- name: Validate Cluster Health
+  vars:
+    bad_apps: "{{ apps_summary | selectattr('bad') | list }}"
+  ansible.builtin.assert:
+    that: bad_apps | length == 0
+    fail_msg: |
+      The following ArgoCD applications are out-of-sync or unhealthy:
+      {% for app in bad_apps %}
+      - {{ app.namespace }}/{{ app.name }} (Sync: {{ app.sync }}, Health: {{ app.health }})
+      {% endfor %}
+    quiet: true

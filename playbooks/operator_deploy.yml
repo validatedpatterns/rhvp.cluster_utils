@@ -29,25 +29,25 @@
             name: validate_origin
           when: not disable_validate_origin
 
-    - name: Apply rendered pattern-install chart manifests (with retry)
+    - name: Apply rendered pattern-install chart manifests
       block:
-        - name: Apply via oc with retry
-          ansible.builtin.command: oc apply -f -
-          args:
-            stdin: "{{ pattern_install_rendered_yaml }}"
-            stdin_add_newline: false
+        - name: Apply manifests via native k8s module
+          kubernetes.core.k8s:
+            definition: "{{ pattern_install_rendered_yaml }}"
+            state: present
           register: _apply
           retries: 10
           delay: 15
-          until: _apply.rc == 0
+          until: not _apply.failed
 
         - name: Print success message
           ansible.builtin.debug:
-            msg: "Installation succeeded!"
+            msg: |
+              Installation of {{ pattern_name }} succeeded!
 
       rescue:
         - name: Print failure summary
           ansible.builtin.fail:
             msg: |
-              Failed to install pattern after 10 retries. Error:
-              {{ _apply.stderr | default(_apply.stdout) | default('') }}
+              Failed to install pattern after 10 retries.
+              Error: {{ _apply.error | default(_apply.msg) | default('Unknown error') }}
