@@ -7,7 +7,7 @@
 
 - name: Process Application Statuses
   ansible.builtin.set_fact:
-    apps_summary: "{{ summary_yaml | from_yaml }}"
+    apps_summary: "{{ (summary_yaml | from_yaml) | default([], true) }}"
   vars:
     summary_yaml: |
       {% for item in argo_apps.resources -%}
@@ -22,10 +22,16 @@
   vars:
     bad_apps: "{{ apps_summary | selectattr('bad') | list }}"
   ansible.builtin.assert:
-    that: bad_apps | length == 0
+    that:
+      - apps_summary | length > 0
+      - bad_apps | length == 0
     fail_msg: |
+      {% if apps_summary | length == 0 %}
+      No ArgoCD applications found in the cluster.
+      {% else %}
       The following ArgoCD applications are out-of-sync or unhealthy:
       {% for app in bad_apps %}
       - {{ app.namespace }}/{{ app.name }} (Sync: {{ app.sync }}, Health: {{ app.health }})
       {% endfor %}
+      {% endif %}
     quiet: true
