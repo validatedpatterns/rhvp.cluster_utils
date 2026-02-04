@@ -23,7 +23,6 @@ from ansible import constants as C
 from ansible.module_utils.common.text.converters import to_text
 from ansible.plugins.callback.default import CallbackModule as CallbackModule_default
 
-
 NO_STDOUT_TASKS = (
     "debug",
     "ansible.builtin.debug",
