@@ -5,7 +5,7 @@
 - name: Resolve target_remote_url
   block:
     - name: Derive remote URL via git
-      ansible.builtin.command: "git remote get-url {{ target_origin }}"
+      ansible.builtin.command: "git remote get-url {{ target_origin }}"  # noqa: command-instead-of-module
       args:
         chdir: "{{ pattern_dir }}"
       register: _repo_raw

@@ -21,7 +21,7 @@
           }}
 
     - name: Derive target_branch via git (when not overridden)
-      ansible.builtin.command: "git branch --show-current"
+      ansible.builtin.command: "git branch --show-current"  # noqa: command-instead-of-module
       args:
         chdir: "{{ pattern_dir }}"
       register: _br
@@ -54,7 +54,7 @@
           }}
 
     - name: Derive target_origin via git (when not overridden)
-      ansible.builtin.command: "git config branch.{{ target_branch }}.remote"
+      ansible.builtin.command: "git config branch.{{ target_branch }}.remote"  # noqa: command-instead-of-module
       args:
         chdir: "{{ pattern_dir }}"
       register: _origin
