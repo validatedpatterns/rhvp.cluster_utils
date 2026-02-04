@@ -24,6 +24,20 @@ from ansible.module_utils.common.text.converters import to_text
 from ansible.plugins.callback.default import CallbackModule as CallbackModule_default
 
 
+NO_STDOUT_TASKS = (
+    "debug",
+    "ansible.builtin.debug",
+    "assert",
+    "ansible.builtin.assert",
+    "command",
+    "ansible.builtin.command",
+    "shell",
+    "ansible.builtin.shell",
+    "kubernetes.core.k8s_info",
+    "kubernetes.core.k8s_exec",
+)
+
+
 class CallbackModule(CallbackModule_default):
     """
     Design goals:
@@ -34,6 +48,21 @@ class CallbackModule(CallbackModule_default):
     CALLBACK_VERSION = 1.0
     CALLBACK_TYPE = "stdout"
     CALLBACK_NAME = "rhvp.cluster_utils.readable"
+
+    def __init__(self):
+        super().__init__()
+        self._loop_item_count = 0
+        self._loop_had_change = False
+
+    def _finalize_loop_if_needed(self):
+        """If we were processing loop items, finalize with ok/done."""
+        if self._loop_item_count > 0:
+            if self._loop_had_change:
+                self._display.display("done", C.COLOR_CHANGED)
+            else:
+                self._display.display("ok", C.COLOR_OK)
+            self._loop_item_count = 0
+            self._loop_had_change = False
 
     def _run_is_verbose(self, result):
         return (
@@ -95,12 +124,15 @@ class CallbackModule(CallbackModule_default):
         self._display.display(f"{name}{suffix_str}{check_mode}...", newline=False)
 
     def v2_playbook_on_task_start(self, task, is_conditional):
+        self._finalize_loop_if_needed()
         self._display_task_start(task)
 
     def v2_playbook_on_handler_task_start(self, task):
+        self._finalize_loop_if_needed()
         self._display_task_start(task, suffix="via handler")
 
     def v2_playbook_on_play_start(self, play):
+        self._finalize_loop_if_needed()
         name = play.get_name().strip()
         check_mode = play.check_mode and self.get_option("check_mode_markers")
 
@@ -140,19 +172,12 @@ class CallbackModule(CallbackModule_default):
     def v2_runner_on_ok(self, result, msg="ok", display_color=C.COLOR_OK):
         self._preprocess_result(result)
 
+        # Skip aggregated loop results - items were already handled
+        if result._result.get("results"):
+            return
+
         # Handle debug tasks specially
-        if result._task.action in (
-            "debug",
-            "ansible.builtin.debug",
-            "assert",
-            "ansible.builtin.assert",
-            "command",
-            "ansible.builtin.command",
-            "shell",
-            "ansible.builtin.shell",
-            "kubernetes.core.k8s_info",
-            "kubernetes.core.k8s_exec",
-        ):
+        if result._task.action in NO_STDOUT_TASKS:
             debug_msg = result._result.get("msg", "")
             if debug_msg:
                 self._display.display(f"\n{debug_msg}", C.COLOR_VERBOSE)
@@ -171,10 +196,26 @@ class CallbackModule(CallbackModule_default):
         self.v2_runner_on_skipped(result)
 
     def v2_runner_item_on_failed(self, result):
+        # Reset loop state - failure message will be printed instead
+        self._loop_item_count = 0
+        self._loop_had_change = False
         self.v2_runner_on_failed(result, ignore_errors=result._task.ignore_errors)
 
     def v2_runner_item_on_ok(self, result):
-        self.v2_runner_on_ok(result)
+        self._preprocess_result(result)
+
+        # Handle debug tasks specially - print their output
+        if result._task.action in NO_STDOUT_TASKS:
+            debug_msg = result._result.get("msg", "")
+            if debug_msg:
+                self._display.display(f"\n{debug_msg}", C.COLOR_VERBOSE)
+            return
+
+        if result._result.get("changed"):
+            self._loop_had_change = True
+
+        self._loop_item_count += 1
+        self._display.display(".", newline=False)
 
     def v2_runner_on_unreachable(self, result):
         self._preprocess_result(result)
@@ -189,6 +230,7 @@ class CallbackModule(CallbackModule_default):
         return
 
     def v2_playbook_on_stats(self, stats):
+        self._finalize_loop_if_needed()
         return
 
     def v2_playbook_on_no_hosts_matched(self):
