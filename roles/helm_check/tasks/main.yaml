@@ -4,15 +4,15 @@
   register: _helm_probe
   failed_when: false
 
-- name: Report Helm version to TTY (if installed)
-  ansible.builtin.debug:
-    msg: "OK (%s) {{ _helm_probe.stdout }}"
-  when: _helm_probe.rc == 0
-
 - name: Print Helm missing/error message and exit (if not installed)
-  ansible.builtin.fail:
+  ansible.builtin.assert:
+    that: _helm_probe.rc == 0
+    fail_msg: |
+      Helm is not installed or not on PATH.
+      Try running your command again with the './pattern.sh' script, inside the
+      utility-container, or locally after installing Helm 3 and verifying it is available on PATH.
+
+- name: Report Helm version
+  ansible.builtin.debug:
     msg: |
-      ERROR:
-          Helm is not installed or not on PATH.
-          Hint: Install Helm 3 and ensure 'helm' is resolvable.
-  when: _helm_probe.rc != 0
+      {{ _helm_probe.stdout | trim }}

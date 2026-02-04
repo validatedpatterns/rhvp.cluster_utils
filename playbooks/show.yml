@@ -3,12 +3,16 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    include_crds: false
+
   roles:
     - role: pattern_settings # set general pattern vars
     - role: install_settings # set pattern-install specific vars
     - role: pattern_install_template # render the pattern-install helm chart
 
   tasks:
-    - name: Print rendered pattern-install chart manifests
-      ansible.builtin.shell: |
-        printf "\n%s\n" "{{ pattern_install_rendered_yaml }}"
+    - name: Print rendered pattern-install chart
+      ansible.builtin.debug:
+        msg: |
+         {{ pattern_install_rendered_yaml }}

@@ -2,39 +2,35 @@
 - name: Resolve defaults with ansible var/env var overrides
   ansible.builtin.import_tasks: resolve_overrides.yml
 
-- name: Validate target_origin is usable
-  ansible.builtin.shell: |
-    printf "ERROR\n"
-    printf "    No Git remote found for branch '%s' in '%s'.\n" "{{ target_branch }}" "{{ pattern_dir }}"
-    printf "    Set TARGET_ORIGIN/TARGET_BRANCH or configure a remote for the branch.\n"
-    exit 1
-  when: (target_origin | default("") | trim) == ""
+- name: Resolve target_remote_url
+  block:
+    - name: Derive remote URL via git
+      ansible.builtin.command: "git remote get-url {{ target_origin }}"
+      args:
+        chdir: "{{ pattern_dir }}"
+      register: _repo_raw
+      failed_when: false
 
-- name: Get remote URL for {{ target_origin }}  # noqa: command-instead-of-module
-  ansible.builtin.command: "git remote get-url {{ target_origin }}"
-  args:
-    chdir: "{{ pattern_dir }}"
-  register: _repo_raw
-  failed_when: false
+    - name: Set target_remote_url fact
+      ansible.builtin.set_fact:
+        target_remote_url: "{{ _repo_raw.stdout | trim }}"
+      when: _repo_raw.rc == 0 and _repo_raw.stdout | trim != ""
 
-- name: Fail if remote URL cannot be determined
-  ansible.builtin.shell: |
-    printf "ERROR\n"
-    printf "    Could not resolve URL for remote '%s' in '%s'.\n" "{{ target_origin }}" "{{ pattern_dir }}"
-    exit 1
-  when: (_repo_raw.rc != 0) or ((_repo_raw.stdout | default("") | trim) == "")
+    - name: Ensure target_remote_url is set
+      ansible.builtin.assert:
+        that:
+          - target_remote_url is defined
+          - target_remote_url != ""
+        fail_msg: |
+          Could not resolve URL for remote '{{ target_origin }}' in '{{ pattern_dir }}'.
+          Ensure the remote is configured correctly in git.
 
-- name: Compute _target_repo (convert SSH→HTTPS if no token_secret)
-  ansible.builtin.set_fact:
-    _target_repo: >-
-      {{
-        (_repo_raw.stdout | trim)
-        if (token_secret | default("") | trim != "")
-        else (
-          (_repo_raw.stdout | trim)
-          | regex_replace('^git@([^:]+):(.+)$', 'https://\1/\2')
-        )
-      }}
+    - name: Convert SSH git remote URL to HTTPS equivalent when token_secret is not given
+      ansible.builtin.set_fact:
+        target_remote_url: "{{ target_remote_url | regex_replace('^git@([^:]+):(.+)$', 'https://\\1/\\2') }}"
+      when:
+        - (token_secret | default("") | trim) == ""
+        - target_remote_url is search('^git@')
 
 - name: Build secret_opts
   ansible.builtin.set_fact:
@@ -52,14 +48,34 @@
         else "--set main.clusterGroupName=%s" | format(target_clustergroup)
       }}
 
-
-- name: Assemble _install_helm_opts (string)
+- name: Build include_crds_opt
   ansible.builtin.set_fact:
-    _install_helm_opts: >-
+    include_crds_opt: >-
+      {{
+        "--include-crds" if (include_crds | default(true) | bool)
+        else ""
+      }}
+
+- name: Assemble _install_helm_opts
+  ansible.builtin.set_fact:
+    install_helm_opts: >-
       -f values-global.yaml
-      --set main.git.repoURL="{{ _target_repo }}"
+      --set main.git.repoURL="{{ target_remote_url }}"
       --set main.git.revision={{ target_branch }}
       {{ secret_opts }}
       {{ clustergroup_opt }}
       {{ uuid_helm_opts }}
       {{ extra_helm_opts }}
+      {{ include_crds_opt }}
+
+- name: Assemble helm template command
+  ansible.builtin.set_fact:
+    helm_template_command: >-
+      helm template {{ pattern_install_chart }}
+      --name-template {{ pattern_name }}
+      {{ install_helm_opts }}
+
+- name: Print helm template command
+  ansible.builtin.debug:
+    msg: |
+      {{ helm_template_command }}
