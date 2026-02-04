@@ -26,14 +26,13 @@
     - name: Print failure message
       ansible.builtin.fail:
         msg: |
-          FAIL
-            Validation Explanation:
-            A DNS-compatible name is constructed in the 'clustergroup' Helm chart using the following pattern:
-              -> {{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}
-            The total length is calculated as:\n"
-              (2 * length of 'clusterGroup.name') + length of 'global.pattern' + 15 (for '-gitops-server-') + 1 (for the namespace separator '-')
-            To stay under the 63-character limit, the variable part of the name must be less than 47 characters:
-              (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47
+          FAIL - Validation Explanation:
+          A DNS-compatible name is constructed in the 'clustergroup' Helm chart using the following pattern:
+            -> {{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}
+          The total length is calculated as:\n"
+            (2 * length of 'clusterGroup.name') + length of 'global.pattern' + 15 (for '-gitops-server-') + 1 (for the namespace separator '-')
+          To stay under the 63-character limit, the variable part of the name must be less than 47 characters:
+            (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47
       when: not _name_valid
 
 - name: Detect whether we are running inside a container

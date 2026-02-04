@@ -18,10 +18,10 @@
     printf "    Ensure your values/secret files are present and readable.\n"
     exit 1
   when: values_secrets_data is not defined
-      
+
 - name: Determine how to load secrets
   ansible.builtin.set_fact:
-    secrets_yaml: "{{ values_secrets_data if values_secrets_data is not string else values_secrets_data | from_yaml }}"    
+    secrets_yaml: "{{ values_secrets_data if values_secrets_data is not string else values_secrets_data | from_yaml }}"
 
 - name: Parse secrets data
   no_log: "{{ hide_sensitive_output | default(true) }}"
