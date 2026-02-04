@@ -42,13 +42,13 @@
 
 - name: Print unhealthy/unsynced applications
   when: unhealthy_apps | length > 0
-  ansible.builtin.shell:
-    cmd: |
-      printf "==> Unhealthy or unsynced applications:\n"
+  ansible.builtin.debug:
+    msg: |
+      ==> Unhealthy or unsynced applications:
       {% for app in unhealthy_apps %}
-      printf "    {{ app.namespace }}/{{ app.name }} -> Sync: {{ app.sync }} - Health: {{ app.health }}\n"
+          {{ app.namespace }}/{{ app.name }} -> Sync: {{ app.sync }} - Health: {{ app.health }}
       {% endfor %}
-      printf "==> Retrying in 60 seconds...\n"
+      ==> Retrying in 60 seconds...
 
 - name: Fail if any applications are not healthy/synced
   when: unhealthy_apps | length > 0
