@@ -150,6 +150,8 @@ class CallbackModule(CallbackModule_default):
             "ansible.builtin.command",
             "shell",
             "ansible.builtin.shell",
+            "kubernetes.core.k8s_info",
+            "kubernetes.core.k8s_exec",
         ):
             debug_msg = result._result.get("msg", "")
             if debug_msg:
