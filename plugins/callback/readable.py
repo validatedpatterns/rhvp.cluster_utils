@@ -150,7 +150,7 @@ class CallbackModule(CallbackModule_default):
         ):
             debug_msg = result._result.get("msg", "")
             if debug_msg:
-                self._display.display(debug_msg)
+                self._display.display(f"\n{debug_msg}", C.COLOR_VERBOSE)
             return
 
         if result._result.get("changed"):
