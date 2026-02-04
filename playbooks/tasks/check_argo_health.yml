@@ -44,19 +44,20 @@
   when: unhealthy_apps | length > 0
   ansible.builtin.debug:
     msg: |
-      ==> Unhealthy or unsynced applications:
+      ==> Unhealthy or unsynced applications (will retry in 60 seconds):
       {% for app in unhealthy_apps %}
           {{ app.namespace }}/{{ app.name }} -> Sync: {{ app.sync }} - Health: {{ app.health }}
       {% endfor %}
-      ==> Retrying in 60 seconds...
 
 - name: Fail if any applications are not healthy/synced
   when: unhealthy_apps | length > 0
   ansible.builtin.fail:
     msg: "{{ unhealthy_apps | length }} application(s) are not healthy/synced"
+  tags: 
+    - simple_failure
 
 - name: Print success message
   when: unhealthy_apps | length == 0
-  ansible.builtin.shell:
-    cmd: |
-      printf "==> All {{ apps_summary | length }} Argo applications are healthy and synced.\n"
+  ansible.builtin.debug:
+    msg: |
+      ==> All {{ apps_summary | length }} Argo applications are healthy and synced.
