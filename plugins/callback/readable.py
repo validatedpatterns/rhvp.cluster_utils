@@ -9,7 +9,7 @@ from __future__ import annotations
 DOCUMENTATION = r"""
 name: readable
 type: stdout
-author: Al Bowles (@akatch), tweaked by Michele Baldessari
+author: Al Bowles (@akatch), tweaked by Michele Baldessari & Drew Minnear
 short_description: condensed Ansible output specific to Validated Patterns
 description:
   - Consolidated Ansible output in the style of LINUX/UNIX startup logs.
@@ -19,11 +19,8 @@ requirements:
   - set as stdout in configuration
 """
 
-from os.path import basename
 from ansible import constants as C
-from ansible import context
 from ansible.module_utils.common.text.converters import to_text
-from ansible.utils.color import colorize, hostcolor
 from ansible.plugins.callback.default import CallbackModule as CallbackModule_default
 
 
@@ -140,7 +137,12 @@ class CallbackModule(CallbackModule_default):
         self._preprocess_result(result)
 
         # Handle debug tasks specially
-        if result._task.action in ("debug", "ansible.builtin.debug"):
+        if result._task.action in (
+            "debug",
+            "ansible.builtin.debug",
+            "assert",
+            "ansible.builtin.assert",
+        ):
             debug_msg = result._result.get("msg", "")
             if debug_msg:
                 self._display.display(debug_msg)
