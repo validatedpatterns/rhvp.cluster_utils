@@ -142,6 +142,10 @@ class CallbackModule(CallbackModule_default):
             "ansible.builtin.debug",
             "assert",
             "ansible.builtin.assert",
+            "command",
+            "ansible.builtin.command",
+            "shell",
+            "ansible.builtin.shell",
         ):
             debug_msg = result._result.get("msg", "")
             if debug_msg:
