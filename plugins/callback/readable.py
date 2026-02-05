@@ -138,11 +138,8 @@ class CallbackModule(CallbackModule_default):
         self._display.display(msg)
 
     def v2_runner_on_skipped(self, result, ignore_errors=False):
-        if not self.get_option("display_skipped_hosts"):
-            return
-        self._preprocess_result(result)
-        task_result = self._process_result_output(result, "skipped")
-        self._display.display(f"  {task_result}", C.COLOR_SKIP)
+        # Suppress all skipped task output
+        return
 
     def _build_msg_with_item(self, base_msg, result):
         """Build message with optional item label."""
