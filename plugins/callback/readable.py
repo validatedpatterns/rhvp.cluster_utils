@@ -153,11 +153,22 @@ class CallbackModule(CallbackModule_default):
         """Check if this is a fail task that should use simple message output."""
         return result._task.action in ("fail", "ansible.builtin.fail")
 
+    def _is_quiet_assert_task(self, result):
+        """Check if this is an assert task with quiet: true."""
+        return (
+            result._task.action in ("assert", "ansible.builtin.assert") and
+            result._task.args.get("quiet") is True
+        )
+
     def _handle_exception(self, result, use_stderr=None):
-        """Override exception handling to suppress for fail tasks."""
+        """Override exception handling to suppress for fail tasks and quiet assert tasks."""
         # Skip exception handling for fail tasks - we just want to show the msg
         if hasattr(self, "_current_task") and self._current_task:
             if self._current_task.action in ("fail", "ansible.builtin.fail"):
+                return
+            # Skip exception handling for quiet assert tasks
+            if (self._current_task.action in ("assert", "ansible.builtin.assert") and
+                self._current_task.args.get("quiet") is True):
                 return
 
         super()._handle_exception(result, use_stderr)
@@ -177,6 +188,15 @@ class CallbackModule(CallbackModule_default):
     def v2_runner_on_failed(self, result, ignore_errors=False):
         if ignore_errors:
             self._display.display("  error (ignored)", C.COLOR_WARN)
+            return
+
+        # For quiet assert tasks, just display the fail_msg in normal color
+        if self._is_quiet_assert_task(result):
+            if result._result.get("warnings"):
+                for warning in result._result["warnings"]:
+                    self._display.warning(warning)
+            msg = result._result.get("msg", "Assertion failed")
+            self._display.display(f"  {msg}")
             return
 
         # For fail tasks, just display the message cleanly
