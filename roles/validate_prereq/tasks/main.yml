@@ -1,8 +1,4 @@
 ---
-- name: Announce prerequisite checks (host)
-  ansible.builtin.debug:
-    msg: "==> Checking prerequisites..."
-
 - name: Pattern name and clustergroup name length validation
   block:
     - name: Get length of pattern name
@@ -13,66 +9,28 @@
       ansible.builtin.set_fact:
         _clustergroup_name_len: "{{ target_clustergroup | length }}"
 
-    - name: Calculate DNS part length for ArgoCD deploy
-      ansible.builtin.set_fact:
-        _name_valid: >-
-          {{ (_pattern_name_len | int) + 2 * (_clustergroup_name_len | int) < 47 }}
-
-    - name: Print success message
-      ansible.builtin.shell: |
-        printf "OK"
-      when: _name_valid
-
-    - name: Print failure message
-      ansible.builtin.fail:
-        msg: |
-          FAIL - Validation Explanation:
+    - name: Ensure ArgoCD will have valid DNS hostname based on pattern name and clustergroup lengths
+      ansible.builtin.assert:
+        that: (_pattern_name_len | int) + 2 * (_clustergroup_name_len | int) < 47
+        fail_msg: |
           A DNS-compatible name is constructed in the 'clustergroup' Helm chart using the following pattern:
-            -> {% raw %}{{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}{% endraw %}
-          The total length is calculated as:
-            (2 * length of 'clusterGroup.name') + length of 'global.pattern' + 15 (for '-gitops-server-') + 1 (for the namespace separator '-')
-          To stay under the 63-character limit, the variable part of the name must be less than 47 characters:
+            -> {%raw%}{{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}{%endraw%}
+          To stay under the 63-character DNS limit, the variable part of the name must be less than 47 characters:
             (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47
-      when: not _name_valid
+          With your current values this DNS part is '{{ target_clustergroup }}-gitops-server-{{ pattern_name }}-{{ target_clustergroup }}' and exceeds the 63 character limit.
 
-- name: Detect whether we are running inside a container
-  ansible.builtin.stat:
-    path: /run/.containerenv
-  register: _containerenv
+- name: Ensure kubernetes python module is installed
+  ansible.builtin.pip:
+    name: kubernetes
+    state: present
+    extra_args: "-q"
 
-- name: Host validations (prerequisites on the local machine)
-  when: not _containerenv.stat.exists
-  block:
-    - name: Check python-kubernetes (host)
-      ansible.builtin.shell: |
-        printf "    Looking for python-kubernetes module... "
-        if {{ (ansible_python_interpreter | default('/usr/bin/python3')) }} -c 'import kubernetes' >/dev/null 2>&1; then
-          printf "OK\n"
-        else
-          printf "Not found\n"
-          exit 1
-        fi
+- name: Ensure kubernetes.core collection is installed
+  community.general.ansible_galaxy_install:
+    name: kubernetes.core
+    type: collection
 
-    - name: Check kubernetes.core collection (host)
-      ansible.builtin.shell: |
-        set -o pipefail
-        printf "    Looking for kubernetes.core collection... "
-        if ansible-galaxy collection list | grep -q 'kubernetes.core'; then
-          printf "OK\n"
-        else
-          printf "Not found\n"
-          exit 1
-        fi
-
-- name: Container validations
-  when: _containerenv.stat.exists
-  block:
-    - name: Compute multiSourceConfig.enabled (default false)
-      ansible.builtin.set_fact:
-        _msc_enabled: "{{ values_global.main.multiSourceConfig.enabled | default(false) | bool }}"
-
-    - name: Enforce multiSourceConfig is enabled (container)
-      ansible.builtin.shell: |
-        printf "You must set \".main.multiSourceConfig.enabled: true\" in 'values-global.yaml'.\n"
-        exit 1
-      when: not _msc_enabled
+- name: Ensure multi source is enabled
+  ansible.builtin.assert:
+    that: (values_global.main.multiSourceConfig.enabled | default(false) | bool) == true
+    fail_msg: "You must set '.main.multiSourceConfig.enabled' to 'true' in 'values-global.yaml'."
