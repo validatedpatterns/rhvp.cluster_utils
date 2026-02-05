@@ -259,7 +259,7 @@ class CallbackModule(CallbackModule_default):
     def v2_runner_item_on_ok(self, result):
         self._preprocess_result(result)
 
-        # Handle debug tasks specially - print their output
+        # Handle debug tasks specially
         if result._task.action in NO_STDOUT_TASKS:
             debug_msg = result._result.get("msg", "")
             if debug_msg:
@@ -282,6 +282,10 @@ class CallbackModule(CallbackModule_default):
         )
 
     def v2_on_file_diff(self, result):
+        return
+
+    def v2_playbook_on_include(self, included_file):
+        """Suppress 'included:' messages."""
         return
 
     def v2_playbook_on_stats(self, stats):
