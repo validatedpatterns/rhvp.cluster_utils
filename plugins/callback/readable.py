@@ -36,6 +36,7 @@ NO_STDOUT_TASKS = (
     "ansible.builtin.pause",
     "kubernetes.core.k8s_info",
     "kubernetes.core.k8s_exec",
+    "ansible.builtin.pip",
 )
 
 
