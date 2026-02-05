@@ -156,8 +156,8 @@ class CallbackModule(CallbackModule_default):
     def _is_quiet_assert_task(self, result):
         """Check if this is an assert task with quiet: true."""
         return (
-            result._task.action in ("assert", "ansible.builtin.assert") and
-            result._task.args.get("quiet") is True
+            result._task.action in ("assert", "ansible.builtin.assert")
+            and result._task.args.get("quiet") is True
         )
 
     def _handle_exception(self, result, use_stderr=None):
@@ -167,8 +167,10 @@ class CallbackModule(CallbackModule_default):
             if self._current_task.action in ("fail", "ansible.builtin.fail"):
                 return
             # Skip exception handling for quiet assert tasks
-            if (self._current_task.action in ("assert", "ansible.builtin.assert") and
-                self._current_task.args.get("quiet") is True):
+            if (
+                self._current_task.action in ("assert", "ansible.builtin.assert")
+                and self._current_task.args.get("quiet") is True
+            ):
                 return
 
         super()._handle_exception(result, use_stderr)
