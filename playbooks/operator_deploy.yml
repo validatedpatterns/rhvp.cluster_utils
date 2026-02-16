@@ -7,7 +7,7 @@
   roles:
     - role: pattern_settings # set general pattern vars
     - role: install_settings # set pattern-install specific vars
-    - role: validate_prereq # ensure installation depencies are present
+    - role: validate_prereq # ensure installation dependencies are present
     - role: validate_cluster # ensure a cluster is connected and has a default storage class
     - role: pattern_install_template # render the pattern-install helm chart
 

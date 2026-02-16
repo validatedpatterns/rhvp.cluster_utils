@@ -16,6 +16,7 @@
 """
 Module that implements V1 of the values-secret.yaml spec
 """
+
 from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
@@ -38,7 +39,6 @@ from ansible_collections.rhvp.cluster_utils.plugins.module_utils.load_secrets_co
 
 
 class LoadSecretsV1:
-
     def __init__(
         self,
         module,
@@ -125,7 +125,7 @@ class LoadSecretsV1:
             self.check_for_missing_secrets()
 
         secrets = self.syaml.get("secrets", {})
-        # We need to explicitely check for None because the file might contain the
+        # We need to explicitly check for None because the file might contain the
         # top-level 'secrets:' or 'files:' key but have nothing else under it which will
         # return None and not {}
         if secrets is None:

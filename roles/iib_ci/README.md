@@ -50,7 +50,7 @@ make EXTRA_HELM_OPTS="--set main.gitops.operatorSource=iib-${IIB} --set main.git
 ### ACM operator
 
 The advanced-cluster-management operator is a little bit more complex than the others because it
-also installes another operator called MCE multicluster-engine. So to install ACM you typically
+also installs another operator called MCE multicluster-engine. So to install ACM you typically
 need two IIBs (one for acm and one for mce). With those two at hand, do the following (the ordering must be
 consistent: the first IIB corresponds to the first OPERATOR, etc). The following operation needs to be done
 on both hub *and* spokes:
@@ -91,7 +91,7 @@ make EXTRA_HELM_OPTS="--set main.extraParameters[0].name=clusterGroup.subscripti
 
 ## Useful commands
 
-* List IIBs for an operator:
+- List IIBs for an operator:
 
 ```sh
 ansible-playbook common/ansible/playbooks/iib-ci/lookup.yml
@@ -104,7 +104,7 @@ ok: [localhost] => (item=v4.13) => {
 
 Override the `operator` value with the desired bundle name to figure out the last IIBs for it.
 
-* List all images uploaded to the internal registry:
+- List all images uploaded to the internal registry:
 
 ```sh
 oc exec -it -n openshift-image-registry $(oc get pods -n openshift-image-registry -o json | jq -r '.items[].metadata.name | select(. | test("^image-registry-"))' | head -n1) -- bash -c "curl -k -u kubeadmin:$(oc whoami -t) https://localhost:5000/v2/_catalog"
