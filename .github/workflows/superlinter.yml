@@ -36,6 +36,7 @@ jobs:
           VALIDATE_JSON_PRETTIER: false
           VALIDATE_MARKDOWN_PRETTIER: false
           VALIDATE_KUBERNETES_KUBECONFORM: false
+          VALIDATE_PYTHON_BLACK: false
           VALIDATE_PYTHON_PYLINT: false
           VALIDATE_PYTHON_PYINK: false
           VALIDATE_PYTHON_RUFF_FORMAT: false
