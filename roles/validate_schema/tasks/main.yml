@@ -6,31 +6,16 @@
     file_type: file
   register: _values_files
 
-- name: Sort file list
+- name: Sort values files and determine clustergroup version cli arg
   ansible.builtin.set_fact:
-    values_files_sorted: >-
-      {{
-        _values_files.files
-          | map(attribute='path')
-          | list
-          | sort
-      }}
-
-- name: Print start message
-  ansible.builtin.shell:
-    cmd: |
-      printf "==> Validating clustergroup schema of: " > /dev/tty
-      for f in {{ values_files_sorted | map('basename') | list | join(' ') }}; do printf " $f" > /dev/tty; done
-      printf "\n" > /dev/tty
-
-- name: Determine clustergroup chart CLI extras
-  ansible.builtin.set_fact:
-    clustergroup_version: "{{ values_global.main.multiSourceConfig.clusterGroupChartVersion | default('') }}"
+    values_files_sorted: "{{ _values_files.files | map(attribute='path') | sort }}"
     clustergroup_version_cli: >-
-      {{
-        (values_global.main.multiSourceConfig.clusterGroupChartVersion | default(''))
-        | ternary('--version ' + values_global.main.multiSourceConfig.clusterGroupChartVersion, '')
-      }}
+      {{ ('--version ' + values_global.main.multiSourceConfig.clusterGroupChartVersion)
+         if (values_global.main.multiSourceConfig.clusterGroupChartVersion | default('')) else '' }}
+
+- name: Log files being validated
+  ansible.builtin.debug:
+    msg: "Validating clustergroup schema against: {{ values_files_sorted | map('basename') | join(', ') }}"
 
 - name: Validate each file with helm template
   ansible.builtin.command: >-
@@ -43,16 +28,16 @@
   loop_control:
     label: "{{ item | basename }}"
 
-- name: Exit with error if any validation failed
-  when: (helm_validate.results | selectattr('rc', 'ne', 0) | list | length) > 0
-  ansible.builtin.shell:
-    cmd: |
-      printf "Schema validation failed for the following values files:\n" > /dev/tty
-      {% for result in helm_validate.results %}
-      {% if result.rc != 0 %}
-      printf "  - {{ result.item | basename }} (exit code: {{ result.rc }})\n" > /dev/tty
-      printf "    To reproduce: cd {{ pattern_dir }} && helm template {{ clustergroup_chart }} {{ clustergroup_version_cli }} {{ extra_helm_opts }} -f \"{{ result.item }}\"\n" > /dev/tty
-      {% endif %}
+- name: Check validation results
+  vars:
+    failed_validations: "{{ helm_validate.results | selectattr('rc', 'ne', 0) | list }}"
+  ansible.builtin.assert:
+    that: failed_validations | length == 0
+    fail_msg: |
+      Schema validation failed for the following files:
+      {% for error in failed_validations %}
+      - {{ error.item | basename }} (RC: {{ error.rc }})
+        Reproduction: cd {{ pattern_dir }} && helm template {{ clustergroup_chart }} {{ clustergroup_version_cli }} {{ extra_helm_opts }} -f "{{ error.item | basename }}"
+        Error: {{ error.stderr }}
       {% endfor %}
-      printf "\nRe-run the above commands to see the detailed error output.\n" > /dev/tty
-      exit 1
+    quiet: true

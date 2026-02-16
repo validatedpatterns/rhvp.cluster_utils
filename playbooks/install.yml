@@ -2,7 +2,7 @@
 - name: Install the pattern via pattern-install chart
   ansible.builtin.import_playbook: operator_deploy.yml
 
-- name: Load secrets (if not explicity disabled in values-global.yaml)
+- name: Load secrets (if not explicitly disabled in values-global.yaml)
   ansible.builtin.import_playbook: load_secrets.yml
 
 - name: Wait for pattern to finish installation (all Argo apps should be healthy/synced)
@@ -11,18 +11,14 @@
   gather_facts: false
 
   vars:
-    max_retries: 30
+    max_retries: 60
     retry_count: 0
     retry_delay: 60
 
   tasks:
     - name: Print start message
-      ansible.builtin.shell: |
-        printf "==> Waiting for all argo applications to be healthy/synced.\n" > /dev/tty
-
-    - name: Ensure oc is installed
-      ansible.builtin.include_role:
-        name: oc_check
+      ansible.builtin.debug:
+        msg: "Waiting for all argo applications to be healthy/synced."
 
     - name: Wait for all Argo applications to be healthy and synced with retry logic
       ansible.builtin.include_tasks: tasks/retry_argo_healthcheck.yml
