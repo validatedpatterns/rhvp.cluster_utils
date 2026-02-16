@@ -15,12 +15,13 @@
   register: custom_file_values_secret
   when: custom_env_values_secret | default('') | length > 0
 
-- name: Set values-secret yaml file to {{ custom_file_values_secret.stat.path }}
+- name: Set values-secret yaml file to {{ custom_file_values_secret.stat.path | default('unset') }}
   ansible.builtin.set_fact:
     found_file: "{{ custom_file_values_secret.stat.path }}"
   when:
-    - custom_env_values_secret | default('') | length > 0
+    - custom_file_values_secret.stat is defined
     - custom_file_values_secret.stat.exists
+    - custom_env_values_secret | default('') | length > 0
 
 # FIXME(bandini): Eventually around end of 2023(?) we should drop
 # ~/values-secret-{{ pattern_name }}.yaml and ~/values-secret.yaml

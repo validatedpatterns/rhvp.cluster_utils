@@ -22,6 +22,7 @@ expected to be in the following format:
 version: 2.0
 
 """
+
 from __future__ import absolute_import, division, print_function
 
 __metaclass__ = type
@@ -41,7 +42,7 @@ author:
   - Martin Jackson (@mhjacks)
 description:
     - Takes parsed secrets objects and vault policies (as delivered by parse_secrets_info) and runs the commands to
-      load them into a vault instance. The relevent metadata will exist in the parsed secrets object. Returns count
+      load them into a vault instance. The relevant metadata will exist in the parsed secrets object. Returns count
       of secrets injected.
 options:
   parsed_secrets:
@@ -98,7 +99,6 @@ except ImportError:
 
 
 class VaultSecretLoader:
-
     def __init__(
         self,
         module,

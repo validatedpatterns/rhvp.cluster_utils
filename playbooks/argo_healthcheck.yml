@@ -3,6 +3,6 @@
   hosts: localhost
   connection: local
   gather_facts: false
-  roles:
-    - role: oc_check
-    - role: argo_healthcheck
+  tasks:
+    - name: Check health of argo applications
+      ansible.builtin.include_tasks: tasks/check_argo_health.yml

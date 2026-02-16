@@ -5,70 +5,74 @@
         pattern_install_chart
           | default(lookup("env", "PATTERN_INSTALL_CHART"), true)
           | default("oci://quay.io/validatedpatterns/pattern-install", true)
+          | trim
       }}
 
 - name: Resolve target_branch
   block:
-    - name: Seed from CLI/env
+    - name: Check CLI/env for target_branch override
       ansible.builtin.set_fact:
         target_branch: >-
           {{
             target_branch
               | default(lookup("env", "TARGET_BRANCH"), true)
               | default("", false)
+              | trim
           }}
 
-    - name: Derive via git (when unset)
-      ansible.builtin.command: "git rev-parse --abbrev-ref HEAD"
+    - name: Derive target_branch via git (when not overridden)
+      ansible.builtin.command: "git branch --show-current"  # noqa: command-instead-of-module
       args:
         chdir: "{{ pattern_dir }}"
       register: _br
-      when: target_branch | trim == ""
+      when: target_branch == ""
       failed_when: false
 
-    - name: Fail if unable to determine target_branch
-      ansible.builtin.shell: |
-        printf "ERROR\n" > /dev/tty
-        printf "    Could not determine target branch in '%s'.\n" "{{ pattern_dir }}" > /dev/tty
-        exit 1
-      when: (target_branch | trim == "") and (_br.rc != 0 or (_br.stdout | default('') | trim == ""))
-
-    - name: Set from git
+    - name: Set target_branch using git
       ansible.builtin.set_fact:
         target_branch: "{{ _br.stdout | trim }}"
-      when: target_branch | trim == ""
+      when: target_branch == "" and _br.rc == 0
+
+    - name: Ensure target_branch is set
+      ansible.builtin.assert:
+        that: target_branch != ""
+        fail_msg: |
+          Could not determine target branch in '{{ pattern_dir }}'.
+          Ensure that you are on a git branch or pass explicitly via
+          the 'target_branch' variable or 'TARGET_BRANCH' environment variable.
 
 - name: Resolve target_origin
   block:
-    - name: Seed from CLI/env
+    - name: Check CLI/env for target_origin override
       ansible.builtin.set_fact:
         target_origin: >-
           {{
             target_origin
               | default(lookup("env", "TARGET_ORIGIN"), true)
               | default("", false)
+              | trim
           }}
 
-    - name: Derive via git (when unset)  # noqa: command-instead-of-module
-      ansible.builtin.command: "git config branch.{{ target_branch }}.remote"
+    - name: Derive target_origin via git (when not overridden)
+      ansible.builtin.command: "git config branch.{{ target_branch }}.remote"  # noqa: command-instead-of-module
       args:
         chdir: "{{ pattern_dir }}"
       register: _origin
-      when: target_origin | trim == ""
+      when: target_origin == ""
       failed_when: false
 
-    - name: Fail if unable to determine target_origin
-      ansible.builtin.shell: |
-        printf "ERROR\n" > /dev/tty
-        printf "    Could not determine target_origin for branch '%s' in '%s'.\n" "{{ target_branch }}" "{{ pattern_dir }}" > /dev/tty
-        printf "    Ensure the branch has a remote configured or pass TARGET_ORIGIN explicitly.\n" > /dev/tty
-        exit 1
-      when: (target_origin | trim == "") and (_origin.rc != 0 or (_origin.stdout | default('') | trim == ""))
-
-    - name: Set from git
+    - name: Set target_origin using git
       ansible.builtin.set_fact:
         target_origin: "{{ _origin.stdout | trim }}"
-      when: target_origin | trim == ""
+      when: target_origin == "" and _origin is not failed
+
+    - name: Ensure target_origin is set
+      ansible.builtin.assert:
+        that: target_origin != ""
+        fail_msg: |
+          Could not determine target origin for branch '{{ target_branch }}' in '{{ pattern_dir }}'.
+          Ensure branch '{{ target_branch }}' has a remote configured or pass explicitly via
+          the 'target_origin' variable or 'TARGET_ORIGIN' environment variable.
 
 - name: Resolve target_clustergroup
   ansible.builtin.set_fact:
@@ -77,6 +81,7 @@
         target_clustergroup
           | default(lookup("env", "TARGET_CLUSTERGROUP"), true)
           | default(main_clustergroup, true)
+          | trim
       }}
 
 - name: Resolve token_secret
@@ -86,6 +91,7 @@
         token_secret
           | default(lookup("env", "TOKEN_SECRET"), true)
           | default("", false)
+          | trim
       }}
 
 - name: Resolve token_namespace
@@ -95,6 +101,7 @@
         token_namespace
           | default(lookup("env", "TOKEN_NAMESPACE"), true)
           | default("", false)
+          | trim
       }}
 
 - name: Resolve extra_helm_opts
@@ -104,6 +111,7 @@
         extra_helm_opts
           | default(lookup("env", "EXTRA_HELM_OPTS"), true)
           | default("", false)
+          | trim
       }}
 
 - name: Resolve uuid_helm_opts (from UUID_FILE)
@@ -115,6 +123,7 @@
             uuid_file
               | default(lookup('env','UUID_FILE'), true)
               | default((lookup('env','HOME') | default('')) ~ '/.config/validated-patterns/pattern-uuid', true)
+              | trim
           }}
 
     - name: Stat UUID file
