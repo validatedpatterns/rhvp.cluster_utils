@@ -312,13 +312,13 @@ class SecretsV2Base:
         path = self._get_field_path(f)
         vault_policy = f.get("vaultPolicy", None)
 
-        if value is not None:
+        if value is not None and value != "":
             return (
                 False,
                 "Secret has onMissingValue set to 'generate' but has a value set",
             )
 
-        if path is not None:
+        if path is not None and path != "":
             return (
                 False,
                 "Secret has onMissingValue set to 'generate' but has a path set",

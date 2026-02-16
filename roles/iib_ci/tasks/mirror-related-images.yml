@@ -131,7 +131,7 @@
     mode: "0644"
 
 # NOTE(bandini): mirror.map *must* have a tag (we use the IIB number) on the image on the right side
-# otherwise, the image will be uplaoded and will exist in S3 but it won't exist in the registry's catalog!!
+# otherwise, the image will be uploaded and will exist in S3 but it won't exist in the registry's catalog!!
 - name: Mirror all the needed images
   ansible.builtin.shell: |
     set -o pipefail

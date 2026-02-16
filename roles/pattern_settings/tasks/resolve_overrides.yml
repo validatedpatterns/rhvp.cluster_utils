@@ -7,4 +7,5 @@
           | default(lookup("env","PATTERN_DIR"), true)
           | default(lookup("env","PWD"), true)
           | default(lookup("pipe","pwd"), true)
+          | trim
       }}
