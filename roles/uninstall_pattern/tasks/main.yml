@@ -7,11 +7,11 @@
     namespace: openshift-operators
   register: pattern_info
 
-- name: Check that pattern {{ pattern_name }} is present on the cluster
+- name: Check that the pattern '{{ pattern_name }}' is present on the cluster
   ansible.builtin.assert:
     that: pattern_info.resources | length == 1
     fail_msg: |
-      {{ pattern_name }} is not present on the cluster you are logged into. The uninstall command
+      '{{ pattern_name }}' is not present on the cluster you are logged into. The uninstall command
       can only be run on hub clusters, where the pattern CR and patterns operator are present,
       in patterns with both hub and spoke components.
 
@@ -35,9 +35,10 @@
 - name: Print user-friendly uninstall message
   ansible.builtin.debug:
     msg: |
-      The pattern {{ pattern_name }} will be removed from the OpenShift cluster. Note that
+      The pattern '{{ pattern_name }}' will be removed from your OpenShift cluster. Note that
       the patterns operator and cluster-wide OpenShift GitOps instance will remain installed,
       only the pattern will be removed, to facilitate easy reinstall of this pattern or other patterns.
+      This command will wait for up to {{ uninstall_wait_timeout }} seconds while the pattern is uninstalled.
       To view deletion progress, you can check the logs of the '{{ patterns_operator_pod_name }}' pod
       pod in the 'openshift-operators' namespace with the command:
 
@@ -51,4 +52,4 @@
     name: "{{ pattern_name }}"
     namespace: openshift-operators
     wait: true
-    wait_timeout: 3600
+    wait_timeout: "{{ uninstall_wait_timeout }}"

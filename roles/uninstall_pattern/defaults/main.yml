@@ -1,0 +1,7 @@
+---
+uninstall_wait_timeout: |
+  {{
+    lookup("env", "UNINSTALL_WAIT_TIMEOUT")
+      | default("3600", true)
+      | int
+  }}
