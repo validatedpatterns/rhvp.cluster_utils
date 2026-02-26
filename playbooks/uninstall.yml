@@ -1,0 +1,9 @@
+---
+- name: Uninstall pattern
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  roles:
+    - role: pattern_settings # set general pattern vars
+    - role: uninstall_pattern # uninstall the pattern on hub/spoke if able

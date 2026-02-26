@@ -1,0 +1,55 @@
+---
+- name: Fetch pattern resource from cluster
+  kubernetes.core.k8s_info:
+    api_version: gitops.hybrid-cloud-patterns.io/v1alpha1
+    kind: Pattern
+    name: "{{ pattern_name }}"
+    namespace: openshift-operators
+  register: pattern_info
+
+- name: Check that the pattern '{{ pattern_name }}' is present on the cluster
+  ansible.builtin.assert:
+    that: pattern_info.resources | length == 1
+    fail_msg: |
+      '{{ pattern_name }}' is not present on the cluster you are logged into. The uninstall command
+      can only be run on hub clusters, where the pattern CR and patterns operator are present,
+      in patterns with both hub and spoke components.
+
+- name: Fetch the pods in the openshift-operators namespace
+  kubernetes.core.k8s_info:
+    kind: Pod
+    namespace: openshift-operators
+  register: pod_list
+
+- name: Find the patterns operator controller pod
+  ansible.builtin.set_fact:
+    patterns_operator_pod_name: "{{ pod_list.resources | map(attribute='metadata.name') | select('match', '^patterns-operator-controller-manager.*') | first | default('') }}"
+
+- name: Verify pod name found
+  ansible.builtin.assert:
+    that: patterns_operator_pod_name != ''
+    fail_msg: |
+      Could not find the patterns operator controller manager pod in the 'openshift-operators' namespace. Please ensure that the patterns
+      operator is currently running in your cluster.
+
+- name: Print user-friendly uninstall message
+  ansible.builtin.debug:
+    msg: |
+      The pattern '{{ pattern_name }}' will be removed from your OpenShift cluster. Note that
+      the patterns operator and cluster-wide OpenShift GitOps instance will remain installed,
+      only the pattern will be removed, to facilitate easy reinstall of this pattern or other patterns.
+      This command will wait for up to {{ uninstall_wait_timeout }} seconds while the pattern is uninstalled.
+      To view deletion progress, you can check the logs of the '{{ patterns_operator_pod_name }}' pod
+      pod in the 'openshift-operators' namespace with the command:
+
+      oc logs -f --tail=50 -n openshift-operators {{ patterns_operator_pod_name }}
+
+- name: Delete pattern from cluster
+  kubernetes.core.k8s:
+    state: absent
+    api_version: gitops.hybrid-cloud-patterns.io/v1alpha1
+    kind: Pattern
+    name: "{{ pattern_name }}"
+    namespace: openshift-operators
+    wait: true
+    wait_timeout: "{{ uninstall_wait_timeout }}"
