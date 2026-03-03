@@ -5,9 +5,16 @@
     kind: Namespace
     name: "{{ vault_ns }}"
   register: vault_ns_rc
-  until: vault_ns_rc.resources | length > 0
+  until: >-
+    vault_ns_rc is defined and
+    'resources' in vault_ns_rc and
+    vault_ns_rc.resources is defined and
+    vault_ns_rc.resources | length > 0
   retries: 20
   delay: 45
+  failed_when: >-
+    vault_ns_rc is not defined or
+    'resources' not in vault_ns_rc
 
 - name: Check if the vault pod is present
   kubernetes.core.k8s_info:
@@ -15,9 +22,16 @@
     namespace: "{{ vault_ns }}"
     name: "{{ vault_pod }}"
   register: vault_pod_rc
-  until: vault_pod_rc.resources | length > 0
+  until: >-
+    vault_pod_rc is defined and
+    'resources' in vault_pod_rc and
+    vault_pod_rc.resources is defined and
+    vault_pod_rc.resources | length > 0
   retries: 20
   delay: 45
+  failed_when: >-
+    vault_pod_rc is not defined or
+    'resources' not in vault_pod_rc
 
 # This needs retrying because during startup we can just get
 # Failed to execute on pod vault-0 due to : (0)\nReason: Handshake status 500 Internal Server Error
@@ -46,15 +60,27 @@
     label_selectors:
       - "component = server"
   register: vault_pods_list
+  failed_when: >-
+    vault_pods_list is not defined or
+    'resources' not in vault_pods_list
 
 - name: "Get pods"
   ansible.builtin.set_fact:
     vault_pods: "{{ vault_pods + [item.metadata.name] }}"
-  loop: "{{ vault_pods_list.resources }}"
+  loop: "{{ vault_pods_list.resources | default([]) }}"
   loop_control:
     label: "{{ item.metadata.name }}"
   vars:
     vault_pods: []
+  when: >-
+    vault_pods_list is defined and
+    'resources' in vault_pods_list and
+    vault_pods_list.resources is defined
+
+- name: "Initialize vault_pods if not set"
+  ansible.builtin.set_fact:
+    vault_pods: []
+  when: vault_pods is not defined
 
 - name: "Followers"
   ansible.builtin.set_fact:
