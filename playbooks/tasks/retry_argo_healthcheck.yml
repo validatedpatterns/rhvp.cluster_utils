@@ -15,13 +15,13 @@
     - name: Fail if max retries reached
       ansible.builtin.fail:
         msg: "Max retries ({{ max_retries }}) reached. Some applications are still not healthy/synced."
-      when: retry_count | int >= max_retries
+      when: (retry_count | int) >= (max_retries | int)
 
     - name: Delay before next retry
       ansible.builtin.pause:
         seconds: "{{ retry_delay }}"
-      when: retry_count | int < max_retries
+      when: (retry_count | int) < (max_retries | int)
 
     - name: Retry the health check recursively
       ansible.builtin.include_tasks: retry_argo_healthcheck.yml
-      when: retry_count | int < max_retries
+      when: (retry_count | int) < (max_retries | int)
