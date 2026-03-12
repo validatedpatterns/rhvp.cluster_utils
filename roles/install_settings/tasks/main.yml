@@ -56,6 +56,23 @@
         else ""
       }}
 
+- name: Check for existing patterns-operator subscription in openshift-operators
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: Subscription
+    namespace: openshift-operators
+    name: patterns-operator
+  register: _existing_subscription
+  failed_when: false
+
+- name: Build subscription_namespace_opt
+  ansible.builtin.set_fact:
+    subscription_namespace_opt: >-
+      {{
+        "" if (_existing_subscription.resources | default([]) | length > 0)
+        else "--set main.patternsOperator.subscriptionNamespace=pattern-operator"
+      }}
+
 - name: Assemble _install_helm_opts
   ansible.builtin.set_fact:
     install_helm_opts: >-
@@ -64,6 +81,7 @@
       --set main.git.revision={{ target_branch }}
       {{ secret_opts }}
       {{ clustergroup_opt }}
+      {{ subscription_namespace_opt }}
       {{ uuid_helm_opts }}
       {{ extra_helm_opts }}
       {{ include_crds_opt }}
