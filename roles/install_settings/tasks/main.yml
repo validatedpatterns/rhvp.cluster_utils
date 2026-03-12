@@ -65,12 +65,29 @@
   register: _existing_subscription
   failed_when: false
 
+- name: Get patterns-operator packagemanifest
+  kubernetes.core.k8s_info:
+    api_version: packages.operators.coreos.com/v1
+    kind: PackageManifest
+    name: patterns-operator
+    namespace: openshift-marketplace
+  register: _pkg_manifest
+  failed_when: false
+
+- name: Determine available patterns-operator version
+  ansible.builtin.set_fact:
+    _patterns_operator_version: >-
+      {{ _pkg_manifest.resources[0].status.channels[0].currentCSVDesc.version | default('0.0.0') }}
+  when: _pkg_manifest.resources | default([]) | length > 0
+
 - name: Build subscription_namespace_opt
   ansible.builtin.set_fact:
     subscription_namespace_opt: >-
       {{
-        "" if (_existing_subscription.resources | default([]) | length > 0)
-        else "--set main.patternsOperator.subscriptionNamespace=pattern-operator"
+        "--set main.patternsOperator.subscriptionNamespace=pattern-operator"
+        if ((_existing_subscription.resources | default([]) | length == 0)
+            and (_patterns_operator_version | default('0.0.0') is version('0.0.65', '>')))
+        else ""
       }}
 
 - name: Assemble _install_helm_opts
