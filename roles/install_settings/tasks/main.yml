@@ -56,6 +56,48 @@
         else ""
       }}
 
+- name: Check for existing patterns-operator subscription in openshift-operators
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: Subscription
+    namespace: openshift-operators
+    name: patterns-operator
+  register: _existing_subscription
+  failed_when: false
+
+- name: Get patterns-operator packagemanifest
+  kubernetes.core.k8s_info:
+    api_version: packages.operators.coreos.com/v1
+    kind: PackageManifest
+    name: patterns-operator
+    namespace: openshift-marketplace
+  register: _pkg_manifest
+  failed_when: false
+
+- name: Determine available patterns-operator version
+  vars:
+    _manifest: "{{ _pkg_manifest.resources[0] | default({}) }}"
+    _channels: "{{ (_manifest.status | default({})).channels | default([]) }}"
+    _first_channel: "{{ _channels[0] if _channels else {} }}"
+    _csv_desc: "{{ _first_channel.currentCSVDesc | default({}) }}"
+  ansible.builtin.set_fact:
+    _patterns_operator_version: "{{ _csv_desc.version | default('0.0.0') }}"
+  when: _pkg_manifest.resources | default([]) | length > 0
+
+# So 0.0.65 is the last version of the pattern-operator that deployed by default into
+# openshift-operators namespace. Starting with 0.0.66 if there is no existing pattern-operator
+# subscription in the openshift-operators namespace we want to default to the 
+# pattern-operator namespace to install our subscription (and our operator)
+- name: Build subscription_namespace_opt
+  ansible.builtin.set_fact:
+    subscription_namespace_opt: >-
+      {{
+        "--set main.patternsOperator.subscriptionNamespace=pattern-operator"
+        if ((_existing_subscription.resources | default([]) | length == 0)
+            and (_patterns_operator_version | default('0.0.0') is version('0.0.65', '>')))
+        else ""
+      }}
+
 - name: Assemble _install_helm_opts
   ansible.builtin.set_fact:
     install_helm_opts: >-
@@ -64,6 +106,7 @@
       --set main.git.revision={{ target_branch }}
       {{ secret_opts }}
       {{ clustergroup_opt }}
+      {{ subscription_namespace_opt }}
       {{ uuid_helm_opts }}
       {{ extra_helm_opts }}
       {{ include_crds_opt }}
