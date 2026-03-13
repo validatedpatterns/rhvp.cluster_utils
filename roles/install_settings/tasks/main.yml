@@ -86,7 +86,7 @@
 
 # So 0.0.65 is the last version of the pattern-operator that deployed by default into
 # openshift-operators namespace. Starting with 0.0.66 if there is no existing pattern-operator
-# subscription in the openshift-operators namespace we want to default to the 
+# subscription in the openshift-operators namespace we want to default to the
 # pattern-operator namespace to install our subscription (and our operator)
 - name: Build subscription_namespace_opt
   ansible.builtin.set_fact:
