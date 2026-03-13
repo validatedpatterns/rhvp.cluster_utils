@@ -75,9 +75,13 @@
   failed_when: false
 
 - name: Determine available patterns-operator version
+  vars:
+    _manifest: "{{ _pkg_manifest.resources[0] | default({}) }}"
+    _channels: "{{ (_manifest.status | default({})).channels | default([]) }}"
+    _first_channel: "{{ _channels[0] if _channels else {} }}"
+    _csv_desc: "{{ _first_channel.currentCSVDesc | default({}) }}"
   ansible.builtin.set_fact:
-    _patterns_operator_version: >-
-      {{ _pkg_manifest.resources[0].status.channels[0].currentCSVDesc.version | default('0.0.0') }}
+    _patterns_operator_version: "{{ _csv_desc.version | default('0.0.0') }}"
   when: _pkg_manifest.resources | default([]) | length > 0
 
 - name: Build subscription_namespace_opt
