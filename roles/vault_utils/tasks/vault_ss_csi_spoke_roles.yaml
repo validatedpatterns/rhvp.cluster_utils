@@ -1,0 +1,12 @@
+---
+- name: Configure SS CSI Vault Kubernetes auth roles on each spoke
+  ansible.builtin.include_tasks: vault_ss_csi_spoke_cluster.yaml
+  loop: "{{ clusters_info | dict2items }}"
+  loop_control:
+    loop_var: cluster_loop
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _ss_csi_spoke_entries_raw is defined
+    - (_ss_csi_spoke_entries_raw | length) > 0
+    - cluster_loop.value.esoToken is defined
+    - cluster_loop.key != "local-cluster"

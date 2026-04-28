@@ -1,0 +1,143 @@
+---
+# Build Vault Kubernetes auth roles from clusterGroup.applications.*.ssCsiWorkloadAuth
+# Requires _merged_hub_policies (from vault_secrets_init). Sets _ss_csi_all_entries for spoke init.
+- name: Initialize SS CSI workload facts when feature disabled
+  ansible.builtin.set_fact:
+    _ss_csi_all_entries: []
+    _ss_csi_hub_entries: []
+    _ss_csi_spoke_entries_raw: []
+  when: not (vault_ss_csi_from_applications | default(true) | bool)
+
+- name: Initialize SS CSI workload entry list
+  ansible.builtin.set_fact:
+    _ss_csi_all_entries: []
+  when: vault_ss_csi_from_applications | default(true) | bool
+
+- name: Resolve main_clustergroupname from values-global when not set
+  ansible.builtin.slurp:
+    src: "{{ pattern_dir }}/values-global.yaml"
+  register: _vault_ss_csi_values_global_slurp
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - pattern_dir is defined
+    - pattern_dir | length > 0
+    - main_clustergroupname is not defined or (main_clustergroupname | string | trim | length) == 0
+
+- name: Set main_clustergroupname from slurped values-global
+  ansible.builtin.set_fact:
+    main_clustergroupname: "{{ (_vault_ss_csi_values_global_slurp.content | b64decode | from_yaml).main.clusterGroupName | string | trim }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_values_global_slurp is defined
+    - _vault_ss_csi_values_global_slurp.content is defined
+
+- name: Resolve path to clustergroup values file for SS CSI
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_path: "{{ vault_ss_csi_cluster_values_file | default('', true) | trim }}"
+  when: vault_ss_csi_from_applications | default(true) | bool
+
+- name: Default clustergroup values path from pattern_dir
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_path: "{{ pattern_dir }}/values-{{ main_clustergroupname }}.yaml"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - (_vault_ss_csi_values_path | default('', true) | length) == 0
+    - pattern_dir is defined
+    - pattern_dir | length > 0
+    - main_clustergroupname is defined
+    - main_clustergroupname | string | trim | length > 0
+
+- name: Stat clustergroup values file for SS CSI parsing
+  ansible.builtin.stat:
+    path: "{{ _vault_ss_csi_values_path }}"
+  register: _vault_ss_csi_values_stat
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_values_path is defined
+    - _vault_ss_csi_values_path | length > 0
+
+- name: Load clustergroup values YAML for SS CSI
+  ansible.builtin.slurp:
+    src: "{{ _vault_ss_csi_values_path }}"
+  register: _vault_ss_csi_values_slurp
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_values_stat.stat.exists | default(false)
+
+- name: Parse clusterGroup.applications from clustergroup values
+  ansible.builtin.set_fact:
+    _vault_ss_csi_cluster_apps: "{{ ((_vault_ss_csi_values_slurp.content | b64decode | from_yaml).clusterGroup | default({})).applications | default({}) }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_values_slurp is defined
+    - _vault_ss_csi_values_slurp.content is defined
+
+- name: Default empty applications when clustergroup values not loaded
+  ansible.builtin.set_fact:
+    _vault_ss_csi_cluster_apps: {}
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_cluster_apps is not defined
+
+- name: Collect SS CSI rows from applications that define ssCsiWorkloadAuth
+  ansible.builtin.include_tasks: vault_ss_csi_collect_one_application.yaml
+  loop: "{{ _vault_ss_csi_cluster_apps | dict2items | selectattr('value.ssCsiWorkloadAuth', 'defined') | list }}"
+  loop_control:
+    loop_var: outer_item
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_cluster_apps is defined
+
+- name: Append legacy Vault CSI hub binding when enabled
+  ansible.builtin.set_fact:
+    _ss_csi_all_entries: "{{ _ss_csi_all_entries | default([]) + [_legacy_row] }}"
+  vars:
+    _legacy_row:
+      app: _legacy_driver
+      serviceAccount: "{{ vault_csi_service_account_name }}"
+      namespace: "{{ vault_csi_service_account_namespace }}"
+      cluster: hub
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - vault_csi_kubernetes_auth | default(false) | bool
+
+- name: Reset hub/spoke SS CSI classification lists
+  ansible.builtin.set_fact:
+    _ss_csi_hub_entries: []
+    _ss_csi_spoke_entries_raw: []
+  when: vault_ss_csi_from_applications | default(true) | bool
+
+- name: Classify SS CSI entries for hub Kubernetes auth mount
+  ansible.builtin.set_fact:
+    _ss_csi_hub_entries: "{{ _ss_csi_hub_entries | default([]) + [item] }}"
+  loop: "{{ _ss_csi_all_entries | default([]) }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - (item.cluster | default('hub') | lower) in ['hub', 'local-cluster', '']
+
+- name: Classify SS CSI entries for spoke mounts (non-hub cluster field)
+  ansible.builtin.set_fact:
+    _ss_csi_spoke_entries_raw: "{{ _ss_csi_spoke_entries_raw | default([]) + [item] }}"
+  loop: "{{ _ss_csi_all_entries | default([]) }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - (item.cluster | default('hub') | lower) not in ['hub', 'local-cluster', '']
+
+- name: Configure hub Vault Kubernetes auth role per SS CSI workload identity
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault write auth/"{{ vault_hub }}"/role/"{{ vault_hub }}-sscsi-{{ _role_slug }}"
+        bound_service_account_names="{{ item.serviceAccount }}"
+        bound_service_account_namespaces="{{ item.namespace }}"
+        policies="{{ _merged_hub_policies | join(',') }}"
+        ttl="{{ vault_ss_csi_role_ttl }}"
+  vars:
+    _role_slug: "{{ ((item.namespace | default('', true)) ~ '|' ~ (item.serviceAccount | default('', true)) ~ '|' ~ (item.app | default('', true))) | hash('sha1') }}"
+  loop: "{{ _ss_csi_hub_entries | default([]) }}"
+  loop_control:
+    label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - (_ss_csi_hub_entries | default([])) | length > 0

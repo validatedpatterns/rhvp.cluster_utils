@@ -328,3 +328,6 @@
     - item.key != "local-cluster"
   loop_control:
     label: "{{ item.key }}"
+
+- name: Configure Vault Kubernetes auth for SS CSI workload identities on spokes
+  ansible.builtin.import_tasks: vault_ss_csi_spoke_roles.yaml

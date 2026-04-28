@@ -60,3 +60,19 @@ app_capabilities: '[\"read\"]'
 app_update_hub_role: true
 # Whether to create JWT roles per app (only for entries with jwt_role defined)
 app_create_jwt_roles: false
+
+# Vault Secrets Store CSI: extra Kubernetes auth role on the hub mount (same policy set as hub-role)
+vault_csi_kubernetes_auth: false
+vault_csi_kubernetes_role_name: "{{ vault_hub }}-csi-role"
+vault_csi_service_account_namespace: "secrets-store-csi-driver"
+vault_csi_service_account_name: "secrets-store-csi-driver"
+vault_csi_role_ttl: "15m"
+
+# Pattern values (clustergroup): under each clusterGroup.applications.<app>, optional list
+# ssCsiWorkloadAuth (see vault_ss_csi_* tasks). Example element:
+#   { serviceAccount: my-sa, namespace: my-ns, cluster: <spoke-key> }
+# namespace defaults to the application namespace; cluster defaults to hub.
+vault_ss_csi_from_applications: true
+# Override path to values-<clustergroup>.yaml; empty uses pattern_dir/values-{{ main_clustergroupname }}.yaml
+vault_ss_csi_cluster_values_file: ""
+vault_ss_csi_role_ttl: "15m"

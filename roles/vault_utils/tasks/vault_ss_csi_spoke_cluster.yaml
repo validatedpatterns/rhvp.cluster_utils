@@ -1,0 +1,22 @@
+---
+# cluster_loop: one entry from clusters_info (ManagedCluster name -> facts)
+- name: Build SS CSI rows matching this spoke cluster
+  ansible.builtin.set_fact:
+    _ss_rows_this_cluster: "{{ (_ss_csi_spoke_entries_raw | selectattr('cluster', 'equalto', cluster_loop.key) | list) + (_ss_csi_spoke_entries_raw | selectattr('cluster', 'equalto', cluster_loop.value.vault_path | default('', true)) | list) + (_ss_csi_spoke_entries_raw | selectattr('cluster', 'equalto', cluster_loop.value.name | default('', true)) | list) }}"
+
+- name: Configure Vault SS CSI role on spoke {{ cluster_loop.key }}
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault write auth/{{ cluster_loop.value.vault_path }}/role/{{ cluster_loop.value.vault_path }}-sscsi-{{ _role_slug }}
+        bound_service_account_names="{{ item.serviceAccount }}"
+        bound_service_account_namespaces="{{ item.namespace }}"
+        policies="default,{{ vault_global_policy }}-secret,{{ vault_pushsecrets_policy }}-secret,{{ cluster_loop.value.vault_path }}-secret"
+        ttl="{{ vault_spoke_ttl }}"
+  vars:
+    _role_slug: "{{ ((cluster_loop.value.vault_path | string) ~ '|' ~ (item.namespace | default('', true)) ~ '|' ~ (item.serviceAccount | default('', true)) ~ '|' ~ (item.app | default('', true))) | hash('sha1') }}"
+  loop: "{{ _ss_rows_this_cluster | default([]) }}"
+  loop_control:
+    label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"
+  when: (_ss_rows_this_cluster | default([])) | length > 0
