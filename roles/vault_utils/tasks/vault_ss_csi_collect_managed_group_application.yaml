@@ -1,0 +1,14 @@
+---
+# mcg_outer_item: { key: <managedClusterGroup id>, value: <managedClusterGroup spec> }
+# Reuses vault_ss_csi_collect_one_application with ss_csi_cluster_default_for_app set for spoke classification.
+- name: Process managed cluster group {{ mcg_outer_item.key }} applications for SS CSI
+  ansible.builtin.include_tasks: vault_ss_csi_collect_one_application.yaml
+  loop: "{{ (mcg_outer_item.value.applications | default({})) | dict2items | selectattr('value.ssCsiWorkloadAuth', 'defined') | list }}"
+  loop_control:
+    loop_var: outer_item
+  vars:
+    ss_csi_cluster_default_for_app: "{{ mcg_outer_item.value.name | default(mcg_outer_item.key) | string | trim }}"
+  when:
+    - mcg_outer_item.value.applications is defined
+    - mcg_outer_item.value.applications is mapping
+    - (mcg_outer_item.value.applications | length) > 0

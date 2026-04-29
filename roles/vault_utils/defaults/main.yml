@@ -68,10 +68,13 @@ vault_csi_service_account_namespace: "secrets-store-csi-driver"
 vault_csi_service_account_name: "secrets-store-csi-driver"
 vault_csi_role_ttl: "15m"
 
-# Pattern values (clustergroup): under each clusterGroup.applications.<app>, optional list
-# ssCsiWorkloadAuth (see vault_ss_csi_* tasks). Example element:
-#   { serviceAccount: my-sa, namespace: my-ns, cluster: <spoke-key> }
-# namespace defaults to the application namespace; cluster defaults to hub.
+# Pattern values (clustergroup): optional list ssCsiWorkloadAuth under each
+#   clusterGroup.applications.<app>
+# or under clusterGroup.managedClusterGroups.<group>.applications.<app>
+# (see vault_ss_csi_* tasks). Example element:
+#   { serviceAccount: my-sa, namespace: my-ns, cluster: <spoke ManagedCluster name or vault_path> }
+# namespace defaults to the application namespace; cluster defaults to hub for hub apps, or to
+# managedClusterGroup.name (else the group YAML key) for applications declared under managedClusterGroups.
 vault_ss_csi_from_applications: true
 # Override path to values-<clustergroup>.yaml; empty uses pattern_dir/values-{{ main_clustergroupname }}.yaml
 vault_ss_csi_cluster_values_file: ""

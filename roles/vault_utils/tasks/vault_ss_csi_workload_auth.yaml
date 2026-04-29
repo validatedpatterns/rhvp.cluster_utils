@@ -83,29 +83,50 @@
     - vault_ss_csi_from_applications | default(true) | bool
     - _vault_ss_csi_values_stat.stat.exists | default(false)
 
-- name: Parse clusterGroup.applications from clustergroup values
+- name: Decode clustergroup values root YAML for SS CSI
   ansible.builtin.set_fact:
-    _vault_ss_csi_cluster_apps: "{{ ((_vault_ss_csi_values_slurp.content | b64decode | from_yaml).clusterGroup | default({})).applications | default({}) }}"
+    _vault_ss_csi_values_root: "{{ (_vault_ss_csi_values_slurp.content | b64decode | from_yaml) }}"
   when:
     - vault_ss_csi_from_applications | default(true) | bool
     - _vault_ss_csi_values_slurp is defined
     - _vault_ss_csi_values_slurp.content is defined
 
-- name: Default empty applications when clustergroup values not loaded
+- name: Parse clusterGroup applications and managedClusterGroups from clustergroup values
+  ansible.builtin.set_fact:
+    _vault_ss_csi_cluster_apps: "{{ (_vault_ss_csi_values_root.clusterGroup | default({})).applications | default({}) }}"
+    _vault_ss_csi_managed_cluster_groups: "{{ (_vault_ss_csi_values_root.clusterGroup | default({})).managedClusterGroups | default({}) }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_values_root is defined
+
+- name: Default empty applications and managedClusterGroups when clustergroup values not loaded
   ansible.builtin.set_fact:
     _vault_ss_csi_cluster_apps: {}
+    _vault_ss_csi_managed_cluster_groups: {}
   when:
     - vault_ss_csi_from_applications | default(true) | bool
     - _vault_ss_csi_cluster_apps is not defined
 
-- name: Collect SS CSI rows from applications that define ssCsiWorkloadAuth
+- name: Collect SS CSI rows from hub clusterGroup.applications that define ssCsiWorkloadAuth
   ansible.builtin.include_tasks: vault_ss_csi_collect_one_application.yaml
   loop: "{{ _vault_ss_csi_cluster_apps | dict2items | selectattr('value.ssCsiWorkloadAuth', 'defined') | list }}"
   loop_control:
     loop_var: outer_item
+  vars:
+    ss_csi_cluster_default_for_app: hub
   when:
     - vault_ss_csi_from_applications | default(true) | bool
     - _vault_ss_csi_cluster_apps is defined
+
+- name: Collect SS CSI rows from clusterGroup.managedClusterGroups.*.applications
+  ansible.builtin.include_tasks: vault_ss_csi_collect_managed_group_application.yaml
+  loop: "{{ _vault_ss_csi_managed_cluster_groups | default({}) | dict2items | list }}"
+  loop_control:
+    loop_var: mcg_outer_item
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_managed_cluster_groups is defined
+    - (_vault_ss_csi_managed_cluster_groups | default({}) | length) > 0
 
 - name: Append legacy Vault CSI hub binding when enabled
   ansible.builtin.set_fact:
@@ -147,10 +168,11 @@
     msg: >-
       SS CSI Vault Kubernetes auth: clustergroup values file={{ _vault_ss_csi_values_path | default('(not resolved)') }},
       pattern_dir={{ pattern_dir | default('(unset)') }}, main_clustergroupname={{ main_clustergroupname | default('(unset)') }};
-      applications in file={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
+      hub applications in file={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
+      managedClusterGroups={{ _vault_ss_csi_managed_cluster_groups | default({}) | dict2items | length }},
       ssCsiWorkloadAuth identities={{ _ss_csi_all_entries | default([]) | length }},
       hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }}.
-      If identities is 0, define clusterGroup.applications.<app>.ssCsiWorkloadAuth in values-{{ main_clustergroupname | default('hub') }}.yaml.
+      If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications or under clusterGroup.managedClusterGroups.*.applications in values-{{ main_clustergroupname | default('hub') }}.yaml.
       If values file is not resolved, set pattern_dir or export PATTERN_DIR to the pattern repo (and ensure main.clusterGroupName in values-global).
   when: vault_ss_csi_from_applications | default(true) | bool
 
