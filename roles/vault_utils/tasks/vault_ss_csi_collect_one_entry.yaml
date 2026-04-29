@@ -16,3 +16,4 @@
       serviceAccount: "{{ inner_item.serviceAccount }}"
       namespace: "{{ inner_item.namespace | default(outer_item.value.namespace | default('', true), true) }}"
       cluster: "{{ inner_item.cluster | default(ss_csi_cluster_default_for_entry | default('hub')) | string | trim }}"
+      roleSlug: "{{ inner_item.roleSlug | default(inner_item.role_slug | default('', true), true) }}"

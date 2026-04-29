@@ -79,3 +79,8 @@ vault_ss_csi_from_applications: true
 # Override path to values-<clustergroup>.yaml; empty uses pattern_dir/values-{{ main_clustergroupname }}.yaml
 vault_ss_csi_cluster_values_file: ""
 vault_ss_csi_role_ttl: "15m"
+# How Vault names Kubernetes auth roles: auth/<mount>/role/<mount>-sscsi-<slug>
+# - hash: legacy SHA1 of namespace|serviceAccount|app (hub) or vault_path|... (spoke)
+# - stable_slug: hub-sscsi-<ns>-<sa>-<app> (sanitized); spokes prefix sanitized vault_path
+# Per-entry override wins: ssCsiWorkloadAuth[].roleSlug (suffix only; still prefixed with <mount>-sscsi-)
+vault_ss_csi_role_slug_mode: hash
