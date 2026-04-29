@@ -15,7 +15,15 @@
         policies="default,{{ vault_global_policy }}-secret,{{ vault_pushsecrets_policy }}-secret,{{ cluster_loop.value.vault_path }}-secret"
         ttl="{{ vault_spoke_ttl }}"
   vars:
-    _role_slug: "{{ ((cluster_loop.value.vault_path | string) ~ '|' ~ (item.namespace | default('', true)) ~ '|' ~ (item.serviceAccount | default('', true)) ~ '|' ~ (item.app | default('', true))) | hash('sha1') }}"
+    _raw_slug: "{{ item.roleSlug | default(item.role_slug | default('', true), true) | string | trim }}"
+    _role_slug: >-
+      {{
+        ((_raw_slug | length) > 0)
+        | ternary(
+            _raw_slug | lower | regex_replace('[^a-z0-9-]+', '-') | regex_replace('-+', '-') | trim('-'),
+            ((cluster_loop.value.vault_path | string) ~ '|' ~ (item.namespace | default('', true)) ~ '|' ~ (item.serviceAccount | default('', true)) ~ '|' ~ (item.app | default('', true))) | hash('sha1')
+          )
+      }}
   loop: "{{ _ss_rows_this_cluster | default([]) }}"
   loop_control:
     label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"

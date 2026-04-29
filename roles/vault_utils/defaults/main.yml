@@ -72,7 +72,7 @@ vault_csi_role_ttl: "15m"
 #   clusterGroup.applications.<app>
 # or under clusterGroup.managedClusterGroups.<group>.applications.<app>
 # (see vault_ss_csi_* tasks). Example element:
-#   { serviceAccount: my-sa, namespace: my-ns, cluster: <spoke ManagedCluster name or vault_path> }
+#   { serviceAccount: my-sa, namespace: my-ns, cluster: <spoke>, optional roleSlug: stable suffix }
 # namespace defaults to the application namespace; cluster defaults to hub for hub apps, or to
 # managedClusterGroup.name (else the group YAML key) for applications declared under managedClusterGroups.
 vault_ss_csi_from_applications: true
