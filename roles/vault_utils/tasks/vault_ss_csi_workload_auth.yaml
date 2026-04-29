@@ -13,14 +13,21 @@
     _ss_csi_all_entries: []
   when: vault_ss_csi_from_applications | default(true) | bool
 
-# vault.yml does not run pattern_settings; imperative / utility container sets PATTERN_DIR.
-- name: Default pattern_dir from PATTERN_DIR for SS CSI values discovery
+# Many jobs run only vault_utils (no pattern_settings role). Reuse the same pattern_dir
+# resolution as pattern_settings (PATTERN_DIR, else PWD, else pwd) so values-global and
+# values-<clustergroup>.yaml resolve without exporting PATTERN_DIR when CWD is the repo root.
+- name: Resolve pattern_dir for SS CSI (align with pattern_settings)
+  ansible.builtin.include_tasks: ../pattern_settings/tasks/resolve_overrides.yml
+  when: vault_ss_csi_from_applications | default(true) | bool
+
+- name: Load main_clustergroup from values-global for SS CSI when unset
   ansible.builtin.set_fact:
-    pattern_dir: "{{ lookup('env', 'PATTERN_DIR') | trim }}"
+    main_clustergroup: "{{ (lookup('file', (pattern_dir | string | trim) ~ '/values-global.yaml') | from_yaml).main.clusterGroupName | string | trim }}"
   when:
     - vault_ss_csi_from_applications | default(true) | bool
-    - (pattern_dir is not defined) or ((pattern_dir | default('', true) | string | trim) | length == 0)
-    - (lookup('env', 'PATTERN_DIR') | default('', true) | string | trim | length) > 0
+    - pattern_dir is defined
+    - (pattern_dir | string | trim | length) > 0
+    - (main_clustergroup is not defined) or ((main_clustergroup | default('', true) | string | trim) | length == 0)
 
 # pattern_settings sets main_clustergroup; other playbooks use main_clustergroupname — align.
 - name: Alias main_clustergroupname from main_clustergroup for SS CSI
@@ -173,7 +180,7 @@
       ssCsiWorkloadAuth identities={{ _ss_csi_all_entries | default([]) | length }},
       hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }}.
       If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications or under clusterGroup.managedClusterGroups.*.applications in values-{{ main_clustergroupname | default('hub') }}.yaml.
-      If values file is not resolved, set pattern_dir or export PATTERN_DIR to the pattern repo (and ensure main.clusterGroupName in values-global).
+      If values file is not resolved, run from the pattern repo (PWD), set pattern_dir / PATTERN_DIR, or set vault_ss_csi_cluster_values_file; ensure main.clusterGroupName in values-global.
   when: vault_ss_csi_from_applications | default(true) | bool
 
 - name: Configure hub Vault Kubernetes auth role per SS CSI workload identity
