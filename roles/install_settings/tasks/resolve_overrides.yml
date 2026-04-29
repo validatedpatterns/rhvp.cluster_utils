@@ -71,8 +71,11 @@
         that: target_origin != ""
         fail_msg: |
           Could not determine target origin for branch '{{ target_branch }}' in '{{ pattern_dir }}'.
-          Ensure branch '{{ target_branch }}' has a remote configured or pass explicitly via
-          the 'target_origin' variable or 'TARGET_ORIGIN' environment variable.
+          Branch '{{ target_branch }}' does not have an upstream tracking branch set.
+          Set one with: git branch --set-upstream-to=<remote>/{{ target_branch }}
+          Or push with: git push -u <remote> {{ target_branch }}
+          Alternatively, pass the remote explicitly via the 'target_origin' variable
+          or 'TARGET_ORIGIN' environment variable.
 
 - name: Resolve target_clustergroup
   ansible.builtin.set_fact:

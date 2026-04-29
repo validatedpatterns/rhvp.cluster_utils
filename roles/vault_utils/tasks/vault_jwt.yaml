@@ -51,10 +51,13 @@
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: >
-      vault read auth/jwt/config -format=json
+      vault read -format=json auth/jwt/config
   register: jwt_discovery_config_json
+  until: jwt_discovery_config_json.rc is defined and jwt_discovery_config_json.rc == 0
+  retries: 10
+  delay: 30
   changed_when: false
-  failed_when: false
+  failed_when: jwt_discovery_config_json.rc != 0
 
 - name: Set jwt_discovery fact
   ansible.builtin.set_fact:
