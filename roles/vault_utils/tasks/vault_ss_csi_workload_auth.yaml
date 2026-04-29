@@ -13,6 +13,25 @@
     _ss_csi_all_entries: []
   when: vault_ss_csi_from_applications | default(true) | bool
 
+# vault.yml does not run pattern_settings; imperative / utility container sets PATTERN_DIR.
+- name: Default pattern_dir from PATTERN_DIR for SS CSI values discovery
+  ansible.builtin.set_fact:
+    pattern_dir: "{{ lookup('env', 'PATTERN_DIR') | trim }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - (pattern_dir is not defined) or ((pattern_dir | default('', true) | string | trim) | length == 0)
+    - (lookup('env', 'PATTERN_DIR') | default('', true) | string | trim | length) > 0
+
+# pattern_settings sets main_clustergroup; other playbooks use main_clustergroupname — align.
+- name: Alias main_clustergroupname from main_clustergroup for SS CSI
+  ansible.builtin.set_fact:
+    main_clustergroupname: "{{ main_clustergroup | string | trim }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - (main_clustergroupname is not defined) or ((main_clustergroupname | default('', true) | string | trim) | length == 0)
+    - main_clustergroup is defined
+    - (main_clustergroup | string | trim | length) > 0
+
 - name: Resolve main_clustergroupname from values-global when not set
   ansible.builtin.slurp:
     src: "{{ pattern_dir }}/values-global.yaml"
@@ -20,7 +39,7 @@
   when:
     - vault_ss_csi_from_applications | default(true) | bool
     - pattern_dir is defined
-    - pattern_dir | length > 0
+    - (pattern_dir | string | trim | length) > 0
     - main_clustergroupname is not defined or (main_clustergroupname | string | trim | length) == 0
 
 - name: Set main_clustergroupname from slurped values-global
@@ -122,6 +141,18 @@
   when:
     - vault_ss_csi_from_applications | default(true) | bool
     - (item.cluster | default('hub') | lower) not in ['hub', 'local-cluster', '']
+
+- name: SS CSI workload Vault auth — summary (values file, counts, next step)
+  ansible.builtin.debug:
+    msg: >-
+      SS CSI Vault Kubernetes auth: clustergroup values file={{ _vault_ss_csi_values_path | default('(not resolved)') }},
+      pattern_dir={{ pattern_dir | default('(unset)') }}, main_clustergroupname={{ main_clustergroupname | default('(unset)') }};
+      applications in file={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
+      ssCsiWorkloadAuth identities={{ _ss_csi_all_entries | default([]) | length }},
+      hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }}.
+      If identities is 0, define clusterGroup.applications.<app>.ssCsiWorkloadAuth in values-{{ main_clustergroupname | default('hub') }}.yaml.
+      If values file is not resolved, set pattern_dir or export PATTERN_DIR to the pattern repo (and ensure main.clusterGroupName in values-global).
+  when: vault_ss_csi_from_applications | default(true) | bool
 
 - name: Configure hub Vault Kubernetes auth role per SS CSI workload identity
   kubernetes.core.k8s_exec:

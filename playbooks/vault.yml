@@ -4,6 +4,9 @@
   connection: local
   gather_facts: false
   roles:
+   # Resolves pattern_dir (PATTERN_DIR / PWD) and loads main.clusterGroupName as main_clustergroup
+   # so vault_ss_csi_workload_auth can read values-<clustergroup>.yaml for ssCsiWorkloadAuth.
+   - pattern_settings
    - find_vp_secrets
    - cluster_pre_check
    - vault_utils
