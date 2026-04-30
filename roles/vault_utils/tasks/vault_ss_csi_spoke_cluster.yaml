@@ -28,3 +28,11 @@
   loop_control:
     label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"
   when: (_ss_rows_this_cluster | default([])) | length > 0
+
+- name: Apply Vault route CA ConfigMaps on spoke for SS CSI TLS verification (same bundle as hub)
+  ansible.builtin.include_tasks: vault_ss_csi_apply_route_ca_configmap_spoke.yaml
+  when:
+    - vault_ss_csi_inject_route_ca_configmap | default(true) | bool
+    - _vault_route_ca_pem is defined
+    - (_vault_route_ca_pem | trim | length) > 0
+    - (_ss_rows_this_cluster | default([])) | length > 0

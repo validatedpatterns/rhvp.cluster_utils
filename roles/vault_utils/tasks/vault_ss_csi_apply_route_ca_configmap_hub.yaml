@@ -1,0 +1,23 @@
+---
+# Apply predictably named ConfigMap(s) on the hub for Vault apps-route TLS (matches openshift-sscsi-vault defaults).
+- name: Build hub namespace list for Vault route CA ConfigMap
+  ansible.builtin.set_fact:
+    _ss_csi_route_ca_hub_namespaces: "{{ ([vault_ns] + ((_ss_csi_hub_entries | default([])) | map(attribute='namespace') | list)) | unique }}"
+
+- name: Ensure Vault route CA ConfigMap on hub namespaces (SS CSI / openshift-sscsi-vault)
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: "{{ vault_ss_csi_route_ca_configmap_name }}"
+        namespace: "{{ item }}"
+        labels:
+          app.kubernetes.io/name: rhvp-cluster-utils
+          app.kubernetes.io/component: vault-route-tls-ca
+      data:
+        "{{ vault_ss_csi_route_ca_configmap_key }}": "{{ _vault_route_ca_pem }}"
+  loop: "{{ _ss_csi_route_ca_hub_namespaces }}"
+  loop_control:
+    label: "{{ item }}"

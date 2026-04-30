@@ -1,0 +1,72 @@
+---
+# Build a PEM bundle that trusts the hub OpenShift apps ingress (Vault route TLS).
+# Used by vault_ss_csi_apply_route_ca_configmap_* so GitOps/Helm can use createConfigMap: false
+# + pemLiteral-free values; openshift-sscsi-vault SPC vaultCACertPath points at the mounted file.
+- name: Read primary ingress router CA ConfigMap (hub)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: "{{ vault_ss_csi_route_ca_ingress_namespace }}"
+    name: "{{ vault_ss_csi_route_ca_ingress_configmap_primary }}"
+  register: _rhvp_router_ca_primary
+  failed_when: false
+
+- name: Read fallback ingress router CA ConfigMap (hub)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: "{{ vault_ss_csi_route_ca_ingress_namespace }}"
+    name: "{{ vault_ss_csi_route_ca_ingress_configmap_fallback }}"
+  register: _rhvp_router_ca_fallback
+  failed_when: false
+
+- name: Set router CA PEM from primary ConfigMap
+  ansible.builtin.set_fact:
+    _rhvp_router_pem: "{{ _rhvp_router_ca_primary.resources[0].data[vault_ss_csi_route_ca_ingress_data_key] }}"
+  when:
+    - (_rhvp_router_ca_primary.resources | default([]) | length) > 0
+    - vault_ss_csi_route_ca_ingress_data_key in (_rhvp_router_ca_primary.resources[0].data | default({}))
+
+- name: Set router CA PEM from fallback ConfigMap when primary unavailable
+  ansible.builtin.set_fact:
+    _rhvp_router_pem: "{{ _rhvp_router_ca_fallback.resources[0].data[vault_ss_csi_route_ca_ingress_data_key] }}"
+  when:
+    - (_rhvp_router_pem | default('') | length) == 0
+    - (_rhvp_router_ca_fallback.resources | default([]) | length) > 0
+    - vault_ss_csi_route_ca_ingress_data_key in (_rhvp_router_ca_fallback.resources[0].data | default({}))
+
+- name: Optionally read kube-root-ca from external-secrets (hub) for bundle parity with ESO
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: "{{ vault_ss_csi_route_ca_kube_root_namespace }}"
+    name: "{{ vault_ss_csi_route_ca_kube_root_name }}"
+  register: _rhvp_kube_root_cm
+  when: vault_ss_csi_route_ca_include_kube_root | default(true) | bool
+  failed_when: false
+
+- name: Set kube-root PEM fragment
+  ansible.builtin.set_fact:
+    _rhvp_kube_root_pem: "{{ _rhvp_kube_root_cm.resources[0].data[vault_ss_csi_route_ca_kube_root_key] }}"
+  when:
+    - vault_ss_csi_route_ca_include_kube_root | default(true) | bool
+    - _rhvp_kube_root_cm is defined
+    - (_rhvp_kube_root_cm.resources | default([]) | length) > 0
+    - vault_ss_csi_route_ca_kube_root_key in (_rhvp_kube_root_cm.resources[0].data | default({}))
+
+- name: Compose combined Vault route trust bundle
+  ansible.builtin.set_fact:
+    _vault_route_ca_pem: >-
+      {{ (_rhvp_router_pem | default('') | trim) ~ (
+      ('\n' ~ (_rhvp_kube_root_pem | trim))
+      if ((_rhvp_kube_root_pem | default('') | trim) | length) > 0 else ''
+      ) }}
+
+- name: Fail when ingress router CA could not be read (SS CSI TLS bundle)
+  ansible.builtin.fail:
+    msg: >-
+      Could not read router CA from {{ vault_ss_csi_route_ca_ingress_namespace }}/{{ vault_ss_csi_route_ca_ingress_configmap_primary }}
+      (or {{ vault_ss_csi_route_ca_ingress_configmap_fallback }}). Cannot populate Vault route CA ConfigMaps for CSI.
+  when:
+    - vault_ss_csi_inject_route_ca_configmap | default(true) | bool
+    - (_rhvp_router_pem | default('') | trim | length) == 0

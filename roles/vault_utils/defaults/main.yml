@@ -84,3 +84,18 @@ vault_ss_csi_role_ttl: "15m"
 # - stable_slug: hub-sscsi-<ns>-<sa>-<app> (sanitized); spokes prefix sanitized vault_path
 # Per-entry override wins: ssCsiWorkloadAuth[].roleSlug (suffix only; still prefixed with <mount>-sscsi-)
 vault_ss_csi_role_slug_mode: hash
+
+# After vault unseal / during vault_secrets_init: copy hub ingress CA into predictable ConfigMaps for
+# Vault CSI TLS (openshift-sscsi-vault defaults). Argo-friendly: no pemLiteral in Git; set
+# syncProviderCaConfigMap.createConfigMap: false and mount this CM on the Vault CSI provider.
+vault_ss_csi_inject_route_ca_configmap: true
+vault_ss_csi_route_ca_configmap_name: openshift-sscsi-vault-vault-tls-ca
+vault_ss_csi_route_ca_configmap_key: vault-tls-ca.pem
+vault_ss_csi_route_ca_ingress_namespace: openshift-ingress
+vault_ss_csi_route_ca_ingress_configmap_primary: router-ca
+vault_ss_csi_route_ca_ingress_configmap_fallback: router-ca-certs
+vault_ss_csi_route_ca_ingress_data_key: ca-bundle.crt
+vault_ss_csi_route_ca_include_kube_root: true
+vault_ss_csi_route_ca_kube_root_namespace: external-secrets
+vault_ss_csi_route_ca_kube_root_name: kube-root-ca.crt
+vault_ss_csi_route_ca_kube_root_key: ca.crt
