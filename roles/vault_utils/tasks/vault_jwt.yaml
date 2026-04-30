@@ -53,15 +53,12 @@
     command: >
       vault read -format=json auth/jwt/config
   register: jwt_discovery_config_json
-  until: jwt_discovery_config_json.rc is defined and jwt_discovery_config_json.rc == 0
-  retries: 10
-  delay: 30
   changed_when: false
-  failed_when: jwt_discovery_config_json.rc != 0
+  failed_when: false
 
 - name: Set jwt_discovery fact
   ansible.builtin.set_fact:
-    jwt_discovery: "{{ true if jwt_discovery_config_json.stdout_lines | length > 0 else false }}"
+    jwt_discovery: "{{ true if jwt_discovery_config_json.stdout_lines | default([]) | length > 0 else false }}"
 
 - name: Set JWT discovery configuration fact
   ansible.builtin.set_fact:
