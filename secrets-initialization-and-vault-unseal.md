@@ -17,7 +17,7 @@ This document describes how Vault and application secrets are bootstrapped when 
 Tasks run in this fixed order (each block has an Ansible **tag** of the same name for selective runs):
 
 | Order | Import | Tag |
-|-------|--------|-----|
+| ----- | ------ | --- |
 | 1 | `vault_init.yaml` | `vault_init` |
 | 2 | `vault_unseal.yaml` | `vault_unseal` |
 | 3 | `vault_secrets_init.yaml` | `vault_secrets_init` |
@@ -102,24 +102,31 @@ Summary:
 
 ### Vault route CA ConfigMap for SS CSI TLS (hub ingress trust)
 
-The **Secrets Store CSI** Vault provider talks to Vault over **HTTPS** (typically the **hub** Vault **Route** on OpenShift). With **`vaultSkipTLSVerify: "false"`**, the provider needs a **PEM trust bundle** for that route. Checking that bundle into Git as **`pemLiteral`**, or using Helm **`lookup`**, is awkward for GitOps. This role can **imperatively** create a **fixed-name `ConfigMap`** in every namespace that runs SS CSI workloads so charts can set **`createConfigMap: false`** and mount the bundle by name.
+The **Secrets Store CSI** Vault provider talks to Vault over **HTTPS** (typically the **hub** Vault **Route** on OpenShift).
+With **`vaultSkipTLSVerify: "false"`**, the provider needs a **PEM trust bundle** for that route.
+Checking that bundle into Git as **`pemLiteral`**, or using Helm **`lookup`**, is awkward for GitOps.
+This role can **imperatively** create a **fixed-name `ConfigMap`** in every namespace that runs SS CSI workloads so charts can set **`createConfigMap: false`** and mount the bundle by name.
 
 #### When this runs (play order)
 
 | Phase | Tag | What happens |
-|-------|-----|----------------|
+| ----- | --- | -------------- |
 | **Gather + hub apply** | `vault_secrets_init` | Included from **`vault_ss_csi_workload_auth.yaml`** after SS CSI entries are collected from **`values-<clustergroup>.yaml`**, after hub Vault Kubernetes auth roles are written for those entries. |
 | **Spoke apply** | `vault_spokes_init` | Included from **`vault_ss_csi_spoke_cluster.yaml`** for each ACM spoke that has **SS CSI** rows for that cluster (same PEM as the hub; Vault route stays on hub ingress). |
 
-Gather runs only when **`vault_ss_csi_inject_route_ca_configmap`** is true (default), **`vault_ss_csi_from_applications`** is true, and **either** there is at least one SS CSI identity in **`_ss_csi_all_entries`** **or** legacy **`vault_csi_kubernetes_auth`** is enabled. Hub ConfigMap apply runs when injection is on and the gathered PEM is non-empty, **after** hub SS CSI roles are configured (so hub workload namespaces are known).
+Gather runs only when **`vault_ss_csi_inject_route_ca_configmap`** is true (default), **`vault_ss_csi_from_applications`** is true, and **either** there is at least one SS CSI identity in **`_ss_csi_all_entries`** **or** legacy **`vault_csi_kubernetes_auth`** is enabled.
+Hub ConfigMap apply runs when injection is on and the gathered PEM is non-empty, **after** hub SS CSI roles are configured (so hub workload namespaces are known).
 
-If **`vault_spokes_init`** exits early (**`meta: end_play`** when there are no `ManagedCluster` resources or the ACM API is unavailable), **spoke** namespaces never receive the ConfigMap in that run; **hub** namespaces still do if **`vault_secrets_init`** completed. For hub-only clusters, use **`--skip-tags vault_spokes_init`** as documented in Step 4; route CA ConfigMaps on the hub are unaffected.
+If **`vault_spokes_init`** exits early (**`meta: end_play`** when there are no `ManagedCluster` resources or the ACM API is unavailable), **spoke** namespaces never receive the ConfigMap in that run; **hub** namespaces still do if **`vault_secrets_init`** completed.
+For hub-only clusters, use **`--skip-tags vault_spokes_init`** as documented in Step 4; route CA ConfigMaps on the hub are unaffected.
 
 #### How the PEM bundle is built
 
 Tasks live under **`roles/vault_utils/tasks/`**:
 
-1. **`vault_ss_csi_gather_route_ca_pem.yaml`** (hub API only) reads the OpenShift **default ingress** trust material from **`openshift-ingress`**: ConfigMap **`router-ca`** first, then **`router-ca-certs`**, using the data key **`ca-bundle.crt`** (configurable). Optionally, when **`vault_ss_csi_route_ca_include_kube_root`** is true, it appends **`external-secrets/kube-root-ca.crt`** (`ca.crt`) so the bundle stays aligned with **External Secrets Operator** cluster trust. The result is **`_vault_route_ca_pem`**. If injection is enabled and **no router CA** can be read from either ingress ConfigMap, the play **fails** (kube-root alone is not sufficient to trust the Vault route).
+1. **`vault_ss_csi_gather_route_ca_pem.yaml`** (hub API only) reads the OpenShift **default ingress** trust material from **`openshift-ingress`**: ConfigMap **`router-ca`** first, then **`router-ca-certs`**, trying ordered data keys (see **`defaults/main.yml`**).
+   Optionally, when **`vault_ss_csi_route_ca_include_kube_root`** is true, it appends **`external-secrets/kube-root-ca.crt`** (`ca.crt`) so the bundle stays aligned with **External Secrets Operator** cluster trust.
+   The result is **`_vault_route_ca_pem`**. If injection is enabled and **no router CA** can be read from either ingress ConfigMap, the play **fails** (kube-root alone is not sufficient to trust the Vault route).
 
 2. **`vault_ss_csi_apply_route_ca_configmap_hub.yaml`** loops namespaces and applies **`kubernetes.core.k8s`** `ConfigMap` state: present.
 
@@ -137,7 +144,7 @@ The object is labeled **`app.kubernetes.io/name: rhvp-cluster-utils`**, **`app.k
 Defaults in **`roles/vault_utils/defaults/main.yml`** match **openshift-sscsi-vault** conventions so you can depend on a stable name without copying PEM into Git:
 
 | Variable | Default | Role |
-|----------|---------|------|
+| -------- | ------- | ---- |
 | `vault_ss_csi_inject_route_ca_configmap` | `true` | Master switch for gather + apply. |
 | `vault_ss_csi_route_ca_configmap_name` | `openshift-sscsi-vault-vault-tls-ca` | ConfigMap `metadata.name`. |
 | `vault_ss_csi_route_ca_configmap_key` | `vault-tls-ca.pem` | Key under `data` holding the PEM text. |
@@ -149,7 +156,10 @@ Defaults in **`roles/vault_utils/defaults/main.yml`** match **openshift-sscsi-va
 | `vault_ss_csi_route_ca_include_kube_root` | `true` | Append `external-secrets` **kube-root-ca.crt**. |
 | `vault_ss_csi_route_ca_kube_root_*` | see defaults | Namespace, name, and data key for kube-root. |
 
-**GitOps / Helm:** set **`vaultSkipTLSVerify: "false"`**, configure the subchart so **`syncProviderCaConfigMap.createConfigMap`** is **`false`** (do not create the CA ConfigMap from chart values), and mount the ConfigMap named above so **`vaultCACertPath`** points at **`/path/to/mount/{{ vault_ss_csi_route_ca_configmap_key }}`** (exact mount path depends on the chart’s volumeMount). Avoid **`pemLiteral`** and **`lookup`** for this CA if the playbook maintains the ConfigMap.
+**GitOps / Helm:** set **`vaultSkipTLSVerify: "false"`**, configure the subchart so **`syncProviderCaConfigMap.createConfigMap`** is **`false`**
+(do not create the CA ConfigMap from chart values), and mount the ConfigMap named above so **`vaultCACertPath`** points at
+**`/path/to/mount/{{ vault_ss_csi_route_ca_configmap_key }}`** (exact mount path depends on the chart’s volumeMount).
+Avoid **`pemLiteral`** and **`lookup`** for this CA if the playbook maintains the ConfigMap.
 
 Set **`vault_ss_csi_inject_route_ca_configmap: false`** to skip gather and all applies if you supply trust another way.
 
@@ -159,7 +169,9 @@ Set **`vault_ss_csi_inject_route_ca_configmap: false`** to skip gather and all a
 
 Configures Vault for **ACM managed clusters** (Kubernetes auth mounts and roles per spoke, paths under `secret/<fqdn>`, etc.).
 
-**Important:** If there are **no** `ManagedCluster` resources, the ACM API call **failed**, or **`api_found`** is false, the role runs **`meta: end_play`**, which **stops the entire play** immediately. In that situation **`push_secrets`** and **`vault_jwt`** do **not** run in the same invocation. For hub-only workflows, use **`--skip-tags vault_spokes_init`** (or run `push_secrets` in a separate tagged run) so secret loading still executes.
+**Important:** If there are **no** `ManagedCluster` resources, the ACM API call **failed**, or **`api_found`** is false, the role runs **`meta: end_play`**, which **stops the entire play** immediately.
+In that situation **`push_secrets`** and **`vault_jwt`** do **not** run in the same invocation.
+For hub-only workflows, use **`--skip-tags vault_spokes_init`** (or run `push_secrets` in a separate tagged run) so secret loading still executes.
 
 ---
 
@@ -185,7 +197,7 @@ Included from `main.yml` only when **`vault_jwt_config | default(false) | bool`*
 ## Key variables (defaults)
 
 | Variable | Default | Meaning |
-|----------|---------|---------|
+| -------- | ------- | ------- |
 | `vault_ns` | `vault` | Vault namespace |
 | `vault_pod` | `vault-0` | Leader pod name |
 | `vault_hub` | `hub` | Kubernetes auth mount path segment |
