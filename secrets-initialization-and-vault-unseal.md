@@ -124,7 +124,8 @@ For hub-only clusters, use **`--skip-tags vault_spokes_init`** as documented in 
 
 Tasks live under **`roles/vault_utils/tasks/`**:
 
-1. **`vault_ss_csi_gather_route_ca_pem.yaml`** (hub API only) reads the OpenShift **default ingress** trust material from **`openshift-ingress`**: ConfigMap **`router-ca`** first, then **`router-ca-certs`**, trying ordered data keys (see **`defaults/main.yml`**).
+1. **`vault_ss_csi_gather_route_ca_pem.yaml`** (hub API only) walks **`openshift-ingress`** (or **`vault_ss_csi_route_ca_ingress_namespace`**) ConfigMaps in order: **`router-ca`**, **`router-ca-certs`**, then **`vault_ss_csi_route_ca_ingress_configmap_candidates`**
+   (defaults: **`service-ca-bundle`**, **`openshift-service-ca.crt`**, **`kube-root-ca.crt`** when router CMs are absent). Each CM uses ordered data keys and PEM-like `.data` fallbacks (see **`defaults/main.yml`**).
    Optionally, when **`vault_ss_csi_route_ca_include_kube_root`** is true, it appends **`external-secrets/kube-root-ca.crt`** (`ca.crt`) so the bundle stays aligned with **External Secrets Operator** cluster trust.
    The result is **`_vault_route_ca_pem`**. If injection is enabled and **no router CA** can be read from either ingress ConfigMap, the play **fails** (kube-root alone is not sufficient to trust the Vault route).
 
@@ -151,8 +152,9 @@ Defaults in **`roles/vault_utils/defaults/main.yml`** match **openshift-sscsi-va
 | `vault_ss_csi_route_ca_ingress_namespace` | `openshift-ingress` | Where router CA ConfigMaps live. |
 | `vault_ss_csi_route_ca_ingress_configmap_primary` | `router-ca` | First ConfigMap to read. |
 | `vault_ss_csi_route_ca_ingress_configmap_fallback` | `router-ca-certs` | Second ConfigMap if primary missing key. |
+| `vault_ss_csi_route_ca_ingress_configmap_candidates` | `service-ca-bundle`, … | Extra ConfigMap **names** tried after primary/fallback when router CMs are absent. |
 | `vault_ss_csi_route_ca_ingress_data_key` | `ca-bundle.crt` | First key tried (legacy); merged with `vault_ss_csi_route_ca_ingress_data_keys`. |
-| `vault_ss_csi_route_ca_ingress_data_keys` | `ca-bundle.crt`, `ca.crt`, `ingress-ca.crt` | Ordered keys tried on `router-ca` / `router-ca-certs`; then any PEM-like `.data` value. |
+| `vault_ss_csi_route_ca_ingress_data_keys` | `ca-bundle.crt`, `ca.crt`, … | Ordered keys per ConfigMap; then any PEM-like `.data` value. |
 | `vault_ss_csi_route_ca_include_kube_root` | `true` | Append `external-secrets` **kube-root-ca.crt**. |
 | `vault_ss_csi_route_ca_kube_root_*` | see defaults | Namespace, name, and data key for kube-root. |
 
