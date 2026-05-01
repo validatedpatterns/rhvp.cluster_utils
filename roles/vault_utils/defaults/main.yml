@@ -94,7 +94,12 @@ vault_ss_csi_route_ca_configmap_key: vault-tls-ca.pem
 vault_ss_csi_route_ca_ingress_namespace: openshift-ingress
 vault_ss_csi_route_ca_ingress_configmap_primary: router-ca
 vault_ss_csi_route_ca_ingress_configmap_fallback: router-ca-certs
+# Merged into _rhvp_ingress_data_keys first; some clusters use ca.crt only.
 vault_ss_csi_route_ca_ingress_data_key: ca-bundle.crt
+vault_ss_csi_route_ca_ingress_data_keys:
+  - ca-bundle.crt
+  - ca.crt
+  - ingress-ca.crt
 vault_ss_csi_route_ca_include_kube_root: true
 vault_ss_csi_route_ca_kube_root_namespace: external-secrets
 vault_ss_csi_route_ca_kube_root_name: kube-root-ca.crt

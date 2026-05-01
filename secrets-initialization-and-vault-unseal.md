@@ -144,7 +144,8 @@ Defaults in **`roles/vault_utils/defaults/main.yml`** match **openshift-sscsi-va
 | `vault_ss_csi_route_ca_ingress_namespace` | `openshift-ingress` | Where router CA ConfigMaps live. |
 | `vault_ss_csi_route_ca_ingress_configmap_primary` | `router-ca` | First ConfigMap to read. |
 | `vault_ss_csi_route_ca_ingress_configmap_fallback` | `router-ca-certs` | Second ConfigMap if primary missing key. |
-| `vault_ss_csi_route_ca_ingress_data_key` | `ca-bundle.crt` | Key in those ConfigMaps. |
+| `vault_ss_csi_route_ca_ingress_data_key` | `ca-bundle.crt` | First key tried (legacy); merged with `vault_ss_csi_route_ca_ingress_data_keys`. |
+| `vault_ss_csi_route_ca_ingress_data_keys` | `ca-bundle.crt`, `ca.crt`, `ingress-ca.crt` | Ordered keys tried on `router-ca` / `router-ca-certs`; then any PEM-like `.data` value. |
 | `vault_ss_csi_route_ca_include_kube_root` | `true` | Append `external-secrets` **kube-root-ca.crt**. |
 | `vault_ss_csi_route_ca_kube_root_*` | see defaults | Namespace, name, and data key for kube-root. |
 

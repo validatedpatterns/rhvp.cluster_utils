@@ -2,6 +2,16 @@
 # Build a PEM bundle that trusts the hub OpenShift apps ingress (Vault route TLS).
 # Used by vault_ss_csi_apply_route_ca_configmap_* so GitOps/Helm can use createConfigMap: false
 # + pemLiteral-free values; openshift-sscsi-vault SPC vaultCACertPath points at the mounted file.
+- name: Build ordered list of ingress ConfigMap data keys to try
+  ansible.builtin.set_fact:
+    _rhvp_ingress_data_keys: >-
+      {{
+        (
+          [vault_ss_csi_route_ca_ingress_data_key | default('ca-bundle.crt')]
+          + (vault_ss_csi_route_ca_ingress_data_keys | default([]))
+        ) | unique | list
+      }}
+
 - name: Read primary ingress router CA ConfigMap (hub)
   kubernetes.core.k8s_info:
     api_version: v1
@@ -20,20 +30,43 @@
   register: _rhvp_router_ca_fallback
   failed_when: false
 
-- name: Set router CA PEM from primary ConfigMap
+- name: Set router CA PEM from primary ingress ConfigMap (first matching key)
   ansible.builtin.set_fact:
-    _rhvp_router_pem: "{{ _rhvp_router_ca_primary.resources[0].data[vault_ss_csi_route_ca_ingress_data_key] }}"
+    _rhvp_router_pem: "{{ _rhvp_router_ca_primary.resources[0].data[item] }}"
+  loop: "{{ _rhvp_ingress_data_keys }}"
   when:
+    - (_rhvp_router_pem | default('') | length) == 0
     - (_rhvp_router_ca_primary.resources | default([]) | length) > 0
-    - vault_ss_csi_route_ca_ingress_data_key in (_rhvp_router_ca_primary.resources[0].data | default({}))
+    - item in (_rhvp_router_ca_primary.resources[0].data | default({}))
 
-- name: Set router CA PEM from fallback ConfigMap when primary unavailable
+- name: Set router CA PEM from fallback ingress ConfigMap (first matching key)
   ansible.builtin.set_fact:
-    _rhvp_router_pem: "{{ _rhvp_router_ca_fallback.resources[0].data[vault_ss_csi_route_ca_ingress_data_key] }}"
+    _rhvp_router_pem: "{{ _rhvp_router_ca_fallback.resources[0].data[item] }}"
+  loop: "{{ _rhvp_ingress_data_keys }}"
   when:
     - (_rhvp_router_pem | default('') | length) == 0
     - (_rhvp_router_ca_fallback.resources | default([]) | length) > 0
-    - vault_ss_csi_route_ca_ingress_data_key in (_rhvp_router_ca_fallback.resources[0].data | default({}))
+    - item in (_rhvp_router_ca_fallback.resources[0].data | default({}))
+
+- name: Set router CA PEM from first PEM-like value in primary ConfigMap (nonstandard keys)
+  ansible.builtin.set_fact:
+    _rhvp_router_pem: "{{ item }}"
+  loop: "{{ _rhvp_router_ca_primary.resources[0].data.values() | list | default([]) }}"
+  when:
+    - (_rhvp_router_pem | default('') | length) == 0
+    - (_rhvp_router_ca_primary.resources | default([]) | length) > 0
+    - item is string
+    - ("BEGIN CERTIFICATE" in item) or ("BEGIN TRUSTED CERTIFICATE" in item)
+
+- name: Set router CA PEM from first PEM-like value in fallback ConfigMap (nonstandard keys)
+  ansible.builtin.set_fact:
+    _rhvp_router_pem: "{{ item }}"
+  loop: "{{ _rhvp_router_ca_fallback.resources[0].data.values() | list | default([]) }}"
+  when:
+    - (_rhvp_router_pem | default('') | length) == 0
+    - (_rhvp_router_ca_fallback.resources | default([]) | length) > 0
+    - item is string
+    - ("BEGIN CERTIFICATE" in item) or ("BEGIN TRUSTED CERTIFICATE" in item)
 
 - name: Optionally read kube-root-ca from external-secrets (hub) for bundle parity with ESO
   kubernetes.core.k8s_info:
@@ -66,7 +99,9 @@
   ansible.builtin.fail:
     msg: >-
       Could not read router CA from {{ vault_ss_csi_route_ca_ingress_namespace }}/{{ vault_ss_csi_route_ca_ingress_configmap_primary }}
-      (or {{ vault_ss_csi_route_ca_ingress_configmap_fallback }}). Cannot populate Vault route CA ConfigMaps for CSI.
+      (or {{ vault_ss_csi_route_ca_ingress_configmap_fallback }}). Tried data keys (in order): {{ _rhvp_ingress_data_keys | join(', ') }}.
+      If the ConfigMaps exist, inspect: oc get configmap -n {{ vault_ss_csi_route_ca_ingress_namespace }} {{ vault_ss_csi_route_ca_ingress_configmap_primary }} -o yaml
+      and set vault_ss_csi_route_ca_ingress_data_keys to match .data keys. Cannot populate Vault route CA ConfigMaps for CSI.
   when:
     - vault_ss_csi_inject_route_ca_configmap | default(true) | bool
     - (_rhvp_router_pem | default('') | trim | length) == 0
