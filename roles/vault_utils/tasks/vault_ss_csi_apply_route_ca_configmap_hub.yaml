@@ -16,8 +16,8 @@
         labels:
           app.kubernetes.io/name: rhvp-cluster-utils
           app.kubernetes.io/component: vault-route-tls-ca
-      data:
-        "{{ vault_ss_csi_route_ca_configmap_key }}": "{{ _vault_route_ca_pem }}"
+      # One Jinja expression so the CM data key is resolved (k8s module can leave templated YAML keys literal).
+      data: "{{ dict([(vault_ss_csi_route_ca_configmap_key, _vault_route_ca_pem)]) }}"
   loop: "{{ _ss_csi_route_ca_hub_namespaces }}"
   loop_control:
     label: "{{ item }}"
