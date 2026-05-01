@@ -8,7 +8,7 @@ This document describes how Vault and application secrets are bootstrapped when 
 - **Hosts:** `localhost`, `connection: local`, `gather_facts: false`
 - **Roles (order):**
   1. **`pattern_settings`** — Resolves `pattern_dir` and loads `main.clusterGroupName` as `main_clustergroup` (used later, e.g. SS CSI workload auth reading `values-<clustergroup>.yaml`).
-  2. **`find_vp_secrets`** — Locates pattern secrets inputs as used elsewhere in the repo.
+  2. **`find_vp_secrets`** — Locates pattern secrets inputs as used elsewhere in the repository.
   3. **`cluster_pre_check`** — Verifies Python `kubernetes` import, kubeconfig (`KUBECONFIG` or `~/.kube/config`), or in-cluster operation via `KUBERNETES_SERVICE_HOST`.
   4. **`vault_utils`** — Performs Vault init, unseal, backends/policies, spokes, and pushing secrets from `values-secret` files.
 
@@ -78,7 +78,7 @@ This file is **not** tagged separately; it runs as part of both `vault_init` and
 
 **If Vault is already unsealed** (`vault_sealed` false): steps 3–11 are skipped (no secret read, no unseal, no join, no login from this file). The play continues to `vault_secrets_init`.
 
-**Operational implications**
+#### Operational implications
 
 - **HA:** Followers are discovered by label `component=server`; leader is fixed by name `vault_pod` (default `vault-0`).
 - **Security:** Root token and unseal keys live in the **`vaultkeys`** secret in **`imperative`** (by default); anyone with cluster access to that secret can unseal and administer Vault.
