@@ -88,7 +88,11 @@ vault_ss_csi_role_slug_mode: hash
 # After vault unseal / during vault_secrets_init: copy hub ingress CA into predictable ConfigMaps for
 # Vault CSI TLS (openshift-sscsi-vault defaults). Argo-friendly: no pemLiteral in Git; set
 # syncProviderCaConfigMap.createConfigMap: false and mount this CM on the Vault CSI provider.
-vault_ss_csi_inject_route_ca_configmap: true
+#
+# Default false on this branch: skip in-role CA gather + ConfigMap apply (use GitOps / platform CA
+# distribution as appropriate). Override with vault_ss_csi_inject_route_ca_configmap: true for
+# openshift-ingress + kube-root gather and hub/spoke ConfigMaps in this role.
+vault_ss_csi_inject_route_ca_configmap: false
 vault_ss_csi_route_ca_configmap_name: openshift-sscsi-vault-vault-tls-ca
 vault_ss_csi_route_ca_configmap_key: vault-tls-ca.pem
 vault_ss_csi_route_ca_ingress_namespace: openshift-ingress

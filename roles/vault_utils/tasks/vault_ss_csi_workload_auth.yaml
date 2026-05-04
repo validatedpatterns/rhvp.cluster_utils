@@ -149,6 +149,7 @@
     - vault_csi_kubernetes_auth | default(false) | bool
 
 # Hub ingress CA → ConfigMap(s) named like openshift-sscsi-vault defaults (Argo-friendly: no pemLiteral in Git).
+# Skipped when vault_ss_csi_inject_route_ca_configmap is false (override to true to gather/apply here).
 - name: Gather hub ingress CA bundle for Vault route TLS (SS CSI)
   ansible.builtin.include_tasks: vault_ss_csi_gather_route_ca_pem.yaml
   when:

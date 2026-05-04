@@ -107,6 +107,8 @@ With **`vaultSkipTLSVerify: "false"`**, the provider needs a **PEM trust bundle*
 Checking that bundle into Git as **`pemLiteral`**, or using Helm **`lookup`**, is awkward for GitOps.
 This role can **imperatively** create a **fixed-name `ConfigMap`** in every namespace that runs SS CSI workloads so charts can set **`createConfigMap: false`** and mount the bundle by name.
 
+**Branch `feature/sscsi-vp-proxy-cluster-ca-chart`:** `vault_ss_csi_inject_route_ca_configmap` defaults to **`false`**, so this role does **not** gather hub ingress CA or apply Vault route CA ConfigMaps unless you override it (inventory / extra vars). Supply TLS trust for the Vault route via your pattern (for example a hub GitOps chart such as **vp-manage-proxy-cluster-ca**) or set **`vault_ss_csi_inject_route_ca_configmap: true`** to use the in-role path documented below.
+
 #### When this runs (play order)
 
 | Phase | Tag | What happens |
@@ -114,7 +116,7 @@ This role can **imperatively** create a **fixed-name `ConfigMap`** in every name
 | **Gather + hub apply** | `vault_secrets_init` | Included from **`vault_ss_csi_workload_auth.yaml`** after SS CSI entries are collected from **`values-<clustergroup>.yaml`**, after hub Vault Kubernetes auth roles are written for those entries. |
 | **Spoke apply** | `vault_spokes_init` | Included from **`vault_ss_csi_spoke_cluster.yaml`** for each ACM spoke that has **SS CSI** rows for that cluster (same PEM as the hub; Vault route stays on hub ingress). |
 
-Gather runs only when **`vault_ss_csi_inject_route_ca_configmap`** is true (default), **`vault_ss_csi_from_applications`** is true, and **either** there is at least one SS CSI identity in **`_ss_csi_all_entries`** **or** legacy **`vault_csi_kubernetes_auth`** is enabled.
+Gather runs only when **`vault_ss_csi_inject_route_ca_configmap`** is true, **`vault_ss_csi_from_applications`** is true, and **either** there is at least one SS CSI identity in **`_ss_csi_all_entries`** **or** legacy **`vault_csi_kubernetes_auth`** is enabled. With the default **`false`** on this branch, gather and ConfigMap apply are skipped.
 Hub ConfigMap apply runs when injection is on and the gathered PEM is non-empty, **after** hub SS CSI roles are configured (so hub workload namespaces are known).
 
 If **`vault_spokes_init`** exits early (**`meta: end_play`** when there are no `ManagedCluster` resources or the ACM API is unavailable), **spoke** namespaces never receive the ConfigMap in that run; **hub** namespaces still do if **`vault_secrets_init`** completed.
@@ -146,7 +148,7 @@ Defaults in **`roles/vault_utils/defaults/main.yml`** match **openshift-sscsi-va
 
 | Variable | Default | Role |
 | -------- | ------- | ---- |
-| `vault_ss_csi_inject_route_ca_configmap` | `true` | Master switch for gather + apply. |
+| `vault_ss_csi_inject_route_ca_configmap` | `false` | When `false`, CA gather/apply is skipped; set `true` to restore in-role gather + ConfigMaps. |
 | `vault_ss_csi_route_ca_configmap_name` | `openshift-sscsi-vault-vault-tls-ca` | ConfigMap `metadata.name`. |
 | `vault_ss_csi_route_ca_configmap_key` | `vault-tls-ca.pem` | Key under `data` holding the PEM text. |
 | `vault_ss_csi_route_ca_ingress_namespace` | `openshift-ingress` | Where router CA ConfigMaps live. |
