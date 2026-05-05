@@ -54,6 +54,38 @@ This role configures four secret paths in vault:
    be used with ESO's `PushSecrets` so you can push an existing secret from one namespace, to the vault under this path and
    then it can be retrieved by an `ExternalSecret` either in a different namespace *or* from an entirely different cluster.
 
+## SS CSI workload auth
+
+This role can create Vault Kubernetes auth roles from
+`clusterGroup.applications.*.ssCsiWorkloadAuth` and
+`clusterGroup.managedClusterGroups.*.applications.*.ssCsiWorkloadAuth`.
+
+For each `ssCsiWorkloadAuth` entry:
+
+- required: `serviceAccount`
+- optional: `namespace`, `cluster`, `roleSlug` (or `role_slug`)
+
+Application-level `namespace` is used as the default when an entry does not set
+`namespace`.
+
+Example:
+
+```yaml
+clusterGroup:
+  applications:
+    my-app:
+      namespace: my-app-namespace
+      ssCsiWorkloadAuth:
+        - serviceAccount: my-app-sa
+          cluster: hub
+```
+
+SS CSI CA material management is external to this role. Use a separate chart or
+platform CA distribution workflow for Vault route trust.
+
+For a detailed end-to-end description of `vault.yml` task order and SS CSI
+behavior, see `secrets-initialization-and-vault-unseal.md` in this repository.
+
 ## Values secret file format
 
 Currently this role supports two formats: version 1.0 (which is the assumed
