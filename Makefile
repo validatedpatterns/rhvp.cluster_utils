@@ -8,6 +8,7 @@ help: ## This help message
 .PHONY: super-linter
 super-linter: ## Runs super linter locally
 	rm -rf .mypy_cache
+	rm -rf .ansible
 	podman run -e RUN_LOCAL=true -e USE_FIND_ALGORITHM=true	\
 					-e VALIDATE_ANSIBLE=false \
 					-e VALIDATE_BASH=false \

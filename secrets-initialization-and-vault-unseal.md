@@ -100,72 +100,13 @@ Summary:
 6. Read existing **`auth/{{ vault_hub }}/role/{{ vault_hub }}-role`**, merge policies with `vault_hub_role_default_policies`, and **`vault write`** the role when an update is needed (bound SA/namespace from active external-secrets config, TTL from `vault_hub_ttl`).
 7. **`include_tasks: vault_ss_csi_workload_auth.yaml`** for optional SS CSI Kubernetes auth roles from pattern values.
 
-### Vault route CA ConfigMap for SS CSI TLS (hub ingress trust)
+### Vault route CA for SS CSI TLS
 
-The **Secrets Store CSI** Vault provider talks to Vault over **HTTPS** (typically the **hub** Vault **Route** on OpenShift).
-With **`vaultSkipTLSVerify: "false"`**, the provider needs a **PEM trust bundle** for that route.
-Checking that bundle into Git as **`pemLiteral`**, or using Helm **`lookup`**, is awkward for GitOps.
-This role can **imperatively** create a **fixed-name `ConfigMap`** in every namespace that runs SS CSI workloads so charts can set **`createConfigMap: false`** and mount the bundle by name.
+The **SS CSI** path in this collection no longer gathers hub ingress CA material or applies CA `ConfigMap` objects.
+CA distribution for the Vault route is now expected to be handled by a separate chart.
 
-**Branch `feature/sscsi-vp-proxy-cluster-ca-chart`:** `vault_ss_csi_inject_route_ca_configmap` defaults to **`false`**, so this role does **not** gather hub ingress CA or apply Vault route CA ConfigMaps unless you override it (inventory / extra vars). Supply TLS trust for the Vault route via your pattern (for example a hub GitOps chart such as **vp-manage-proxy-cluster-ca**) or set **`vault_ss_csi_inject_route_ca_configmap: true`** to use the in-role path documented below.
-
-#### When this runs (play order)
-
-| Phase | Tag | What happens |
-| ----- | --- | -------------- |
-| **Gather + hub apply** | `vault_secrets_init` | Included from **`vault_ss_csi_workload_auth.yaml`** after SS CSI entries are collected from **`values-<clustergroup>.yaml`**, after hub Vault Kubernetes auth roles are written for those entries. |
-| **Spoke apply** | `vault_spokes_init` | Included from **`vault_ss_csi_spoke_cluster.yaml`** for each ACM spoke that has **SS CSI** rows for that cluster (same PEM as the hub; Vault route stays on hub ingress). |
-
-Gather runs only when **`vault_ss_csi_inject_route_ca_configmap`** is true, **`vault_ss_csi_from_applications`** is true, and **either** there is at least one SS CSI identity in **`_ss_csi_all_entries`** **or** legacy **`vault_csi_kubernetes_auth`** is enabled. With the default **`false`** on this branch, gather and ConfigMap apply are skipped.
-Hub ConfigMap apply runs when injection is on and the gathered PEM is non-empty, **after** hub SS CSI roles are configured (so hub workload namespaces are known).
-
-If **`vault_spokes_init`** exits early (**`meta: end_play`** when there are no `ManagedCluster` resources or the ACM API is unavailable), **spoke** namespaces never receive the ConfigMap in that run; **hub** namespaces still do if **`vault_secrets_init`** completed.
-For hub-only clusters, use **`--skip-tags vault_spokes_init`** as documented in Step 4; route CA ConfigMaps on the hub are unaffected.
-
-#### How the PEM bundle is built
-
-Tasks live under **`roles/vault_utils/tasks/`**:
-
-1. **`vault_ss_csi_gather_route_ca_pem.yaml`** (hub API only) walks **`openshift-ingress`** (or **`vault_ss_csi_route_ca_ingress_namespace`**) ConfigMaps in order: **`router-ca`**, **`router-ca-certs`**, then **`vault_ss_csi_route_ca_ingress_configmap_candidates`**
-   (defaults: **`service-ca-bundle`**, **`openshift-service-ca.crt`**, **`kube-root-ca.crt`** when router CMs are absent). Each CM uses ordered data keys and PEM-like `.data` fallbacks (see **`defaults/main.yml`**).
-   Optionally, when **`vault_ss_csi_route_ca_include_kube_root`** is true, it appends **`external-secrets/kube-root-ca.crt`** (`ca.crt`) so the bundle stays aligned with **External Secrets Operator** cluster trust.
-   The result is **`_vault_route_ca_pem`**. If injection is enabled and **no router CA** can be read from either ingress ConfigMap, the play **fails** (kube-root alone is not sufficient to trust the Vault route).
-
-2. **`vault_ss_csi_apply_route_ca_configmap_hub.yaml`** loops namespaces and applies **`kubernetes.core.k8s`** `ConfigMap` state: present.
-
-3. **`vault_ss_csi_apply_route_ca_configmap_spoke.yaml`** does the same on each spoke using **`api_key`**, **`host`**, and **`ca_cert: /tmp/<cluster>.ca`** like other spoke tasks; **`local-cluster`** is skipped.
-
-#### Where the ConfigMap is created
-
-- **Hub:** **`{{ vault_ns }}`** (always in the list) **union** the **namespace** of each **`ssCsiWorkloadAuth`** row classified as **hub** (`cluster` is `hub`, `local-cluster`, or empty). Duplicates are removed.
-- **Spoke:** **`{{ vault_ns }}`** on that spoke **union** namespaces from SS CSI rows whose **`cluster`** matches the spoke (same matching rules as Vault role creation in **`vault_ss_csi_spoke_cluster.yaml`**).
-
-The object is labeled **`app.kubernetes.io/name: rhvp-cluster-utils`**, **`app.kubernetes.io/component: vault-route-tls-ca`** for discovery and ownership.
-
-#### ConfigMap name, key, and chart alignment
-
-Defaults in **`roles/vault_utils/defaults/main.yml`** match **openshift-sscsi-vault** conventions so you can depend on a stable name without copying PEM into Git:
-
-| Variable | Default | Role |
-| -------- | ------- | ---- |
-| `vault_ss_csi_inject_route_ca_configmap` | `false` | When `false`, CA gather/apply is skipped; set `true` to restore in-role gather + ConfigMaps. |
-| `vault_ss_csi_route_ca_configmap_name` | `openshift-sscsi-vault-vault-tls-ca` | ConfigMap `metadata.name`. |
-| `vault_ss_csi_route_ca_configmap_key` | `vault-tls-ca.pem` | Key under `data` holding the PEM text. |
-| `vault_ss_csi_route_ca_ingress_namespace` | `openshift-ingress` | Where router CA ConfigMaps live. |
-| `vault_ss_csi_route_ca_ingress_configmap_primary` | `router-ca` | First ConfigMap to read. |
-| `vault_ss_csi_route_ca_ingress_configmap_fallback` | `router-ca-certs` | Second ConfigMap if primary missing key. |
-| `vault_ss_csi_route_ca_ingress_configmap_candidates` | `service-ca-bundle`, … | Extra ConfigMap **names** tried after primary/fallback when router CMs are absent. |
-| `vault_ss_csi_route_ca_ingress_data_key` | `ca-bundle.crt` | First key tried (legacy); merged with `vault_ss_csi_route_ca_ingress_data_keys`. |
-| `vault_ss_csi_route_ca_ingress_data_keys` | `ca-bundle.crt`, `ca.crt`, … | Ordered keys per ConfigMap; then any PEM-like `.data` value. |
-| `vault_ss_csi_route_ca_include_kube_root` | `true` | Append `external-secrets` **kube-root-ca.crt**. |
-| `vault_ss_csi_route_ca_kube_root_*` | see defaults | Namespace, name, and data key for kube-root. |
-
-**GitOps / Helm:** set **`vaultSkipTLSVerify: "false"`**, configure the subchart so **`syncProviderCaConfigMap.createConfigMap`** is **`false`**
-(do not create the CA ConfigMap from chart values), and mount the ConfigMap named above so **`vaultCACertPath`** points at
-**`/path/to/mount/{{ vault_ss_csi_route_ca_configmap_key }}`** (exact mount path depends on the chart’s volumeMount).
-Avoid **`pemLiteral`** and **`lookup`** for this CA if the playbook maintains the ConfigMap.
-
-Set **`vault_ss_csi_inject_route_ca_configmap: false`** to skip gather and all applies if you supply trust another way.
+When using **Secrets Store CSI** against Vault over HTTPS (`vaultSkipTLSVerify: "false"`), ensure your platform/chart layer provides the CA bundle and mount path expected by your SS CSI deployment.
+The `vault_utils` role now only configures Vault auth backends, policies, and SS CSI Kubernetes auth roles.
 
 ---
 
@@ -209,8 +150,6 @@ Included from `main.yml` only when **`vault_jwt_config | default(false) | bool`*
 | `unseal_secret` | `vaultkeys` | Secret name holding init JSON |
 | `unseal_namespace` | `imperative` | Namespace for unseal secret |
 
-**SS CSI Vault route CA ConfigMaps:** see **Step 3** → *Vault route CA ConfigMap for SS CSI TLS* for `vault_ss_csi_inject_route_ca_configmap`, `vault_ss_csi_route_ca_configmap_*`, and ingress/kube-root source variables.
-
 Override via inventory, extra vars, or role vars as needed.
 
 ---
@@ -227,7 +166,7 @@ Useful for reproducing only init+unseal without spokes or secret push.
 
 ---
 
-## Related documentation in-repo
+## Related documentation in repository
 
 - **`roles/vault_utils/README.md`** — Role variables, values-secret v1/v2 formats, Vault path layout (`secret/global`, `secret/hub`, spokes, `secret/pushsecrets`).
 - **`playbooks/process_secrets.yml`** / **`roles/load_secrets`** — Broader “load secrets” flow for patterns (not identical to `vault.yml`, but shares concepts like `find_vp_secrets` and backing store).
