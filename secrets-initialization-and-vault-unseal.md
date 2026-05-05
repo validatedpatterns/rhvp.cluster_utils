@@ -29,7 +29,7 @@ Tasks run in this fixed order (each block has an Ansible **tag** of the same nam
 
 ## Step 1: `vault_init` (`vault_init.yaml`)
 
-Purpose: **first-time Vault operator initialization** if the cluster’s Vault is not already initialized.
+Purpose: **first-time Vault operator initialization** if the cluster's Vault is not already initialized.
 
 1. **Include `vault_status.yaml`** (see below) so `vault_status` is populated.
 2. **Set `vault_initialized`** from `vault_status['initialized']`.
@@ -73,7 +73,7 @@ This file is **not** tagged separately; it runs as part of both `vault_init` and
 9. **If sealed and `followers` is non-empty — Join Raft:** for each follower pod, exec:  
    `vault operator raft join http://{{ vault_pod }}.{{ vault_ns }}-internal:8200`  
    (retries 10, delay 15s per follower).
-10. **If sealed and followers exist — Unseal followers:** nested loop over `followers × unseal_keys` (each follower gets every unseal key applied via `vault operator unseal` on that follower’s pod).
+10. **If sealed and followers exist — Unseal followers:** nested loop over `followers x unseal_keys` (each follower gets every unseal key applied via `vault operator unseal` on that follower's pod).
 11. **If sealed — Login:** on the leader pod: `vault login "{{ root_token }}"`.
 
 **If Vault is already unsealed** (`vault_sealed` false): steps 3–11 are skipped (no secret read, no unseal, no join, no login from this file). The play continues to `vault_secrets_init`.
@@ -95,7 +95,7 @@ Summary:
 1. Enable **KV v2** secrets engine at `{{ vault_base_path }}` (default `secret`) if not already present.
 2. Enable **`kubernetes`** auth at path `{{ vault_hub }}` (default `hub`) if missing.
 3. Resolve **External Secrets** SA token: prefer Secret `{{ external_secrets_ns }}/{{ external_secrets_secret }}` (defaults: `external-secrets` / `ocp-external-secrets`); else legacy `golang-external-secrets` / `golang-external-secrets`. Fail if neither exists.
-4. **`vault write auth/{{ vault_hub }}/config`** with `token_reviewer_jwt`, `kubernetes_host`, CA from the Vault pod’s service account, issuer `https://kubernetes.default.svc`.
+4. **`vault write auth/{{ vault_hub }}/config`** with `token_reviewer_jwt`, `kubernetes_host`, CA from the Vault pod's service account, issuer `https://kubernetes.default.svc`.
 5. Write **HCL policy files** in the pod under `/tmp` and **`vault policy write`** for: global, pushsecrets (data + metadata paths), hub path.
 6. Read existing **`auth/{{ vault_hub }}/role/{{ vault_hub }}-role`**, merge policies with `vault_hub_role_default_policies`, and **`vault write`** the role when an update is needed (bound SA/namespace from active external-secrets config, TTL from `vault_hub_ttl`).
 7. **`include_tasks: vault_ss_csi_workload_auth.yaml`** for optional SS CSI Kubernetes auth roles from pattern values.
@@ -169,7 +169,7 @@ Useful for reproducing only init+unseal without spokes or secret push.
 ## Related documentation in repository
 
 - **`roles/vault_utils/README.md`** — Role variables, values-secret v1/v2 formats, Vault path layout (`secret/global`, `secret/hub`, spokes, `secret/pushsecrets`).
-- **`playbooks/process_secrets.yml`** / **`roles/load_secrets`** — Broader “load secrets” flow for patterns (not identical to `vault.yml`, but shares concepts like `find_vp_secrets` and backing store).
+- **`playbooks/process_secrets.yml`** / **`roles/load_secrets`** — Broader "load secrets" flow for patterns (not identical to `vault.yml`, but shares concepts like `find_vp_secrets` and backing store).
 
 ---
 
