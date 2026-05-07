@@ -100,6 +100,17 @@ Summary:
 6. Read existing **`auth/{{ vault_hub }}/role/{{ vault_hub }}-role`**, merge policies with `vault_hub_role_default_policies`, and **`vault write`** the role when an update is needed (bound SA/namespace from active external-secrets config, TTL from `vault_hub_ttl`).
 7. **`include_tasks: vault_ss_csi_workload_auth.yaml`** for optional SS CSI Kubernetes auth roles from pattern values.
 
+### SS CSI: where clustergroup values are read
+
+`vault_ss_csi_workload_auth.yaml` includes **`vault_ss_csi_load_clustergroup_values.yaml`**, which prefers an in-cluster **`ConfigMap`** so SS CSI sees **merged** values (including GitOps overrides), then optionally falls back to the local **`values-<clustergroup>.yaml`** file under `pattern_dir`.
+
+- **Default `ConfigMap`:** namespace **`openshift-gitops`**, name **`values-<main_clustergroupname>`** (same stem as the usual values file), YAML in a data key tried from **`vault_ss_csi_clustergroup_configmap_key_candidates`** (for example **`values.yaml`**) unless **`vault_ss_csi_clustergroup_configmap_key`** is set.
+- **Requirement:** the decoded YAML must have a top-level **`clusterGroup`** map (same shape as the repo values file). The role then scans **`clusterGroup.applications`** and **`clusterGroup.managedClusterGroups`** for **`ssCsiWorkloadAuth`**.
+- **Fallback:** when **`vault_ss_csi_fallback_local_clustergroup_file`** is true (default), it uses **`vault_ss_csi_cluster_values_file`** if set, else **`{{ pattern_dir }}/values-{{ main_clustergroupname }}.yaml`**.
+- **Disable cluster read:** set **`vault_ss_csi_clustergroup_values_from_configmap`** to false to use only the file path.
+
+**Spoke cluster id and charts:** Before applying SS CSI roles on spokes, **`vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`** rewrites each spoke row so **`cluster` equals `vault_path`** (spoke FQDN) for every cluster that has External Secrets token data (`esoToken`). That matches Vault Kubernetes auth mounts and ESO. Pattern charts that render **`SecretProviderClass`** via **vp-sscsi-spc** should keep **`global.clusterDomain`** set to that same FQDN on the spoke; the library builds **`spec.parameters.roleName`** as **`<vaultKubernetesMountPath>-sscsi-<roleSlug>`**, using the mount path (not the short `ssCsiWorkloadAuth.cluster` label).
+
 ### Vault route CA for SS CSI TLS
 
 The **SS CSI** path in this collection no longer gathers hub ingress CA material or applies CA `ConfigMap` objects.

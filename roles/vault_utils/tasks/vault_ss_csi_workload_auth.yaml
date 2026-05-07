@@ -57,46 +57,9 @@
     - _vault_ss_csi_values_global_slurp is defined
     - _vault_ss_csi_values_global_slurp.content is defined
 
-- name: Resolve path to clustergroup values file for SS CSI
-  ansible.builtin.set_fact:
-    _vault_ss_csi_values_path: "{{ vault_ss_csi_cluster_values_file | default('', true) | trim }}"
+- name: Load clustergroup values for SS CSI (cluster ConfigMap, then local file)
+  ansible.builtin.include_tasks: vault_ss_csi_load_clustergroup_values.yaml
   when: vault_ss_csi_from_applications | default(true) | bool
-
-- name: Default clustergroup values path from pattern_dir
-  ansible.builtin.set_fact:
-    _vault_ss_csi_values_path: "{{ pattern_dir }}/values-{{ main_clustergroupname }}.yaml"
-  when:
-    - vault_ss_csi_from_applications | default(true) | bool
-    - (_vault_ss_csi_values_path | default('', true) | length) == 0
-    - pattern_dir is defined
-    - pattern_dir | length > 0
-    - main_clustergroupname is defined
-    - main_clustergroupname | string | trim | length > 0
-
-- name: Stat clustergroup values file for SS CSI parsing
-  ansible.builtin.stat:
-    path: "{{ _vault_ss_csi_values_path }}"
-  register: _vault_ss_csi_values_stat
-  when:
-    - vault_ss_csi_from_applications | default(true) | bool
-    - _vault_ss_csi_values_path is defined
-    - _vault_ss_csi_values_path | length > 0
-
-- name: Load clustergroup values YAML for SS CSI
-  ansible.builtin.slurp:
-    src: "{{ _vault_ss_csi_values_path }}"
-  register: _vault_ss_csi_values_slurp
-  when:
-    - vault_ss_csi_from_applications | default(true) | bool
-    - _vault_ss_csi_values_stat.stat.exists | default(false)
-
-- name: Decode clustergroup values root YAML for SS CSI
-  ansible.builtin.set_fact:
-    _vault_ss_csi_values_root: "{{ (_vault_ss_csi_values_slurp.content | b64decode | from_yaml) }}"
-  when:
-    - vault_ss_csi_from_applications | default(true) | bool
-    - _vault_ss_csi_values_slurp is defined
-    - _vault_ss_csi_values_slurp.content is defined
 
 - name: Parse clusterGroup applications and managedClusterGroups from clustergroup values
   ansible.builtin.set_fact:
@@ -170,39 +133,21 @@
     - vault_ss_csi_from_applications | default(true) | bool
     - (item.cluster | default('hub') | lower) not in ['hub', 'local-cluster', '']
 
-- name: SS CSI workload Vault auth — summary (values file, counts, next step)
+- name: SS CSI workload Vault auth — summary (values source, counts, next step)
   ansible.builtin.debug:
     msg: >-
-      SS CSI Vault Kubernetes auth: clustergroup values file={{ _vault_ss_csi_values_path | default('(not resolved)') }},
+      SS CSI Vault Kubernetes auth: clustergroup values source={{ _vault_ss_csi_values_source | default('(none)') }},
       pattern_dir={{ pattern_dir | default('(unset)') }}, main_clustergroupname={{ main_clustergroupname | default('(unset)') }};
-      hub applications in file={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
+      hub applications in values={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
       managedClusterGroups={{ _vault_ss_csi_managed_cluster_groups | default({}) | dict2items | length }},
       ssCsiWorkloadAuth identities={{ _ss_csi_all_entries | default([]) | length }},
       hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }}.
-      If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications or under clusterGroup.managedClusterGroups.*.applications in values-{{ main_clustergroupname | default('hub') }}.yaml.
-      If values file is not resolved, run from the pattern repo (PWD), set pattern_dir / PATTERN_DIR, or set vault_ss_csi_cluster_values_file; ensure main.clusterGroupName in values-global.
+      If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications or under clusterGroup.managedClusterGroups.*.applications in the merged clustergroup values (in-cluster ConfigMap or values-{{ main_clustergroupname | default('hub') }}.yaml).
+      If nothing loads, check vault_ss_csi_clustergroup_configmap_* settings, run from the pattern repo for file fallback, set vault_ss_csi_cluster_values_file, or set vault_ss_csi_fallback_local_clustergroup_file; ensure main.clusterGroupName in values-global.
   when: vault_ss_csi_from_applications | default(true) | bool
 
 - name: Configure hub Vault Kubernetes auth role per SS CSI workload identity
-  kubernetes.core.k8s_exec:
-    namespace: "{{ vault_ns }}"
-    pod: "{{ vault_pod }}"
-    command: >
-      vault write auth/"{{ vault_hub }}"/role/"{{ vault_hub }}-sscsi-{{ _role_slug }}"
-        bound_service_account_names="{{ item.serviceAccount }}"
-        bound_service_account_namespaces="{{ item.namespace }}"
-        policies="{{ _merged_hub_policies | join(',') }}"
-        ttl="{{ vault_ss_csi_role_ttl }}"
-  vars:
-    _raw_slug: "{{ item.roleSlug | default(item.role_slug | default('', true), true) | string | trim }}"
-    _role_slug: >-
-      {{
-        ((_raw_slug | length) > 0)
-        | ternary(
-            _raw_slug | lower | regex_replace('[^a-z0-9-]+', '-') | regex_replace('-+', '-') | trim('-'),
-            ((item.namespace | default('', true)) ~ '|' ~ (item.serviceAccount | default('', true)) ~ '|' ~ (item.app | default('', true))) | hash('sha1')
-          )
-      }}
+  ansible.builtin.include_tasks: vault_ss_csi_apply_one_hub_sscsi_role.yaml
   loop: "{{ _ss_csi_hub_entries | default([]) }}"
   loop_control:
     label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"

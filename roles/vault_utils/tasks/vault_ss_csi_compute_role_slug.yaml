@@ -1,0 +1,50 @@
+---
+# Sets _role_slug for Vault Kubernetes auth role name: <ss_csi_mount_prefix>-sscsi-<slug>
+# Requires: item (ssCsiWorkloadAuth row), ss_csi_mount_prefix, ss_csi_hash_input (string for SHA1).
+
+- name: Derive SS CSI Kubernetes auth role slug
+  ansible.builtin.set_fact:
+    _role_slug: "{{ _ss_csi_final_slug }}"
+  vars:
+    _raw_slug: "{{ item.roleSlug | default(item.role_slug | default('', true), true) | string | trim }}"
+    _sanitized_custom: >-
+      {{ _raw_slug | lower | regex_replace('[^a-z0-9-]+', '-') | regex_replace('-+', '-') | trim('-') }}
+    _stable_ns: "{{ item.namespace | default('', true) | lower | regex_replace('[^a-z0-9-]+', '-') | regex_replace('-+', '-') | trim('-') }}"
+    _stable_sa: "{{ item.serviceAccount | default('', true) | lower | regex_replace('[^a-z0-9-]+', '-') | regex_replace('-+', '-') | trim('-') }}"
+    _stable_app: "{{ item.app | default('', true) | lower | regex_replace('[^a-z0-9-]+', '-') | regex_replace('-+', '-') | trim('-') }}"
+    _stable_joined: "{{ [_stable_ns, _stable_sa, _stable_app] | reject('equalto', '') | list | join('-') | regex_replace('-+', '-') | trim('-') }}"
+    _hash_slug: "{{ ss_csi_hash_input | hash('sha1') }}"
+    _max_len: "{{ vault_ss_csi_kubernetes_auth_role_name_max_length | default(256) | int }}"
+    _prefix: "{{ ss_csi_mount_prefix | string }}"
+    _mode: "{{ vault_ss_csi_role_slug_mode | default('hash') | lower }}"
+    _candidate: >-
+      {{
+        (_sanitized_custom | length > 0)
+        | ternary(
+            _sanitized_custom,
+            (((_mode == 'stable_slug') and (_stable_joined | length > 0))
+             | ternary(_stable_joined, _hash_slug))
+          )
+      }}
+    _prefix_len: "{{ _prefix | length }}"
+    _candidate_len: "{{ _candidate | length }}"
+    _needs_shorten: >-
+      {{
+        (_max_len | int > 0)
+        and ((_prefix_len | int) + 7 + (_candidate_len | int) > (_max_len | int))
+      }}
+    _budget: >-
+      {{
+        ([(_max_len | int) - (_prefix_len | int) - 7, 8] | max)
+        if (_max_len | int > 0) else 40
+      }}
+    _hash_take: "{{ [_budget | int, 40] | min }}"
+    _short_hash: "{{ _hash_slug[0 : (_hash_take | int)] }}"
+    _ss_csi_final_slug: >-
+      {{
+        (_needs_shorten | bool)
+        | ternary(
+            _short_hash,
+            (((_candidate | length) > 0) | ternary(_candidate, _hash_slug))
+          )
+      }}

@@ -60,15 +60,46 @@ This role can create Vault Kubernetes auth roles from
 `clusterGroup.applications.*.ssCsiWorkloadAuth` and
 `clusterGroup.managedClusterGroups.*.applications.*.ssCsiWorkloadAuth`.
 
+Clustergroup values are loaded for SS CSI in this order (see
+`tasks/vault_ss_csi_load_clustergroup_values.yaml`):
+
+1. In-cluster `ConfigMap` (default: namespace `openshift-gitops`, name
+   `values-<main_clustergroupname>`, YAML under a `values.yaml`-style data key),
+   when `vault_ss_csi_clustergroup_values_from_configmap` is true. The parsed
+   document must define `clusterGroup`.
+2. Local file `vault_ss_csi_cluster_values_file`, or
+   `pattern_dir/values-<main_clustergroupname>.yaml`, when
+   `vault_ss_csi_fallback_local_clustergroup_file` is true.
+
+Override defaults with `vault_ss_csi_clustergroup_configmap_namespace`,
+`vault_ss_csi_clustergroup_configmap_name`, `vault_ss_csi_clustergroup_configmap_key`,
+and `vault_ss_csi_clustergroup_configmap_key_candidates` as needed for your pattern.
+
+Vault Kubernetes auth **role names** use the form **auth mount + `-sscsi-` + slug**. They must satisfy
+Vault path rules (non-empty slug, no trailing `-`, bounded length on some versions).
+This role derives `slug` from optional `roleSlug`, or from `vault_ss_csi_role_slug_mode`
+(`hash` or `stable_slug`), and shortens to a SHA-1 prefix when
+`vault_ss_csi_kubernetes_auth_role_name_max_length` would be exceeded (set to `0`
+for no limit). If an older Vault returns **400 invalid role name**, use `hash` mode,
+set a short explicit `roleSlug`, or lower `vault_ss_csi_kubernetes_auth_role_name_max_length`.
+
 For each `ssCsiWorkloadAuth` entry:
 
 - required: `serviceAccount`
 - optional: `namespace`, `cluster`, `roleSlug` (or `role_slug`)
 
+For spokes, `cluster` in values can be the **managed cluster group** name (default), the ACM **`ManagedCluster` name**, the spoke **FQDN** (`vault_path`, same as Vault/ESO), or **`metadata.labels.clusterGroup`**. During `vault_spokes_init`, rows are **normalized** so spoke Vault roles always use **`vault_path`** (full cluster DNS name) as the cluster id, matching ESO and the Kubernetes auth mount path on the spoke.
+
+**Charts (vp-sscsi-spc):** `SecretProviderClass` workload auth should use the same
+idea: with `roleSlug` set, the chart emits **`roleName: <vaultKubernetesMountPath>-sscsi-<roleSlug>`**
+where **`vaultKubernetesMountPath`** is the hub mount or **`global.clusterDomain`**
+on the spoke. You do not need to duplicate the spoke FQDN in `ssCsiWorkloadAuth.cluster`
+for the CSI role name; keep `cluster` as a matcher for Ansible (short name or FQDN).
+
 Application-level `namespace` is used as the default when an entry does not set
 `namespace`.
 
-Example:
+Example (hub):
 
 ```yaml
 clusterGroup:
@@ -78,6 +109,23 @@ clusterGroup:
       ssCsiWorkloadAuth:
         - serviceAccount: my-app-sa
           cluster: hub
+          roleSlug: my-app-my-app-sa-my-app
+```
+
+Example (spoke row in hub values under `managedClusterGroups` — `cluster` may be the group name; Vault and vp-sscsi-spc still use the spoke FQDN as mount and role prefix):
+
+```yaml
+clusterGroup:
+  managedClusterGroups:
+    exampleRegion:
+      name: group-one
+      applications:
+        my-app:
+          namespace: my-app-namespace
+          ssCsiWorkloadAuth:
+            - serviceAccount: my-app-sa
+              cluster: group-one
+              roleSlug: my-app-my-app-sa-my-app
 ```
 
 SS CSI CA material management is external to this role. Use a separate chart or

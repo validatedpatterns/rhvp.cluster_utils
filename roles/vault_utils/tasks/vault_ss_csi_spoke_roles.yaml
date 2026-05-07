@@ -1,4 +1,12 @@
 ---
+# Align SS-CSI spoke targeting with ESO/Vault: cluster id is vault_path (spoke FQDN), not only ManagedCluster short name.
+- name: Normalize SS CSI spoke entries to vault_path (ESO / Vault spoke cluster id)
+  ansible.builtin.include_tasks: vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _ss_csi_spoke_entries_raw is defined
+    - (_ss_csi_spoke_entries_raw | length) > 0
+
 - name: Configure SS CSI Vault Kubernetes auth roles on each spoke
   ansible.builtin.include_tasks: vault_ss_csi_spoke_cluster.yaml
   loop: "{{ clusters_info | dict2items }}"

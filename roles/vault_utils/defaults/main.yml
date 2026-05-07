@@ -72,11 +72,28 @@ vault_csi_role_ttl: "15m"
 #   clusterGroup.applications.<app>
 # or under clusterGroup.managedClusterGroups.<group>.applications.<app>
 # (see vault_ss_csi_* tasks). Example element:
-#   { serviceAccount: my-sa, namespace: my-ns, cluster: <spoke>, optional roleSlug: stable suffix }
+#   { serviceAccount: my-sa, namespace: my-ns, cluster: <match hint>, optional roleSlug: suffix }
+# cluster: which cluster the row targets (MCG name, ManagedCluster name, vault_path/FQDN, or clusterGroup label);
+#   spoke rows are normalized to vault_path before Vault role writes (same id as ESO). Vault role name is always
+#   <mount>-sscsi-<slug> where mount is hub or vault_path (vp-sscsi-spc uses the same mount for roleName).
 # namespace defaults to the application namespace; cluster defaults to hub for hub apps, or to
 # managedClusterGroup.name (else the group YAML key) for applications declared under managedClusterGroups.
 vault_ss_csi_from_applications: true
-# Override path to values-<clustergroup>.yaml; empty uses pattern_dir/values-{{ main_clustergroupname }}.yaml
+# Prefer merged clustergroup values from an in-cluster ConfigMap (reflects GitOps overrides).
+vault_ss_csi_clustergroup_values_from_configmap: true
+# Namespace containing the clustergroup values ConfigMap (OpenShift GitOps default).
+vault_ss_csi_clustergroup_configmap_namespace: openshift-gitops
+# If empty, the ConfigMap name defaults to values-<main_clustergroupname> (same stem as values-<cg>.yaml).
+vault_ss_csi_clustergroup_configmap_name: ""
+# If empty, try keys in vault_ss_csi_clustergroup_configmap_key_candidates in order.
+vault_ss_csi_clustergroup_configmap_key: ""
+vault_ss_csi_clustergroup_configmap_key_candidates:
+  - values.yaml
+  - helm-values.yaml
+  - values.yml
+# When the ConfigMap is missing or does not contain a parseable clusterGroup document, slurp local file.
+vault_ss_csi_fallback_local_clustergroup_file: true
+# Override path to values-<clustergroup>.yaml; empty uses pattern_dir/values-{{ main_clustergroupname }}.yaml (fallback only)
 vault_ss_csi_cluster_values_file: ""
 vault_ss_csi_role_ttl: "15m"
 # How Vault names Kubernetes auth roles: auth/<mount>/role/<mount>-sscsi-<slug>
@@ -84,3 +101,5 @@ vault_ss_csi_role_ttl: "15m"
 # - stable_slug: hub-sscsi-<ns>-<sa>-<app> (sanitized); spokes prefix sanitized vault_path
 # Per-entry override wins: ssCsiWorkloadAuth[].roleSlug (suffix only; still prefixed with <mount>-sscsi-)
 vault_ss_csi_role_slug_mode: hash
+# Full role name is <auth_mount>-sscsi-<slug>. Cap length for older Vault (HTTP 400 invalid role name); 0 = no limit.
+vault_ss_csi_kubernetes_auth_role_name_max_length: 256
