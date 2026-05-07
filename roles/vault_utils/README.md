@@ -88,7 +88,8 @@ For each `ssCsiWorkloadAuth` entry:
 - required: `serviceAccount`
 - optional: `namespace`, `cluster`, `roleSlug` (or `role_slug`)
 
-For spokes, `cluster` in values can be the **managed cluster group** name (default), the ACM **`ManagedCluster` name**, the spoke **FQDN** (`vault_path`, same as Vault/ESO), or **`metadata.labels.clusterGroup`**. During `vault_spokes_init`, rows are **normalized** so spoke Vault roles always use **`vault_path`** (full cluster DNS name) as the cluster id, matching ESO and the Kubernetes auth mount path on the spoke.
+For spokes, `cluster` in values can be the **managed cluster group** name (default), the ACM **`ManagedCluster` name**, the spoke **FQDN** (`vault_path`, same as Vault/ESO), or **`metadata.labels.clusterGroup`**.
+During `vault_spokes_init`, rows are **normalized** so spoke Vault roles always use **`vault_path`** (full cluster DNS name) as the cluster ID, matching ESO and the Kubernetes auth mount path on the spoke.
 
 **Charts (vp-sscsi-spc):** `SecretProviderClass` workload auth should use the same
 idea: with `roleSlug` set, the chart emits **`roleName: <vaultKubernetesMountPath>-sscsi-<roleSlug>`**
