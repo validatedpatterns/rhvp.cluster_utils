@@ -47,3 +47,14 @@ Provide CA distribution using a separate chart or platform mechanism.
 
 For the complete flow and task ordering, see
 `secrets-initialization-and-vault-unseal.md`.
+
+## Pattern repository directory (`pattern_dir`)
+
+Playbooks need the path to your pattern Git checkout (where `values-global.yaml`
+and related files live). Resolution order: extra var `pattern_dir`, environment
+variable `PATTERN_DIR`, then `PWD` and `pwd`.
+
+When running from the imperative container or another fixed working directory,
+pass the repo root explicitly, for example `-e pattern_dir=/git/repo` (or add
+equivalent extra vars via `clusterGroup.imperative.extraPlaybookArgs` in the
+clustergroup chart).

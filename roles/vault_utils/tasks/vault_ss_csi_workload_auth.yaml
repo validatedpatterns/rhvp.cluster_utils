@@ -13,9 +13,8 @@
     _ss_csi_all_entries: []
   when: vault_ss_csi_from_applications | default(true) | bool
 
-# Many jobs run only vault_utils (no pattern_settings role). Reuse the same pattern_dir
-# resolution as pattern_settings (PATTERN_DIR, else PWD, else pwd) so values-global and
-# values-<clustergroup>.yaml resolve without exporting PATTERN_DIR when CWD is the repo root.
+# Many playbooks run vault_utils without pattern_settings. Align pattern_dir with pattern_settings
+# (extra var, PATTERN_DIR, PWD, pwd), then derive main clustergroup name from values-global when unset.
 - name: Resolve pattern_dir for SS CSI (align with pattern_settings)
   ansible.builtin.include_tasks: ../pattern_settings/tasks/resolve_overrides.yml
   when: vault_ss_csi_from_applications | default(true) | bool
@@ -29,7 +28,6 @@
     - (pattern_dir | string | trim | length) > 0
     - (main_clustergroup is not defined) or ((main_clustergroup | default('', true) | string | trim) | length == 0)
 
-# pattern_settings sets main_clustergroup; other playbooks use main_clustergroupname — align.
 - name: Alias main_clustergroupname from main_clustergroup for SS CSI
   ansible.builtin.set_fact:
     main_clustergroupname: "{{ main_clustergroup | string | trim }}"
@@ -143,7 +141,7 @@
       ssCsiWorkloadAuth identities={{ _ss_csi_all_entries | default([]) | length }},
       hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }}.
       If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications or under clusterGroup.managedClusterGroups.*.applications in the merged clustergroup values (in-cluster ConfigMap or values-{{ main_clustergroupname | default('hub') }}.yaml).
-      If nothing loads, check vault_ss_csi_clustergroup_configmap_* settings, run from the pattern repo for file fallback, set vault_ss_csi_cluster_values_file, or set vault_ss_csi_fallback_local_clustergroup_file; ensure main.clusterGroupName in values-global.
+      If nothing loads, check vault_ss_csi_clustergroup_configmap_* settings, pass pattern_dir (and optionally main_clustergroup / main_clustergroupname) via extra vars, set vault_ss_csi_cluster_values_file, or set vault_ss_csi_fallback_local_clustergroup_file; ensure main.clusterGroupName in values-global when resolving from pattern_dir.
   when: vault_ss_csi_from_applications | default(true) | bool
 
 - name: Configure hub Vault Kubernetes auth role per SS CSI workload identity

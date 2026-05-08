@@ -9,35 +9,3 @@
           | default(lookup("pipe","pwd"), true)
           | trim
       }}
-
-# When playbooks run from a collection install (e.g. .../cluster_utils/playbooks), PWD points at
-# that directory while values-global.yaml lives at the pattern Git repo root. Walk upward from the
-# initial guess until values-global.yaml is found; if none, keep the guess (fail later as before).
-- name: Canonicalize pattern_dir to directory containing values-global.yaml
-  ansible.builtin.command:
-    argv:
-      - python3
-      - -c
-      - |
-        import os
-        import sys
-
-        start = os.path.abspath(os.environ["RHVP_PATTERN_DIR_GUESS"])
-        d = start
-        while True:
-            if os.path.isfile(os.path.join(d, "values-global.yaml")):
-                sys.stdout.write(d)
-                break
-            parent = os.path.dirname(d)
-            if parent == d:
-                sys.stdout.write(start)
-                break
-            d = parent
-  environment:
-    RHVP_PATTERN_DIR_GUESS: "{{ pattern_dir }}"
-  register: _rhvp_pattern_dir_canonical
-  changed_when: false
-
-- name: Apply canonical pattern_dir
-  ansible.builtin.set_fact:
-    pattern_dir: "{{ _rhvp_pattern_dir_canonical.stdout | trim }}"

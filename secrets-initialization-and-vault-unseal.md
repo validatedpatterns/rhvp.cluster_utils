@@ -7,7 +7,7 @@ This document describes how Vault and application secrets are bootstrapped when 
 - **Playbook:** `playbooks/vault.yml`
 - **Hosts:** `localhost`, `connection: local`, `gather_facts: false`
 - **Roles (order):**
-  1. **`pattern_settings`** — Resolves `pattern_dir` and loads `main.clusterGroupName` as `main_clustergroup` (used later, e.g. SS CSI workload auth reading `values-<clustergroup>.yaml`).
+  1. **`pattern_settings`** — Resolves `pattern_dir` (extra var, `PATTERN_DIR`, then `PWD` / `pwd`) and loads `values-global.yaml` (including `main.clusterGroupName` as `main_clustergroup`). When `pattern_settings` is not in the play, **`vault_ss_csi_workload_auth`** repeats the same `pattern_dir` resolution and, if needed, reads `values-global.yaml` under that directory to set `main_clustergroup` / `main_clustergroupname` before loading merged clustergroup values.
   2. **`find_vp_secrets`** — Locates pattern secrets inputs as used elsewhere in the repository.
   3. **`cluster_pre_check`** — Verifies Python `kubernetes` import, kubeconfig (`KUBECONFIG` or `~/.kube/config`), or in-cluster operation via `KUBERNETES_SERVICE_HOST`.
   4. **`vault_utils`** — Performs Vault init, unseal, backends/policies, spokes, and pushing secrets from `values-secret` files.
