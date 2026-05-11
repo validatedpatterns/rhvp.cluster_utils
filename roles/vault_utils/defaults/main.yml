@@ -71,13 +71,12 @@ vault_csi_role_ttl: "15m"
 # Pattern values (clustergroup): optional list ssCsiWorkloadAuth under each
 #   clusterGroup.applications.<app>
 # or under clusterGroup.managedClusterGroups.<group>.applications.<app>
-# (see vault_ss_csi_* tasks). Example element:
-#   { serviceAccount: my-sa, namespace: my-ns, cluster: <match hint>, optional roleSlug: suffix }
-# cluster: which cluster the row targets (MCG name, ManagedCluster name, vault_path/FQDN, or clusterGroup label);
-#   spoke rows are normalized to vault_path before Vault role writes (same id as ESO). Vault role name is always
+# (see vault_ss_csi_* tasks). Example element (omit cluster; placement sets hub vs spoke):
+#   { serviceAccount: my-sa, namespace: my-ns, optional roleSlug: suffix }
+# Ansible fills cluster from stem (main -> hub, other stems -> stem name) or from managed group name/key.
+# Spoke rows are normalized to vault_path before Vault role writes (same id as ESO). Vault role name is always
 #   <mount>-sscsi-<slug> where mount is hub or vault_path (vp-sscsi-spc uses the same mount for roleName).
-# namespace defaults to the application namespace; cluster defaults to hub for hub apps, or to
-# managedClusterGroup.name (else the group YAML key) for applications declared under managedClusterGroups.
+# namespace defaults to the application namespace.
 vault_ss_csi_from_applications: true
 # When true, SS CSI loads ConfigMap/file per clustergroup stem and merges applications +
 # managedClusterGroups (main stem first, then others alphabetically; later files override).

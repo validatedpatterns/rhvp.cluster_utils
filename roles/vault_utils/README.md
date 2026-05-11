@@ -110,23 +110,22 @@ and `vault_ss_csi_clustergroup_configmap_key_candidates` as needed for your patt
 3. Walks **`clustergroup_load_order`** (or `[main]` if unset) via
    **`vault_ss_csi_collect_applications_for_stem.yaml`**: for each stem, every
    application that defines **`ssCsiWorkloadAuth`** is passed to
-   **`vault_ss_csi_collect_one_entry.yaml`**. Default **`cluster`** for the row:
-   **`hub`** when the stem equals the main clustergroup name; otherwise the
-   **stem string** (so workloads declared only under `values-<managed>.yaml`
-   default to that managed context).
+   **`vault_ss_csi_collect_one_entry.yaml`**. Omit **`cluster`** in values: Ansible
+   sets **`cluster`** to **`hub`** when the stem is the main clustergroup, else to
+   the **stem string** (entries under `values-<managed>.yaml` default to that managed context).
 4. Walks merged **`managedClusterGroups`** via **`vault_ss_csi_collect_managed_group_application.yaml`**
-   (default **`cluster`** for nested apps: group **`name`** or YAML key).
+   (omit **`cluster`**: nested apps default to the group **`name`**, else the group YAML key).
 
 ### Projection
 
 Collected rows become **`_ss_csi_all_entries`**, then:
 
-- **Hub mount** (`auth/<vault_hub>/role/...`): entries whose **`cluster`** is
+- **Hub mount** (`auth/<vault_hub>/role/...`): entries whose computed **`cluster`** is
   `hub`, `local-cluster`, or empty — **`vault_ss_csi_apply_one_hub_sscsi_role.yaml`**
   runs on the hub (**`vault_ss_csi_compute_role_slug.yaml`** for slug).
 - **Spoke mounts**: other entries stay in **`_ss_csi_spoke_entries_raw`** until
   **`vault_spokes_init`** runs **`vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`**
-  (match ACM / ESO, set **`cluster`** to **`vault_path`**), then
+  (match ACM / ESO, set internal **`cluster`** to **`vault_path`**), then
   **`vault_ss_csi_apply_one_spoke_sscsi_role.yaml`** per spoke.
 
 Vault Kubernetes auth **role names** use the form **auth mount + `-sscsi-` + slug**. They must satisfy
@@ -137,24 +136,25 @@ This role derives `slug` from optional `roleSlug`, or from `vault_ss_csi_role_sl
 for no limit). If an older Vault returns **400 invalid role name**, use `hash` mode,
 set a short explicit `roleSlug`, or lower `vault_ss_csi_kubernetes_auth_role_name_max_length`.
 
-For each `ssCsiWorkloadAuth` entry:
+For each `ssCsiWorkloadAuth` entry in pattern YAML:
 
 - required: `serviceAccount`
-- optional: `namespace`, `cluster`, `roleSlug` (or `role_slug`)
+- optional: `namespace`, `roleSlug` (or `role_slug`)
+- omit **`cluster`**; hub vs spoke is determined by **which stem file or
+  `managedClusterGroups` branch** defines the list (see extraction above).
 
-For spokes, `cluster` in values can be the **managed cluster group** name (default), the ACM **`ManagedCluster` name**, the spoke **FQDN** (`vault_path`, same as Vault/ESO), or **`metadata.labels.clusterGroup`**.
-During `vault_spokes_init`, rows are **normalized** so spoke Vault roles always use **`vault_path`** (full cluster DNS name) as the cluster ID, matching ESO and the Kubernetes auth mount path on the spoke.
+During `vault_spokes_init`, spoke rows are **normalized** so Vault uses **`vault_path`**
+(FQDN) as the cluster ID, matching ESO and the Kubernetes auth mount on the spoke.
 
 **Charts (vp-sscsi-spc):** `SecretProviderClass` workload auth should use the same
 idea: with `roleSlug` set, the chart emits **`roleName: <vaultKubernetesMountPath>-sscsi-<roleSlug>`**
 where **`vaultKubernetesMountPath`** is the hub mount or **`global.clusterDomain`**
-on the spoke. You do not need to duplicate the spoke FQDN in `ssCsiWorkloadAuth.cluster`
-for the CSI role name; keep `cluster` as a matcher for Ansible (short name or FQDN).
+on the spoke (FQDN), not a short clustergroup label.
 
 Application-level `namespace` is used as the default when an entry does not set
 `namespace`.
 
-Example (hub):
+Example (hub — `values-<main>.yaml`):
 
 ```yaml
 clusterGroup:
@@ -163,11 +163,10 @@ clusterGroup:
       namespace: my-app-namespace
       ssCsiWorkloadAuth:
         - serviceAccount: my-app-sa
-          cluster: hub
           roleSlug: my-app-my-app-sa-my-app
 ```
 
-Example (spoke row in hub values under `managedClusterGroups` — `cluster` may be the group name; Vault and vp-sscsi-spc still use the spoke FQDN as mount and role prefix):
+Example (spoke via `managedClusterGroups` — omit `cluster`; defaults to `name` / group key):
 
 ```yaml
 clusterGroup:
@@ -179,8 +178,19 @@ clusterGroup:
           namespace: my-app-namespace
           ssCsiWorkloadAuth:
             - serviceAccount: my-app-sa
-              cluster: group-one
               roleSlug: my-app-my-app-sa-my-app
+```
+
+Example (spoke via managed stem file `values-group-one.yaml` — same list shape; stem sets targeting):
+
+```yaml
+clusterGroup:
+  applications:
+    my-app:
+      namespace: my-app-namespace
+      ssCsiWorkloadAuth:
+        - serviceAccount: my-app-sa
+          roleSlug: my-app-my-app-sa-my-app
 ```
 
 SS CSI CA material management is external to this role. Use a separate chart or

@@ -120,9 +120,10 @@ SS CSI workload auth runs from **`include_tasks: vault_ss_csi_workload_auth.yaml
    **`clusterGroup.managedClusterGroups`**. See **`roles/vault_utils/README.md`**
    (SS CSI) for variables and task filenames.
 2. **Extraction** — Builds per-stem **`_vault_ss_csi_apps_by_stem`** and collects
-   **`ssCsiWorkloadAuth`** from **`clusterGroup.applications`** per stem (main stem
-   defaults **`cluster`** to **hub**; managed stems default to the **stem name**)
-   and from merged **`clusterGroup.managedClusterGroups.*.applications`**.
+   **`ssCsiWorkloadAuth`** from **`clusterGroup.applications`** per stem (omit
+   **`cluster`** in values: main stem resolves to **hub**; other stems to the
+   **stem name**) and from merged **`clusterGroup.managedClusterGroups.*.applications`**
+   (omit **`cluster`**; defaults to managed group **`name`** or YAML key).
 3. **Projection** — Hub-classified rows get **`vault_ss_csi_apply_one_hub_sscsi_role`**;
    spoke rows are normalized to **`vault_path`** during **`vault_spokes_init`**
    (**`vault_ss_csi_normalize_spoke_entries_to_vault_path`**) and written with
@@ -137,19 +138,15 @@ false to force file-only reads. When **`vault_ss_csi_fallback_local_clustergroup
 is true, missing or unusable cluster data falls back to local files as implemented
 in **`vault_ss_csi_load_one_clustergroup_values_fragment.yaml`** / legacy tasks.
 
-**Spoke cluster ID and charts:** Before applying SS CSI roles on spokes,
+**Spoke cluster ID and charts:** Omit **`cluster`** in pattern `ssCsiWorkloadAuth` lists; Ansible derives it from stem or managed group. Before applying SS CSI roles on spokes,
 `**vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`** rewrites each spoke row so **`cluster` equals `vault_path`**
 (spoke FQDN) for every cluster that has External Secrets token data (`esoToken`).
 That matches Vault Kubernetes auth mounts and ESO.
-Pattern charts that render **`SecretProviderClass`** via **vp-sscsi-spc** should keep **`global.clusterDomain`** set to that same FQDN on the spoke; the library builds **`spec.parameters.roleName`** as **`<vaultKubernetesMountPath>-sscsi-<roleSlug>`**, using the mount path (not the short `ssCsiWorkloadAuth.cluster` label).
+Pattern charts that render **`SecretProviderClass`** via **vp-sscsi-spc** should keep **`global.clusterDomain`** set to that same FQDN on the spoke; the library builds **`spec.parameters.roleName`** as **`<vaultKubernetesMountPath>-sscsi-<roleSlug>`**, using the FQDN mount path (not a short clustergroup label).
 
 **Local inspection:** **`playbooks/list_clustergroups.yml`** and
 **`playbooks/parse_clustergroup_values.yml`** exercise the **`clustergroup_discovery`**
 role; see **`roles/clustergroup_discovery/README.md`**.
-`**vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`** rewrites each spoke row so **`cluster` equals `vault_path`**
-(spoke FQDN) for every cluster that has External Secrets token data (`esoToken`).
-That matches Vault Kubernetes auth mounts and ESO.
-Pattern charts that render **`SecretProviderClass`** via **vp-sscsi-spc** should keep **`global.clusterDomain`** set to that same FQDN on the spoke; the library builds **`spec.parameters.roleName`** as **`<vaultKubernetesMountPath>-sscsi-<roleSlug>`**, using the mount path (not the short `ssCsiWorkloadAuth.cluster` label).
 
 ### Vault route CA for SS CSI TLS
 

@@ -35,17 +35,17 @@ to false to load only the **main** document (legacy: single ConfigMap or
 The role builds **`_vault_ss_csi_apps_by_stem`** (per-stem `clusterGroup.applications`)
 and a merged **`clusterGroup.managedClusterGroups`**. It collects:
 
-- **`clusterGroup.applications.*.ssCsiWorkloadAuth`** — per stem; the **main**
-  stem defaults `cluster` to **hub**; **managed** stems default `cluster` to
-  that **stem name** so entries declared only under `values-<managed>.yaml` are
-  not misclassified as hub.
+- **`clusterGroup.applications.*.ssCsiWorkloadAuth`** — per stem; omit **`cluster`**
+  in values: the **main** stem resolves to **hub**; **managed** stems resolve to
+  that **stem name** so entries under `values-<managed>.yaml` stay spoke-scoped.
 - **`clusterGroup.managedClusterGroups.*.applications.*.ssCsiWorkloadAuth`** —
-  from the merged map (includes definitions that exist only on managed files).
+  from the merged map; omit **`cluster`** and the row targets that managed group
+  (**`name`**, else the group map key).
 
 ### Projection (Vault roles)
 
 Rows are appended to **`_ss_csi_all_entries`**, split into hub vs spoke using
-the resolved **`cluster`** field, then **hub** identities get Vault Kubernetes
+the computed **`cluster`** field (from stem or managed group when omitted in YAML), then **hub** identities get Vault Kubernetes
 auth roles via **`vault_ss_csi_apply_one_hub_sscsi_role.yaml`**. Spoke rows are
 normalized to **`vault_path`** later in the play (**`vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`**
 during **`vault_spokes_init`**) and roles are written on each spoke mount
@@ -61,16 +61,15 @@ inputs are:
 - `ssCsiWorkloadAuth` (list)
 - `ssCsiWorkloadAuth[].serviceAccount` (required)
 - `ssCsiWorkloadAuth[].namespace` (optional)
-- `ssCsiWorkloadAuth[].cluster` (optional): matching hint for **which** spoke a
-  row applies to (managed cluster group name, `ManagedCluster` name, spoke FQDN
-  / `vault_path`, or `clusterGroup` label). For Vault writes, spokes are
-  normalized to **`vault_path`** (full DNS), same as External Secrets.
+- Omit **`cluster`** in pattern YAML; hub vs spoke comes from **which file or
+  `managedClusterGroups` branch** defines the list (see extraction above). Spoke
+  handling still normalizes to **`vault_path`** (full DNS), same as External Secrets.
 - `ssCsiWorkloadAuth[].roleSlug` / `role_slug` (optional): suffix only; Vault
   role is **`<mount>-sscsi-<slug>`** where **`<mount>`** is hub **`hub`** (or
   configured hub path) or the spoke **`vault_path`**. When using the
   **vp-sscsi-spc** chart, `spec.parameters.roleName` uses the same **mount**
   as `vaultKubernetesMountPath` (typically **`global.clusterDomain`** on
-  spokes), not the short `cluster` value.
+  spokes), not a short clustergroup label.
 - application `namespace` (optional default for entry namespace)
 
 CA material management for SS CSI is not handled in this collection anymore.

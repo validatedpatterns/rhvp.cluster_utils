@@ -163,8 +163,10 @@
       hub applications in merged values={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
       managedClusterGroups={{ _vault_ss_csi_managed_cluster_groups | default({}) | dict2items | length }},
       ssCsiWorkloadAuth identities={{ _ss_csi_all_entries | default([]) | length }},
-      hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }}.
-      If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications (any stem: main defaults to hub, managed stems default cluster to the stem name) or under clusterGroup.managedClusterGroups.*.applications in merged values.
+      hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }},
+      spoke-bound raw rows={{ _ss_csi_spoke_entries_raw | default([]) | length }} (Vault spoke -sscsi- roles run only when this is > 0).
+      If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications, leaving cluster unset in values (main stem targets hub, other stems target that stem), or under clusterGroup.managedClusterGroups.*.applications, leaving cluster unset (targets that managed group).
+      If spoke-bound raw rows is 0 but you expected a spoke role, every row was classified as hub (wrong file/placement, merged hub-only app, or legacy explicit cluster key in values). Prefer leaving cluster unset; defaults come from stem or managed group.
       If nothing loads, check vault_ss_csi_clustergroup_configmap_* settings, pass pattern_dir (and optionally main_clustergroup / main_clustergroupname) via extra vars, set vault_ss_csi_cluster_values_file, or set vault_ss_csi_fallback_local_clustergroup_file; ensure main.clusterGroupName in values-global when resolving from pattern_dir.
   when: vault_ss_csi_from_applications | default(true) | bool
 

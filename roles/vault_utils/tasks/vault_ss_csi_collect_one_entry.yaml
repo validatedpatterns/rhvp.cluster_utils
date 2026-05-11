@@ -1,4 +1,5 @@
 ---
+# inner_item.cluster in values is optional and discouraged; omit it and use stem or managedClusterGroup placement.
 - name: Validate ssCsiWorkloadAuth entry for application {{ outer_item.key }}
   ansible.builtin.assert:
     that:
