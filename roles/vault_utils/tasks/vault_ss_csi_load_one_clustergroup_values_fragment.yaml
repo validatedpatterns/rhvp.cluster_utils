@@ -1,0 +1,189 @@
+---
+# Load one clustergroup document (loop_var cg_stem) and merge applications / managedClusterGroups
+# into _vault_merged_apps, _vault_merged_mcg, append to _vault_ss_csi_merge_source_notes.
+
+- name: Compute ConfigMap name for clustergroup stem {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _ss_csi_frag_cm_name: >-
+      {{
+        (
+          (vault_ss_csi_clustergroup_configmap_name | default('', true) | string | trim | length > 0)
+          and
+          (
+            (cg_stem | string | trim)
+            ==
+            (
+              main_clustergroupname
+              | default(main_clustergroup | default('', true), true)
+              | string | trim
+            )
+          )
+        )
+        | ternary(
+            vault_ss_csi_clustergroup_configmap_name | string | trim,
+            'values-' ~ (cg_stem | string | trim)
+          )
+      }}
+
+- name: Reset fragment parse facts for {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _ss_csi_frag_cm_data: {}
+    _ss_csi_frag_cm_yaml_key: ""
+    _ss_csi_frag_cm_values_candidate: {}
+    _ss_csi_frag_values_root: {}
+    _vault_ss_csi_frag_using_explicit_file: false
+
+- name: Read clustergroup values ConfigMap for stem {{ cg_stem }}
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ _ss_csi_frag_cm_name }}"
+    namespace: "{{ vault_ss_csi_clustergroup_configmap_namespace }}"
+  register: _vault_ss_csi_frag_cg_cm
+  failed_when: false
+  when: vault_ss_csi_clustergroup_values_from_configmap | default(true) | bool
+
+- name: Set ConfigMap .data for fragment {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _ss_csi_frag_cm_data: "{{ _vault_ss_csi_frag_cg_cm.resources[0].data | default({}) }}"
+  when:
+    - vault_ss_csi_clustergroup_values_from_configmap | default(true) | bool
+    - _vault_ss_csi_frag_cg_cm is defined
+    - not (_vault_ss_csi_frag_cg_cm.failed | default(false))
+    - (_vault_ss_csi_frag_cg_cm.resources | default([]) | length) > 0
+
+- name: Build ConfigMap key candidates for fragment {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _ss_csi_frag_cm_key_candidates: >-
+      {{
+        (
+          ([vault_ss_csi_clustergroup_configmap_key | default('', true) | string | trim]
+           | reject('equalto', '') | list)
+          + (vault_ss_csi_clustergroup_configmap_key_candidates | default([]))
+        ) | unique | list
+      }}
+  when:
+    - _ss_csi_frag_cm_data is defined
+    - (_ss_csi_frag_cm_data | default({}) | length) > 0
+
+- name: Pick first ConfigMap data key for fragment {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _ss_csi_frag_cm_yaml_key: "{{ item }}"
+  loop: "{{ _ss_csi_frag_cm_key_candidates | default([]) }}"
+  when:
+    - (_ss_csi_frag_cm_yaml_key | default('') | string | length) == 0
+    - item in (_ss_csi_frag_cm_data | default({}))
+
+- name: Parse YAML from ConfigMap for fragment {{ cg_stem }}
+  when:
+    - (_ss_csi_frag_cm_data | default({}) | length) > 0
+    - (_ss_csi_frag_cm_yaml_key | default('') | string | length) > 0
+  block:
+    - name: Decode YAML from ConfigMap key for {{ cg_stem }}
+      ansible.builtin.set_fact:
+        _ss_csi_frag_cm_values_candidate: "{{ _ss_csi_frag_cm_data[_ss_csi_frag_cm_yaml_key] | trim | from_yaml }}"
+  rescue:
+    - name: Note ConfigMap YAML parse failure for {{ cg_stem }}
+      ansible.builtin.set_fact:
+        _ss_csi_frag_cm_values_candidate: {}
+
+- name: Accept fragment from ConfigMap for {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _ss_csi_frag_values_root: "{{ _ss_csi_frag_cm_values_candidate }}"
+  when:
+    - _ss_csi_frag_cm_values_candidate is defined
+    - _ss_csi_frag_cm_values_candidate is mapping
+    - _ss_csi_frag_cm_values_candidate.clusterGroup is defined
+    - _ss_csi_frag_cm_yaml_key is defined
+    - _ss_csi_frag_cm_yaml_key | string | length > 0
+
+- name: Resolve explicit local override path for main stem {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _vault_ss_csi_frag_values_path: "{{ vault_ss_csi_cluster_values_file | default('', true) | string | trim }}"
+    _vault_ss_csi_frag_using_explicit_file: true
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - (_ss_csi_frag_values_root | default({}) | length) == 0
+    - (vault_ss_csi_cluster_values_file | default('', true) | string | trim | length) > 0
+    - (cg_stem | string | trim)
+      == (main_clustergroupname | default(main_clustergroup | default('', true), true) | string | trim)
+
+- name: Default local values path for stem {{ cg_stem }} (yaml)
+  ansible.builtin.set_fact:
+    _vault_ss_csi_frag_values_path: "{{ pattern_dir | string | trim }}/values-{{ cg_stem | string | trim }}.yaml"
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - (_ss_csi_frag_values_root | default({}) | length) == 0
+    - (_vault_ss_csi_frag_values_path | default('', true) | string | trim | length) == 0
+    - pattern_dir is defined
+    - (pattern_dir | string | trim | length) > 0
+
+- name: Stat local clustergroup file for {{ cg_stem }}
+  ansible.builtin.stat:
+    path: "{{ _vault_ss_csi_frag_values_path }}"
+  register: _vault_ss_csi_frag_values_stat
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - (_ss_csi_frag_values_root | default({}) | length) == 0
+    - _vault_ss_csi_frag_values_path is defined
+    - _vault_ss_csi_frag_values_path | string | length > 0
+
+- name: Fall back to .yml extension for stem {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _vault_ss_csi_frag_values_path: "{{ pattern_dir | string | trim }}/values-{{ cg_stem | string | trim }}.yml"
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - (_ss_csi_frag_values_root | default({}) | length) == 0
+    - _vault_ss_csi_frag_values_stat is defined
+    - not (_vault_ss_csi_frag_values_stat.stat.exists | default(false))
+    - pattern_dir is defined
+    - (pattern_dir | string | trim | length) > 0
+    - not (_vault_ss_csi_frag_using_explicit_file | default(false) | bool)
+
+- name: Stat alternate .yml path for {{ cg_stem }}
+  ansible.builtin.stat:
+    path: "{{ _vault_ss_csi_frag_values_path }}"
+  register: _vault_ss_csi_frag_values_stat
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - (_ss_csi_frag_values_root | default({}) | length) == 0
+    - _vault_ss_csi_frag_values_path is defined
+    - _vault_ss_csi_frag_values_path | string | length > 0
+
+- name: Slurp local clustergroup file for {{ cg_stem }}
+  ansible.builtin.slurp:
+    src: "{{ _vault_ss_csi_frag_values_path }}"
+  register: _vault_ss_csi_frag_values_slurp
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - (_ss_csi_frag_values_root | default({}) | length) == 0
+    - _vault_ss_csi_frag_values_stat is defined
+    - _vault_ss_csi_frag_values_stat.stat.exists | default(false)
+
+- name: Accept fragment from local file for {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _ss_csi_frag_values_root: "{{ (_vault_ss_csi_frag_values_slurp.content | b64decode | from_yaml) }}"
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - (_ss_csi_frag_values_root | default({}) | length) == 0
+    - _vault_ss_csi_frag_values_slurp is defined
+    - _vault_ss_csi_frag_values_slurp.content is defined
+
+- name: Merge clusterGroup applications and managedClusterGroups for {{ cg_stem }}
+  ansible.builtin.set_fact:
+    _vault_merged_apps: "{{ _vault_merged_apps | default({}) | combine((_ss_csi_frag_values_root.clusterGroup | default({})).applications | default({})) }}"
+    _vault_merged_mcg: "{{ _vault_merged_mcg | default({}) | combine((_ss_csi_frag_values_root.clusterGroup | default({})).managedClusterGroups | default({}), recursive=true) }}"
+    _vault_ss_csi_apps_by_stem: "{{ _vault_ss_csi_apps_by_stem | default({}) | combine({(cg_stem | string | trim): ((_ss_csi_frag_values_root.clusterGroup | default({})).applications | default({}))}) }}"
+    _vault_ss_csi_merge_source_notes: "{{ _vault_ss_csi_merge_source_notes | default([]) + [_ss_csi_frag_src] }}"
+  vars:
+    _ss_csi_frag_src: >-
+      {{
+        ('configmap ' ~ vault_ss_csi_clustergroup_configmap_namespace ~ '/' ~ _ss_csi_frag_cm_name
+         ~ ' key=' ~ _ss_csi_frag_cm_yaml_key)
+        if (_ss_csi_frag_cm_yaml_key | default('') | string | length) > 0
+        else ('file ' ~ _vault_ss_csi_frag_values_path | string)
+      }}
+  when:
+    - _ss_csi_frag_values_root is defined
+    - _ss_csi_frag_values_root is mapping
+    - _ss_csi_frag_values_root.clusterGroup is defined

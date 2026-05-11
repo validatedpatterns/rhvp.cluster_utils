@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: rhvp
+  description: >-
+    Resolve main clustergroup from values-global, read managedClusterGroups from the main
+    values file, then optionally parse existing values-<stem> files for those stems.
+  license: Apache-2.0
+  min_ansible_version: "2.14"
+  galaxy_tags:
+    - openshift
+    - gitops
+dependencies: []

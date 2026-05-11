@@ -1,0 +1,132 @@
+---
+# Single clustergroup document for SS CSI (legacy): prefer in-cluster ConfigMap, then local file.
+# Sets _vault_ss_csi_values_root (mapping with .clusterGroup) and _vault_ss_csi_values_source when successful.
+# Requires: main_clustergroupname; pattern_dir for file fallback.
+
+- name: Initialize SS CSI clustergroup values load facts (legacy)
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_source: ""
+    _ss_csi_cm_data: {}
+    _ss_csi_cm_yaml_key: ""
+
+- name: Compute SS CSI clustergroup ConfigMap object name (legacy)
+  ansible.builtin.set_fact:
+    _ss_csi_cg_cm_name: >-
+      {{
+        (vault_ss_csi_clustergroup_configmap_name | default('', true) | string | trim | length > 0)
+        | ternary(
+            vault_ss_csi_clustergroup_configmap_name | string | trim,
+            'values-' ~ (main_clustergroupname | string | trim)
+          )
+      }}
+  when:
+    - main_clustergroupname is defined
+    - main_clustergroupname | string | trim | length > 0
+
+- name: Read clustergroup values ConfigMap from cluster (SS CSI legacy)
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: "{{ _ss_csi_cg_cm_name }}"
+    namespace: "{{ vault_ss_csi_clustergroup_configmap_namespace }}"
+  register: _vault_ss_csi_cg_cm
+  failed_when: false
+  when:
+    - vault_ss_csi_clustergroup_values_from_configmap | default(true) | bool
+    - _ss_csi_cg_cm_name is defined
+
+- name: Set ConfigMap .data for SS CSI clustergroup parse (legacy)
+  ansible.builtin.set_fact:
+    _ss_csi_cm_data: "{{ _vault_ss_csi_cg_cm.resources[0].data | default({}) }}"
+  when:
+    - vault_ss_csi_clustergroup_values_from_configmap | default(true) | bool
+    - _vault_ss_csi_cg_cm is defined
+    - not (_vault_ss_csi_cg_cm.failed | default(false))
+    - (_vault_ss_csi_cg_cm.resources | default([]) | length) > 0
+
+- name: Build ordered ConfigMap data key candidates for clustergroup YAML (legacy)
+  ansible.builtin.set_fact:
+    _ss_csi_cm_key_candidates: >-
+      {{
+        (
+          ([vault_ss_csi_clustergroup_configmap_key | default('', true) | string | trim]
+           | reject('equalto', '') | list)
+          + (vault_ss_csi_clustergroup_configmap_key_candidates | default([]))
+        ) | unique | list
+      }}
+  when:
+    - _ss_csi_cm_data is defined
+    - (_ss_csi_cm_data | default({}) | length) > 0
+
+- name: Pick first ConfigMap data key present in candidates (SS CSI legacy)
+  ansible.builtin.set_fact:
+    _ss_csi_cm_yaml_key: "{{ item }}"
+  loop: "{{ _ss_csi_cm_key_candidates | default([]) }}"
+  when:
+    - (_ss_csi_cm_yaml_key | default('') | string | length) == 0
+    - item in (_ss_csi_cm_data | default({}))
+
+- name: Parse YAML from ConfigMap data (SS CSI legacy)
+  block:
+    - name: Decode YAML string from ConfigMap key (legacy)
+      ansible.builtin.set_fact:
+        _vault_ss_csi_cm_values_candidate: "{{ _ss_csi_cm_data[_ss_csi_cm_yaml_key] | trim | from_yaml }}"
+  rescue:
+    - name: Note ConfigMap YAML parse failure (SS CSI legacy)
+      ansible.builtin.set_fact:
+        _vault_ss_csi_cm_values_candidate: {}
+
+- name: Accept clustergroup values from ConfigMap when clusterGroup is present (SS CSI legacy)
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_root: "{{ _vault_ss_csi_cm_values_candidate }}"
+    _vault_ss_csi_values_source: >-
+      configmap {{ vault_ss_csi_clustergroup_configmap_namespace }}/{{ _ss_csi_cg_cm_name }} key={{ _ss_csi_cm_yaml_key }}
+  when:
+    - _vault_ss_csi_cm_values_candidate is defined
+    - _vault_ss_csi_cm_values_candidate is mapping
+    - _vault_ss_csi_cm_values_candidate.clusterGroup is defined
+    - _ss_csi_cm_yaml_key is defined
+    - _ss_csi_cm_yaml_key | string | length > 0
+
+- name: Resolve path to clustergroup values file for SS CSI (legacy fallback)
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_path: "{{ vault_ss_csi_cluster_values_file | default('', true) | trim }}"
+
+- name: Default clustergroup values path from pattern_dir (SS CSI legacy fallback)
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_path: "{{ pattern_dir }}/values-{{ main_clustergroupname }}.yaml"
+  when:
+    - (_vault_ss_csi_values_path | default('', true) | length) == 0
+    - pattern_dir is defined
+    - pattern_dir | length > 0
+    - main_clustergroupname is defined
+    - main_clustergroupname | string | trim | length > 0
+
+- name: Stat clustergroup values file for SS CSI (legacy fallback)
+  ansible.builtin.stat:
+    path: "{{ _vault_ss_csi_values_path }}"
+  register: _vault_ss_csi_values_stat
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - _vault_ss_csi_values_root is not defined
+    - _vault_ss_csi_values_path is defined
+    - _vault_ss_csi_values_path | length > 0
+
+- name: Load clustergroup values YAML from local file (SS CSI legacy fallback)
+  ansible.builtin.slurp:
+    src: "{{ _vault_ss_csi_values_path }}"
+  register: _vault_ss_csi_values_slurp
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - _vault_ss_csi_values_root is not defined
+    - _vault_ss_csi_values_stat is defined
+    - _vault_ss_csi_values_stat.stat.exists | default(false)
+
+- name: Decode clustergroup values root from local file (SS CSI legacy)
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_root: "{{ (_vault_ss_csi_values_slurp.content | b64decode | from_yaml) }}"
+    _vault_ss_csi_values_source: "file {{ _vault_ss_csi_values_path }}"
+  when:
+    - vault_ss_csi_fallback_local_clustergroup_file | default(true) | bool
+    - _vault_ss_csi_values_slurp is defined
+    - _vault_ss_csi_values_slurp.content is defined

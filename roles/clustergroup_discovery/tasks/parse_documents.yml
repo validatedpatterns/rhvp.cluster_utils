@@ -1,0 +1,7 @@
+---
+- name: Parse clustergroup values YAML into clustergroup_documents
+  ansible.builtin.set_fact:
+    clustergroup_documents: "{{ clustergroup_documents | default({}) | combine({item.name: (lookup('file', item.path) | from_yaml)}) }}"
+  loop: "{{ clustergroup_file_entries }}"
+  loop_control:
+    label: "{{ item.name }}"

@@ -79,6 +79,10 @@ vault_csi_role_ttl: "15m"
 # namespace defaults to the application namespace; cluster defaults to hub for hub apps, or to
 # managedClusterGroup.name (else the group YAML key) for applications declared under managedClusterGroups.
 vault_ss_csi_from_applications: true
+# When true, SS CSI loads ConfigMap/file per clustergroup stem and merges applications +
+# managedClusterGroups (main stem first, then others alphabetically; later files override).
+# When false, only the main clustergroup document is loaded (legacy behavior).
+vault_ss_csi_aggregate_clustergroup_sources: true
 # Prefer merged clustergroup values from an in-cluster ConfigMap (reflects GitOps overrides).
 vault_ss_csi_clustergroup_values_from_configmap: true
 # Namespace containing the clustergroup values ConfigMap (OpenShift GitOps default).

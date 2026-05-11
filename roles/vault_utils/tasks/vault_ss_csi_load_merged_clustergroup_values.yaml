@@ -1,0 +1,36 @@
+---
+# Merge clusterGroup.applications and clusterGroup.managedClusterGroups from every
+# clustergroup stem (ConfigMap values-<stem> preferred, then local values-<stem>.yaml|yml).
+# Sets _vault_ss_csi_values_root, _vault_ss_csi_values_source, _vault_ss_csi_merge_any_loaded.
+
+- name: Initialize SS CSI multi-clustergroup merge accumulators
+  ansible.builtin.set_fact:
+    _vault_merged_apps: {}
+    _vault_merged_mcg: {}
+    _vault_ss_csi_merge_source_notes: []
+    _vault_ss_csi_merge_any_loaded: false
+
+- name: Discover clustergroup stems for SS CSI merge (main + managed from main file)
+  ansible.builtin.include_role:
+    name: clustergroup_discovery
+
+- name: Load and merge each clustergroup fragment for SS CSI
+  ansible.builtin.include_tasks: vault_ss_csi_load_one_clustergroup_values_fragment.yaml
+  loop: "{{ clustergroup_load_order | default([]) }}"
+  loop_control:
+    loop_var: cg_stem
+  when: (clustergroup_load_order | default([]) | length) > 0
+
+- name: Set merge load outcome flag for SS CSI
+  ansible.builtin.set_fact:
+    _vault_ss_csi_merge_any_loaded: "{{ (_vault_ss_csi_merge_source_notes | default([]) | length) > 0 }}"
+
+- name: Assemble merged SS CSI values root from all fragments
+  ansible.builtin.set_fact:
+    _vault_ss_csi_values_root:
+      clusterGroup:
+        name: "{{ main_clustergroupname | default(main_clustergroup | default('', true), true) | string | trim }}"
+        applications: "{{ _vault_merged_apps | default({}) }}"
+        managedClusterGroups: "{{ _vault_merged_mcg | default({}) }}"
+    _vault_ss_csi_values_source: "{{ 'merged ' ~ (_vault_ss_csi_merge_source_notes | join('; ')) }}"
+  when: _vault_ss_csi_merge_any_loaded

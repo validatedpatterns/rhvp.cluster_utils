@@ -1,0 +1,25 @@
+---
+# loop_var: cg_collect_stem — collect ssCsiWorkloadAuth from clusterGroup.applications for that stem only.
+# Main stem defaults cluster to hub; other stems default to the stem name (managed clustergroup file).
+
+- name: Collect SS CSI rows from clusterGroup.applications for stem {{ cg_collect_stem }}
+  ansible.builtin.include_tasks: vault_ss_csi_collect_one_application.yaml
+  loop: >-
+    {{
+      ((_vault_ss_csi_apps_by_stem | default({}))[cg_collect_stem] | default({}))
+      | dict2items
+      | selectattr('value.ssCsiWorkloadAuth', 'defined')
+      | list
+    }}
+  loop_control:
+    loop_var: outer_item
+  vars:
+    ss_csi_cluster_default_for_app: >-
+      {{
+        'hub'
+        if (
+          (cg_collect_stem | string | trim)
+          == (main_clustergroupname | default(main_clustergroup | default('', true), true) | string | trim)
+        )
+        else (cg_collect_stem | string | trim)
+      }}

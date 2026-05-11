@@ -75,16 +75,39 @@
     - vault_ss_csi_from_applications | default(true) | bool
     - _vault_ss_csi_cluster_apps is not defined
 
-- name: Collect SS CSI rows from hub clusterGroup.applications that define ssCsiWorkloadAuth
-  ansible.builtin.include_tasks: vault_ss_csi_collect_one_application.yaml
-  loop: "{{ _vault_ss_csi_cluster_apps | dict2items | selectattr('value.ssCsiWorkloadAuth', 'defined') | list }}"
-  loop_control:
-    loop_var: outer_item
+- name: Build per-stem applications map for SS CSI (legacy single document)
+  ansible.builtin.set_fact:
+    _vault_ss_csi_apps_by_stem: "{{ {(_cg_ssci_main | string): (_vault_ss_csi_cluster_apps | default({}))} }}"
   vars:
-    ss_csi_cluster_default_for_app: hub
+    _cg_ssci_main: "{{ main_clustergroupname | default(main_clustergroup | default('', true), true) | string | trim }}"
   when:
     - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_apps_by_stem is not defined
     - _vault_ss_csi_cluster_apps is defined
+
+- name: Build SS CSI application collect stem order
+  ansible.builtin.set_fact:
+    _vault_ss_csi_cg_collect_stems: >-
+      {{
+        clustergroup_load_order
+        if (clustergroup_load_order is defined and (clustergroup_load_order | length) > 0)
+        else [_cg_ssci_main]
+      }}
+  vars:
+    _cg_ssci_main: "{{ main_clustergroupname | default(main_clustergroup | default('', true), true) | string | trim }}"
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_apps_by_stem is defined
+
+- name: Collect SS CSI rows from clusterGroup.applications per clustergroup stem
+  ansible.builtin.include_tasks: vault_ss_csi_collect_applications_for_stem.yaml
+  loop: "{{ _vault_ss_csi_cg_collect_stems | default([]) }}"
+  loop_control:
+    loop_var: cg_collect_stem
+  when:
+    - vault_ss_csi_from_applications | default(true) | bool
+    - _vault_ss_csi_apps_by_stem is defined
+    - (_vault_ss_csi_cg_collect_stems | default([]) | length) > 0
 
 - name: Collect SS CSI rows from clusterGroup.managedClusterGroups.*.applications
   ansible.builtin.include_tasks: vault_ss_csi_collect_managed_group_application.yaml
@@ -136,11 +159,12 @@
     msg: >-
       SS CSI Vault Kubernetes auth: clustergroup values source={{ _vault_ss_csi_values_source | default('(none)') }},
       pattern_dir={{ pattern_dir | default('(unset)') }}, main_clustergroupname={{ main_clustergroupname | default('(unset)') }};
-      hub applications in values={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
+      applications stems scanned={{ _vault_ss_csi_cg_collect_stems | default([]) | length }},
+      hub applications in merged values={{ _vault_ss_csi_cluster_apps | default({}) | dict2items | length }},
       managedClusterGroups={{ _vault_ss_csi_managed_cluster_groups | default({}) | dict2items | length }},
       ssCsiWorkloadAuth identities={{ _ss_csi_all_entries | default([]) | length }},
       hub roles to configure={{ _ss_csi_hub_entries | default([]) | length }}.
-      If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications or under clusterGroup.managedClusterGroups.*.applications in the merged clustergroup values (in-cluster ConfigMap or values-{{ main_clustergroupname | default('hub') }}.yaml).
+      If identities is 0, define ssCsiWorkloadAuth under clusterGroup.applications (any stem: main defaults to hub, managed stems default cluster to the stem name) or under clusterGroup.managedClusterGroups.*.applications in merged values.
       If nothing loads, check vault_ss_csi_clustergroup_configmap_* settings, pass pattern_dir (and optionally main_clustergroup / main_clustergroupname) via extra vars, set vault_ss_csi_cluster_values_file, or set vault_ss_csi_fallback_local_clustergroup_file; ensure main.clusterGroupName in values-global when resolving from pattern_dir.
   when: vault_ss_csi_from_applications | default(true) | bool
 
