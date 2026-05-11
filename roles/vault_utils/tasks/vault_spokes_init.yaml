@@ -9,6 +9,10 @@
   ansible.builtin.set_fact:
     resources: "{{ managed_clusters['resources'] }}"
 
+- name: Set default for have_managed_clusters
+  ansible.builtin.set_fact:
+    have_managed_clusters: true
+
 - name: Do nothing when no managed clusters are found
   ansible.builtin.set_fact:
     have_managed_clusters: false
