@@ -7,7 +7,13 @@ This document describes how Vault and application secrets are bootstrapped when 
 - **Playbook:** `playbooks/vault.yml`
 - **Hosts:** `localhost`, `connection: local`, `gather_facts: false`
 - **Roles (order):**
-  1. **`pattern_settings`** — Resolves `pattern_dir` (extra var, `PATTERN_DIR`, then `PWD` / `pwd`) and loads `values-global.yaml` (including `main.clusterGroupName` as `main_clustergroup`). When `pattern_settings` is not in the play, **`vault_ss_csi_workload_auth`** repeats the same `pattern_dir` resolution and, if needed, reads `values-global.yaml` under that directory to set `main_clustergroup` / `main_clustergroupname` before loading merged clustergroup values.
+  1. **`pattern_settings`** — Resolves `pattern_dir` (extra var, `PATTERN_DIR`,
+     then `PWD` / `pwd`) and loads `values-global.yaml` (including
+     `main.clusterGroupName` as `main_clustergroup`). When `pattern_settings` is
+     not in the play, **`vault_ss_csi_workload_auth`** repeats the same
+     `pattern_dir` resolution and, if needed, reads `values-global.yaml` under
+     that directory to set `main_clustergroup` / `main_clustergroupname` before
+     loading merged clustergroup values.
   2. **`find_vp_secrets`** — Locates pattern secrets inputs as used elsewhere in the repository.
   3. **`cluster_pre_check`** — Verifies Python `kubernetes` import, kubeconfig (`KUBECONFIG` or `~/.kube/config`), or in-cluster operation via `KUBERNETES_SERVICE_HOST`.
   4. **`vault_utils`** — Performs Vault init, unseal, backends/policies, spokes, and pushing secrets from `values-secret` files.
@@ -100,16 +106,46 @@ Summary:
 6. Read existing **`auth/{{ vault_hub }}/role/{{ vault_hub }}-role`**, merge policies with `vault_hub_role_default_policies`, and **`vault write`** the role when an update is needed (bound SA/namespace from active external-secrets config, TTL from `vault_hub_ttl`).
 7. **`include_tasks: vault_ss_csi_workload_auth.yaml`** for optional SS CSI Kubernetes auth roles from pattern values.
 
-### SS CSI: where clustergroup values are read
+### SS CSI: parsing, extraction, and projection
 
-`vault_ss_csi_workload_auth.yaml` includes **`vault_ss_csi_load_clustergroup_values.yaml`**, which prefers an in-cluster **`ConfigMap`** so SS CSI sees **merged** values (including GitOps overrides), then optionally falls back to the local **`values-<clustergroup>.yaml`** file under `pattern_dir`.
+SS CSI workload auth runs from **`include_tasks: vault_ss_csi_workload_auth.yaml`**
+(inside **`vault_secrets_init.yaml`**). The pipeline is:
 
-- **Default `ConfigMap`:** namespace **`openshift-gitops`**, name **`values-<main_clustergroupname>`** (same stem as the usual values file), YAML in a data key tried from **`vault_ss_csi_clustergroup_configmap_key_candidates`** (for example **`values.yaml`**) unless **`vault_ss_csi_clustergroup_configmap_key`** is set.
-- **Requirement:** the decoded YAML must have a top-level **`clusterGroup`** map (same shape as the repository values file). The role then scans **`clusterGroup.applications`** and **`clusterGroup.managedClusterGroups`** for **`ssCsiWorkloadAuth`**.
-- **Fallback:** when **`vault_ss_csi_fallback_local_clustergroup_file`** is true (default), it uses **`vault_ss_csi_cluster_values_file`** if set, else **`{{ pattern_dir }}/values-{{ main_clustergroupname }}.yaml`**.
-- **Disable cluster read:** set **`vault_ss_csi_clustergroup_values_from_configmap`** to false to use only the file path.
+1. **Parsing** — **`vault_ss_csi_load_clustergroup_values.yaml`** chooses merged
+   multi-stem loading (**`vault_ss_csi_aggregate_clustergroup_sources`**, default
+   true) or **legacy** single-document loading. Merged mode runs
+   **`clustergroup_discovery`** then, for each stem in **`clustergroup_load_order`**,
+   loads **`ConfigMap` `values-<stem>`** (then optional **`values-<stem>.yaml|yml`**
+   under **`pattern_dir`**) and merges **`clusterGroup.applications`** and
+   **`clusterGroup.managedClusterGroups`**. See **`roles/vault_utils/README.md`**
+   (SS CSI) for variables and task filenames.
+2. **Extraction** — Builds per-stem **`_vault_ss_csi_apps_by_stem`** and collects
+   **`ssCsiWorkloadAuth`** from **`clusterGroup.applications`** per stem (main stem
+   defaults **`cluster`** to **hub**; managed stems default to the **stem name**)
+   and from merged **`clusterGroup.managedClusterGroups.*.applications`**.
+3. **Projection** — Hub-classified rows get **`vault_ss_csi_apply_one_hub_sscsi_role`**;
+   spoke rows are normalized to **`vault_path`** during **`vault_spokes_init`**
+   (**`vault_ss_csi_normalize_spoke_entries_to_vault_path`**) and written with
+   **`vault_ss_csi_apply_one_spoke_sscsi_role`**.
+
+**Defaults:** ConfigMaps live in **`openshift-gitops`** unless
+**`vault_ss_csi_clustergroup_configmap_namespace`** is changed; YAML is read from
+data keys in **`vault_ss_csi_clustergroup_configmap_key_candidates`** unless
+**`vault_ss_csi_clustergroup_configmap_key`** is set. Each document must define
+**`clusterGroup`**. Set **`vault_ss_csi_clustergroup_values_from_configmap`** to
+false to force file-only reads. When **`vault_ss_csi_fallback_local_clustergroup_file`**
+is true, missing or unusable cluster data falls back to local files as implemented
+in **`vault_ss_csi_load_one_clustergroup_values_fragment.yaml`** / legacy tasks.
 
 **Spoke cluster ID and charts:** Before applying SS CSI roles on spokes,
+`**vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`** rewrites each spoke row so **`cluster` equals `vault_path`**
+(spoke FQDN) for every cluster that has External Secrets token data (`esoToken`).
+That matches Vault Kubernetes auth mounts and ESO.
+Pattern charts that render **`SecretProviderClass`** via **vp-sscsi-spc** should keep **`global.clusterDomain`** set to that same FQDN on the spoke; the library builds **`spec.parameters.roleName`** as **`<vaultKubernetesMountPath>-sscsi-<roleSlug>`**, using the mount path (not the short `ssCsiWorkloadAuth.cluster` label).
+
+**Local inspection:** **`playbooks/list_clustergroups.yml`** and
+**`playbooks/parse_clustergroup_values.yml`** exercise the **`clustergroup_discovery`**
+role; see **`roles/clustergroup_discovery/README.md`**.
 `**vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`** rewrites each spoke row so **`cluster` equals `vault_path`**
 (spoke FQDN) for every cluster that has External Secrets token data (`esoToken`).
 That matches Vault Kubernetes auth mounts and ESO.
@@ -183,7 +219,8 @@ Useful for reproducing only init+unseal without spokes or secret push.
 
 ## Related documentation in repository
 
-- **`roles/vault_utils/README.md`** — Role variables, values-secret v1/v2 formats, Vault path layout (`secret/global`, `secret/hub`, spokes, `secret/pushsecrets`).
+- **`roles/vault_utils/README.md`** — Role variables, values-secret v1/v2 formats, Vault path layout (`secret/global`, `secret/hub`, spokes, `secret/pushsecrets`), and the SS CSI **parsing / extraction / projection** section.
+- **`roles/clustergroup_discovery/README.md`** — How main + managed clustergroup stems are derived and how **`playbooks/list_clustergroups.yml`** / **`playbooks/parse_clustergroup_values.yml`** use them.
 - **`playbooks/process_secrets.yml`** / **`roles/load_secrets`** — Broader "load secrets" flow for patterns (not identical to `vault.yml`, but shares concepts like `find_vp_secrets` and backing store).
 
 ---

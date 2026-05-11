@@ -60,20 +60,74 @@ This role can create Vault Kubernetes auth roles from
 `clusterGroup.applications.*.ssCsiWorkloadAuth` and
 `clusterGroup.managedClusterGroups.*.applications.*.ssCsiWorkloadAuth`.
 
-Clustergroup values are loaded for SS CSI in this order (see
-`tasks/vault_ss_csi_load_clustergroup_values.yaml`):
+Implementation is split into **parsing** (load YAML), **extraction** (collect
+`ssCsiWorkloadAuth` rows), and **projection** (normalize and write Vault
+Kubernetes auth roles). Task entry points:
 
-1. In-cluster `ConfigMap` (default: namespace `openshift-gitops`, name
-   `values-<main_clustergroupname>`, YAML under a `values.yaml`-style data key),
-   when `vault_ss_csi_clustergroup_values_from_configmap` is true. The parsed
-   document must define `clusterGroup`.
-2. Local file `vault_ss_csi_cluster_values_file`, or
-   `pattern_dir/values-<main_clustergroupname>.yaml`, when
-   `vault_ss_csi_fallback_local_clustergroup_file` is true.
+| Stage | Primary task files |
+| ----- | -------------------- |
+| Parsing | `vault_ss_csi_load_clustergroup_values.yaml` (router), `vault_ss_csi_load_merged_clustergroup_values.yaml`, `vault_ss_csi_load_one_clustergroup_values_fragment.yaml`, `vault_ss_csi_load_clustergroup_values_legacy.yaml` |
+| Extraction | `vault_ss_csi_workload_auth.yaml`, `vault_ss_csi_collect_applications_for_stem.yaml`, `vault_ss_csi_collect_one_application.yaml`, `vault_ss_csi_collect_one_entry.yaml`, `vault_ss_csi_collect_managed_group_application.yaml` |
+| Projection | `vault_ss_csi_apply_one_hub_sscsi_role.yaml`, `vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml` (in `vault_spokes_init`), `vault_ss_csi_apply_one_spoke_sscsi_role.yaml`, `vault_ss_csi_compute_role_slug.yaml` |
+
+### Parsing
+
+When **`vault_ss_csi_aggregate_clustergroup_sources`** is true (default), SS CSI
+includes the **`clustergroup_discovery`** role (`../clustergroup_discovery/`) to
+build **`clustergroup_load_order`**: main stem from `values-global.yaml`, then
+managed names from **`clusterGroup.managedClusterGroups`** in the main values
+file. For **each** stem in that order it loads one YAML root (prefer
+`ConfigMap` **`values-<stem>`** in **`vault_ss_csi_clustergroup_configmap_namespace`**,
+then local **`pattern_dir/values-<stem>.yaml`** or **`.yml`**), and merges:
+
+- **`clusterGroup.applications`** (shallow combine; later stems override keys)
+- **`clusterGroup.managedClusterGroups`** (`combine(..., recursive=true)`)
+
+It also records **`_vault_ss_csi_apps_by_stem`** so extraction knows which
+`applications` map came from which stem. The merged document is stored as
+**`_vault_ss_csi_values_root`** for debugging and for the flattened
+**`_vault_ss_csi_cluster_apps`** / **`_vault_ss_csi_managed_cluster_groups`**
+facts.
+
+When **`vault_ss_csi_aggregate_clustergroup_sources`** is false, only the
+**legacy** path runs: one `ConfigMap` (default name `values-<main_clustergroupname>`
+unless **`vault_ss_csi_clustergroup_configmap_name`** is set), then optional
+local **`vault_ss_csi_cluster_values_file`** or **`pattern_dir/values-<main>.yaml`**.
 
 Override defaults with `vault_ss_csi_clustergroup_configmap_namespace`,
 `vault_ss_csi_clustergroup_configmap_name`, `vault_ss_csi_clustergroup_configmap_key`,
 and `vault_ss_csi_clustergroup_configmap_key_candidates` as needed for your pattern.
+
+### Extraction
+
+**`vault_ss_csi_workload_auth.yaml`** (included from `vault_secrets_init.yaml`):
+
+1. Parses **`_vault_ss_csi_values_root`** into **`_vault_ss_csi_cluster_apps`**
+   and **`_vault_ss_csi_managed_cluster_groups`** (merged views).
+2. Ensures **`_vault_ss_csi_apps_by_stem`** exists: after a multi-stem merge it is
+   filled by fragments; for legacy single-document load it is set to
+   `{ <main>: <applications> }`.
+3. Walks **`clustergroup_load_order`** (or `[main]` if unset) via
+   **`vault_ss_csi_collect_applications_for_stem.yaml`**: for each stem, every
+   application that defines **`ssCsiWorkloadAuth`** is passed to
+   **`vault_ss_csi_collect_one_entry.yaml`**. Default **`cluster`** for the row:
+   **`hub`** when the stem equals the main clustergroup name; otherwise the
+   **stem string** (so workloads declared only under `values-<managed>.yaml`
+   default to that managed context).
+4. Walks merged **`managedClusterGroups`** via **`vault_ss_csi_collect_managed_group_application.yaml`**
+   (default **`cluster`** for nested apps: group **`name`** or YAML key).
+
+### Projection
+
+Collected rows become **`_ss_csi_all_entries`**, then:
+
+- **Hub mount** (`auth/<vault_hub>/role/...`): entries whose **`cluster`** is
+  `hub`, `local-cluster`, or empty — **`vault_ss_csi_apply_one_hub_sscsi_role.yaml`**
+  runs on the hub (**`vault_ss_csi_compute_role_slug.yaml`** for slug).
+- **Spoke mounts**: other entries stay in **`_ss_csi_spoke_entries_raw`** until
+  **`vault_spokes_init`** runs **`vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`**
+  (match ACM / ESO, set **`cluster`** to **`vault_path`**), then
+  **`vault_ss_csi_apply_one_spoke_sscsi_role.yaml`** per spoke.
 
 Vault Kubernetes auth **role names** use the form **auth mount + `-sscsi-` + slug**. They must satisfy
 Vault path rules (non-empty slug, no trailing `-`, bounded length on some versions).
