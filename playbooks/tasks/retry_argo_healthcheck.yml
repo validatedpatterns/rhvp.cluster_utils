@@ -1,7 +1,7 @@
 ---
 - name: Retry block for Argo health check
   block:
-    - name: Check Argo applications health
+    - name: "Check Argo applications health (attempt {{ retry_count | int + 1 }}/{{ max_retries }})"
       ansible.builtin.include_tasks: check_argo_health.yml
 
     - name: Set success flag
