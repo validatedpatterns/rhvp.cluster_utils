@@ -85,6 +85,19 @@ options:
     required: false
     default: vault
     type: str
+  secrets_parse_filter:
+    description:
+      - Controls which v2 secrets entries are parsed. Secrets may set C(bootstrap) to C(true) to load in the
+        bootstrap phase (C(none) backend) only; the primary phase omits them when using C(exclude_bootstrap)
+        (the default). Use C(all) when parsing a dedicated bootstrap file that lists secrets without per-entry
+        C(bootstrap) flags, or to merge phases for display.
+    required: false
+    default: exclude_bootstrap
+    type: str
+    choices:
+      - all
+      - bootstrap_only
+      - exclude_bootstrap
 """
 
 RETURN = """
@@ -107,6 +120,13 @@ EXAMPLES = """
     values_secrets_plaintext: '{{ <unencrypted content> }}'
     secrets_backing_store: 'none'
   register: secrets_info
+
+- name: Parse only v2 secrets marked bootstrap (none backend inject phase)
+  parse_secrets_info:
+    values_secrets_plaintext: '{{ <unencrypted content> }}'
+    secrets_backing_store: 'none'
+    secrets_parse_filter: 'bootstrap_only'
+  register: bootstrap_secrets_info
 """
 
 import traceback
@@ -136,13 +156,16 @@ def run(module):
     args = module.params
     values_secrets_plaintext = args.get("values_secrets_plaintext", "")
     secrets_backing_store = args.get("secrets_backing_store", "vault")
+    secrets_parse_filter = args.get("secrets_parse_filter", "exclude_bootstrap")
 
     syaml = yaml.safe_load(values_secrets_plaintext)
 
     if syaml is None:
         syaml = {}
 
-    parsed_secret_obj = ParseSecretsV2(module, syaml, secrets_backing_store)
+    parsed_secret_obj = ParseSecretsV2(
+        module, syaml, secrets_backing_store, secrets_parse_filter
+    )
     parsed_secret_obj.parse()
 
     results["failed"] = False

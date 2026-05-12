@@ -972,6 +972,106 @@ class TestMyModule(unittest.TestCase):
             and (len(ret["kubernetes_secret_objects"]) == 0)
         )
 
+    def test_invalid_secrets_parse_filter(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-mixed.yaml")
+        )
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_parse_filter": "bogus",
+                }
+            )
+            parse_secrets_info.main()
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], True)
+        self.assertIn("secrets_parse_filter must be one of", ret["msg"])
+
+    def test_bootstrap_only_parse_returns_bootstrap_secrets(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-mixed.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as result:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_backing_store": "none",
+                    "secrets_parse_filter": "bootstrap_only",
+                }
+            )
+            parse_secrets_info.main()
+        ret = result.exception.args[0]
+        self.assertFalse(ret["failed"])
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"boot-token"})
+        self.assertEqual(
+            ret["parsed_secrets"]["boot-token"]["fields"]["token"],
+            "inline-bootstrap-value",
+        )
+        self.assertEqual(len(ret["kubernetes_secret_objects"]), 1)
+        self.assertEqual(
+            ret["kubernetes_secret_objects"][0]["metadata"]["namespace"],
+            "openshift-gitops",
+        )
+
+    def test_exclude_bootstrap_parse_omits_bootstrap_secrets(self, getpass):
+        getpass.return_value = os.path.expanduser("~/empty")
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-mixed.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as result:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_backing_store": "vault",
+                    "secrets_parse_filter": "exclude_bootstrap",
+                }
+            )
+            parse_secrets_info.main()
+        ret = result.exception.args[0]
+        self.assertFalse(ret["failed"])
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"main-vault-secret"})
+        self.assertIn("secret", ret["parsed_secrets"]["main-vault-secret"]["generate"])
+
+    def test_parse_all_includes_bootstrap_and_primary(self, getpass):
+        getpass.return_value = os.path.expanduser("~/empty")
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-mixed.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as result:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_backing_store": "vault",
+                    "secrets_parse_filter": "all",
+                }
+            )
+            parse_secrets_info.main()
+        ret = result.exception.args[0]
+        self.assertFalse(ret["failed"])
+        self.assertEqual(
+            set(ret["parsed_secrets"].keys()), {"boot-token", "main-vault-secret"}
+        )
+
+    def test_bootstrap_secret_may_not_use_generate(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(
+                self.testdir_v2, "values-secret-v2-bootstrap-generate-invalid.yaml"
+            )
+        )
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_backing_store": "vault",
+                }
+            )
+            parse_secrets_info.main()
+        ret = ansible_err.exception.args[0]
+        self.assertTrue(ret["failed"])
+        self.assertIn("bootstrap", ret["msg"])
+        self.assertIn("generate", ret["msg"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -36,13 +36,22 @@ secret_store_namespace = "validated-patterns-secrets"
 
 class ParseSecretsV2(SecretsV2Base):
 
-    def __init__(self, module, syaml, secrets_backing_store):
+    def __init__(self, module, syaml, secrets_backing_store, secrets_parse_filter="exclude_bootstrap"):
         super().__init__(module, syaml)
         self.secrets_backing_store = str(secrets_backing_store)
+        if secrets_parse_filter not in ("all", "bootstrap_only", "exclude_bootstrap"):
+            self.module.fail_json(
+                msg=(
+                    "secrets_parse_filter must be one of 'all', "
+                    f"'bootstrap_only', 'exclude_bootstrap' (got {secrets_parse_filter!r})"
+                )
+            )
+        self.secrets_parse_filter = secrets_parse_filter
         self.secret_store_namespace = None
         self.parsed_secrets = {}
         self.kubernetes_secret_objects = []
         self.vault_policies = {}
+        self._effective_backing_for_current_secret = self.secrets_backing_store
 
     def _get_backingstore(self):
         """
@@ -81,12 +90,35 @@ class ParseSecretsV2(SecretsV2Base):
 
         return policies
 
-    def _get_secrets(self):
+    def _all_secrets_raw(self):
         secrets = self.syaml.get("secrets", [])
         # We check for "None" here because the yaml file is currently
         # filtered thru' from_yaml in module
         # We also check for None here to cover when there is no jinja filter is used (unit tests)
         return [] if secrets == "None" or secrets is None else secrets
+
+    @staticmethod
+    def _secret_is_bootstrap(s):
+        val = s.get("bootstrap", False)
+        if val is None:
+            return False
+        return bool(val)
+
+    def _effective_backing_for_secret(self, s):
+        if self._secret_is_bootstrap(s):
+            return "none"
+        return self._get_backingstore()
+
+    def _filter_secrets_for_phase(self, secrets):
+        mode = self.secrets_parse_filter
+        if mode == "all":
+            return list(secrets)
+        if mode == "bootstrap_only":
+            return [x for x in secrets if self._secret_is_bootstrap(x)]
+        return [x for x in secrets if not self._secret_is_bootstrap(x)]
+
+    def _get_secrets(self):
+        return self._filter_secrets_for_phase(self._all_secrets_raw())
 
     def _get_field_annotations(self, f):
         return f.get("annotations", {})
@@ -161,13 +193,17 @@ class ParseSecretsV2(SecretsV2Base):
         total_secrets = 0  # Counter for all the secrets uploaded
 
         if len(secrets) == 0:
-            self.module.warn("No secrets were parsed")
+            if self.secrets_parse_filter != "bootstrap_only":
+                self.module.warn("No secrets were parsed")
             return total_secrets
 
         for s in secrets:
             total_secrets += 1
             counter = 0  # This counter is to use kv put on first secret and kv patch on latter
             sname = s.get("name")
+            self._effective_backing_for_current_secret = self._effective_backing_for_secret(
+                s
+            )
             fields = s.get("fields", [])
             vault_prefixes = self._get_vault_prefixes(s)
             secret_type = s.get("type", "Opaque")
@@ -214,8 +250,7 @@ class ParseSecretsV2(SecretsV2Base):
         return total_secrets
 
     def _validate_secrets(self):
-        backing_store = self._get_backingstore()
-        secrets = self._get_secrets()
+        secrets = self._all_secrets_raw()
         if len(secrets) == 0:
             self.module.warn("No secrets found")
             return (True, "")
@@ -239,10 +274,11 @@ class ParseSecretsV2(SecretsV2Base):
             if not isinstance(namespaces, list):
                 return (False, f"Secret {s['name']} targetNamespaces must be a list")
 
-            if backing_store == "none" and namespaces == []:
+            effective_backing = self._effective_backing_for_secret(s)
+            if effective_backing == "none" and namespaces == []:
                 return (
                     False,
-                    f"Secret {s['name']} targetNamespaces cannot be empty for secrets backend {backing_store}",
+                    f"Secret {s['name']} targetNamespaces cannot be empty for secrets backend {effective_backing}",
                 )  # noqa: E501
 
             labels = s.get("labels", {})
@@ -259,6 +295,14 @@ class ParseSecretsV2(SecretsV2Base):
 
             field_names = []
             for i in fields:
+                if self._secret_is_bootstrap(s) and self._get_field_on_missing_value(
+                    i
+                ) == "generate":
+                    return (
+                        False,
+                        f"Secret {s['name']} field {i['name']}: bootstrap secrets cannot use "
+                        "onMissingValue 'generate' (bootstrap phase uses the 'none' backend)",
+                    )
                 (ret, msg) = self._validate_field(i)
                 if not ret:
                     return (False, msg)
@@ -314,7 +358,7 @@ class ParseSecretsV2(SecretsV2Base):
         if kind in ["value", ""]:
             if on_missing_value == "generate":
                 self.parsed_secrets[secret_name]["generate"].append(f["name"])
-                if self._get_backingstore() != "vault":
+                if self._effective_backing_for_current_secret != "vault":
                     self.module.fail_json(
                         "You cannot have onMissingValue set to 'generate' unless using vault backingstore "
                         f"for secret {secret_name} field {f['name']}"
