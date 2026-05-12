@@ -44,7 +44,7 @@ Alternatively, set `VALUES_SECRET` to an **existing** file whose name ends with 
 ### Playbooks and flows
 
 | Playbook | What it runs |
-|----------|----------------|
+| --- | --- |
 | `playbooks/load_secrets.yml` | Respects `.global.secretLoader.disabled` in `values-global.yaml`. When enabled: `cluster_pre_check`, optional **bootstrap** load (if a bootstrap file exists; **not** an error if missing), then **primary** discovery, parse, and load using the configured backend. |
 | `playbooks/load_bootstrap_secrets.yml` | Convenience wrapper: `determine_pattern_dir`, `determine_pattern_name`, then imports `load_secrets.yml` (same combined bootstrap-then-primary behavior as install). |
 | `playbooks/load_bootstrap_secrets_only.yml` | **Bootstrap only**: same pattern discovery plays and `pattern_settings`, then only bootstrap inject (with retries). **Fails** if no bootstrap file is found. Does **not** read `secretLoader.disabled` or load the primary file. |
@@ -58,7 +58,7 @@ Typical usage passes the pattern checkout as `pattern_dir` (for example `-e patt
 
 Bootstrap **inject** retries (parse plus Kubernetes apply) are controlled on the role defaults / extra-vars:
 
-- `vp_secrets_bootstrap_retry_max` (default `5`)
+- `vp_secrets_bootstrap_retry_max` (default `20`)
 - `vp_secrets_bootstrap_retry_delay` (seconds between attempts, default `30`)
 
 These apply to the optional bootstrap phase inside `load_secrets` and to `load_bootstrap_secrets_only.yml`.

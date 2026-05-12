@@ -13,7 +13,7 @@
   ansible.builtin.debug:
     msg: >-
       Found bootstrap values-secret at {{ found_bootstrap_file }}; loading with the none backend
-      (up to {{ vp_secrets_bootstrap_retry_max | default(5) }} attempt(s),
+      (up to {{ vp_secrets_bootstrap_retry_max | default(20) }} attempt(s),
       {{ vp_secrets_bootstrap_retry_delay | default(30) }}s between retries on failure).
   when: vp_bootstrap_secrets_present | default(false) | bool
 

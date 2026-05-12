@@ -1,5 +1,5 @@
 ---
-vp_secrets_bootstrap_retry_max: 5
+vp_secrets_bootstrap_retry_max: 20
 vp_secrets_bootstrap_retry_delay: 30
 secrets_role: vault_utils
 tasks_from: push_parsed_secrets

@@ -12,7 +12,7 @@
     msg: Bootstrap secrets require values-secret schema version 2.0 or higher when using the none backend.
   when: (secrets_bootstrap_yaml.version | default('2.0')) is version('2.0', '<')
 
-- name: Parse and inject bootstrap secrets (attempt {{ _bootstrap_inject_attempt }}/{{ vp_secrets_bootstrap_retry_max | default(5) }})
+- name: Parse and inject bootstrap secrets (attempt {{ _bootstrap_inject_attempt }}/{{ vp_secrets_bootstrap_retry_max | default(20) }})
   block:
     - name: Parse bootstrap secrets data
       no_log: "{{ hide_sensitive_output | default(true) }}"
@@ -35,8 +35,8 @@
     - name: Fail when bootstrap secrets inject retries are exhausted
       ansible.builtin.fail:
         msg: |
-          Bootstrap secrets loading failed after {{ vp_secrets_bootstrap_retry_max | default(5) }} attempt(s).
-      when: (_bootstrap_inject_attempt | int) >= (vp_secrets_bootstrap_retry_max | default(5) | int)
+          Bootstrap secrets loading failed after {{ vp_secrets_bootstrap_retry_max | default(20) }} attempt(s).
+      when: (_bootstrap_inject_attempt | int) >= (vp_secrets_bootstrap_retry_max | default(20) | int)
 
     - name: Wait before retrying bootstrap secrets inject
       ansible.builtin.pause:
