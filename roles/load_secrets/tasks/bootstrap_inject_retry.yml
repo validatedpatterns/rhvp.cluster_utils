@@ -19,7 +19,7 @@
       parse_secrets_info:
         values_secrets_plaintext: "{{ values_secrets_bootstrap_data }}"
         secrets_backing_store: none
-        secrets_parse_filter: all
+        secrets_parse_filter: bootstrap_only
       register: bootstrap_secrets_results
 
     - name: Inject bootstrap secrets into the cluster
