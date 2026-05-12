@@ -1,17 +1,24 @@
 ---
+# Resolves pattern_dir the same way as the pattern_settings role (extra-vars, PATTERN_DIR, PWD, pwd),
+# then fails if still unset. Used by display_secrets_info, load_values_global, load_bootstrap_secrets*, etc.
 - name: Determine pattern dir
   hosts: localhost
   connection: local
   gather_facts: false
   become: false
-  vars:
-    pattern_dir: ''
   tasks:
-    - name: Fail if directory is not set
+    - name: Resolve pattern_dir from extra-vars, PATTERN_DIR, PWD, or pwd
+      ansible.builtin.include_role:
+        name: pattern_settings
+        tasks_from: resolve_overrides.yml
+
+    - name: Fail if pattern directory is not set after resolution
       ansible.builtin.fail:
-        msg: "pattern_dir variable must be set"
-      when: pattern_dir | length == 0
+        msg: >-
+          pattern_dir is not set. Pass -e pattern_dir=/path/to/pattern, export PATTERN_DIR to that path,
+          or run the playbook from the pattern directory so PWD is correct.
+      when: pattern_dir | default('') | string | trim | length == 0
 
     - name: Set pattern_dir fact for future plays
       ansible.builtin.set_fact:
-        pattern_dir: '{{ pattern_dir }}'
+        pattern_dir: "{{ pattern_dir | string | trim }}"

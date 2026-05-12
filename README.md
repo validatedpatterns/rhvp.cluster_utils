@@ -50,7 +50,7 @@ Alternatively, set `VALUES_SECRET` to an **existing** file whose name ends with 
 | `playbooks/load_bootstrap_secrets_only.yml` | **Bootstrap only**: same pattern discovery plays and `pattern_settings`, then only bootstrap inject (with retries). **Fails** if no bootstrap file is found. Does **not** read `secretLoader.disabled` or load the primary file. |
 | `playbooks/display_secrets_info.yml` | Loads and displays parsed primary secrets (using the backend from `values-global`). If a bootstrap file exists, also parses and displays it with backing store `none`. Missing bootstrap is not an error. |
 
-Typical usage sets `-e pattern_dir=...` to the pattern checkout (and relies on `values-global.yaml` there via `pattern_settings`).
+Typical usage passes the pattern checkout as `pattern_dir` (for example `-e pattern_dir=/path/to/pattern`). If you omit it, the same resolution as `pattern_settings` applies: `PATTERN_DIR`, then `PWD`, then the `pwd` command.
 
 `playbooks/install.yml` imports `load_secrets.yml` after the pattern install playbook, so the combined bootstrap-then-primary flow runs during install when secret loading is enabled.
 
