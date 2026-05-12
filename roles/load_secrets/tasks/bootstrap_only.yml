@@ -13,7 +13,8 @@
   ansible.builtin.fail:
     msg: |
       No bootstrap values-secret file was found. Install one of the expected bootstrap paths,
-      or set VALUES_SECRET to an existing file whose name ends with -bootstrap.yaml.
+      set VALUES_SECRET_BOOTSTRAP to an existing file, or set VALUES_SECRET to an existing file
+      whose name ends with -bootstrap.yaml.
   when: not (vp_bootstrap_secrets_present | default(false) | bool)
 
 - name: Note bootstrap values-secret file in use

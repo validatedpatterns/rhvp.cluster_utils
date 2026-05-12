@@ -32,14 +32,18 @@ Bootstrap files are **never** read from `<pattern_dir>/` (no `values-secret-*-bo
 
 Bootstrap files may be **plain YAML or `ansible-vault` encrypted**, the same as primary values-secret files: when encrypted, Ansible prompts for the vault password (or uses your usual `ansible-playbook` vault options).
 
-When not using `VALUES_SECRET` for bootstrap, candidates are checked in order (first existing file wins):
+When not using environment overrides, bootstrap candidates are checked in order (first existing file wins):
 
 - `~/.config/hybrid-cloud-patterns/values-secret-<pattern>-bootstrap.yaml`
 - `~/.config/validated-patterns/values-secret-<pattern>-bootstrap.yaml`
 - `~/values-secret-<pattern>-bootstrap.yaml`
 - `~/values-secret-bootstrap.yaml`
 
-Alternatively, set `VALUES_SECRET` to an **existing** file whose name ends with `-bootstrap.yaml` (or `-bootstrap.yml`) to use that path for bootstrap discovery in flows that support it.
+Bootstrap discovery precedence:
+
+1. **`VALUES_SECRET_BOOTSTRAP`** – if set to a path that exists, that file is used for bootstrap only (any filename). Primary `VALUES_SECRET` is unchanged.
+2. **`VALUES_SECRET`** – if set to an **existing** file whose name ends with `-bootstrap.yaml` or `-bootstrap.yml`, that file is used for bootstrap (and primary loading will ignore `VALUES_SECRET` for the primary file search so a separate primary file can be found).
+3. Otherwise the candidate paths above are searched.
 
 **Bootstrap is always parsed and applied with backing store `none`** (Kubernetes secret injection path), which requires schema version 2.0 or newer in the bootstrap file.
 

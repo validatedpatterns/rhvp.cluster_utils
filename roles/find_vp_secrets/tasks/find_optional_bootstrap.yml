@@ -8,9 +8,40 @@
     found_bootstrap_file: ''
     vp_bootstrap_loaded_via_values_secret_env: false
 
+# Dedicated bootstrap override (any path). Does not affect primary VALUES_SECRET resolution.
+- name: Read VALUES_SECRET_BOOTSTRAP for optional bootstrap discovery
+  ansible.builtin.set_fact:
+    bootstrap_dedicated_env_values_secret: "{{ lookup('ansible.builtin.env', 'VALUES_SECRET_BOOTSTRAP') | default('', true) }}"
+
+- name: Check if VALUES_SECRET_BOOTSTRAP points to an existing file
+  ansible.builtin.stat:
+    path: "{{ bootstrap_dedicated_env_values_secret }}"
+  register: bootstrap_dedicated_file_stat
+  when: bootstrap_dedicated_env_values_secret | default('') | string | length > 0
+
+- name: Fail if VALUES_SECRET_BOOTSTRAP is set but file is missing
+  ansible.builtin.fail:
+    msg: >-
+      VALUES_SECRET_BOOTSTRAP is set to {{ bootstrap_dedicated_env_values_secret }} but that path does not exist.
+  when:
+    - bootstrap_dedicated_env_values_secret | default('') | string | length > 0
+    - bootstrap_dedicated_file_stat.stat is defined
+    - not bootstrap_dedicated_file_stat.stat.exists
+
+- name: Use VALUES_SECRET_BOOTSTRAP as bootstrap secrets file
+  ansible.builtin.set_fact:
+    found_bootstrap_file: "{{ bootstrap_dedicated_file_stat.stat.path }}"
+    vp_bootstrap_loaded_via_values_secret_env: false
+  when:
+    - bootstrap_dedicated_env_values_secret | default('') | string | length > 0
+    - bootstrap_dedicated_file_stat.stat is defined
+    - bootstrap_dedicated_file_stat.stat.exists
+
+# Legacy: VALUES_SECRET only if its basename looks like a bootstrap file (primary search still uses VALUES_SECRET otherwise).
 - name: Read VALUES_SECRET for optional bootstrap discovery
   ansible.builtin.set_fact:
     bootstrap_custom_env_values_secret: "{{ lookup('ansible.builtin.env', 'VALUES_SECRET') }}"
+  when: (found_bootstrap_file | default('') | string | length) == 0
 
 - name: Decide if VALUES_SECRET names a bootstrap file
   ansible.builtin.set_fact:
@@ -19,12 +50,14 @@
         (bootstrap_custom_env_values_secret | default('') | string | length > 0)
         and (bootstrap_custom_env_values_secret | regex_search('-bootstrap\.ya?ml$') is not none)
       }}
+  when: (found_bootstrap_file | default('') | string | length) == 0
 
 - name: Check if VALUES_SECRET points to an existing file (bootstrap)
   ansible.builtin.stat:
     path: "{{ bootstrap_custom_env_values_secret }}"
   register: bootstrap_custom_file_values_secret
   when:
+    - (found_bootstrap_file | default('') | string | length) == 0
     - bootstrap_custom_env_values_secret | default('') | length > 0
     - _bootstrap_env_is_bootstrap_named | default(false) | bool
 
@@ -33,6 +66,7 @@
     found_bootstrap_file: "{{ bootstrap_custom_file_values_secret.stat.path }}"
     vp_bootstrap_loaded_via_values_secret_env: true
   when:
+    - (found_bootstrap_file | default('') | string | length) == 0
     - bootstrap_custom_env_values_secret | default('') | length > 0
     - _bootstrap_env_is_bootstrap_named | default(false) | bool
     - bootstrap_custom_file_values_secret.stat is defined
