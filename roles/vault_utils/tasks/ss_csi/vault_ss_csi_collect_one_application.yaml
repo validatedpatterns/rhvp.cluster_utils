@@ -1,0 +1,10 @@
+---
+# outer_item: { key: <app id>, value: <application spec> }
+# ss_csi_cluster_default_for_app: optional; when cluster omitted in each entry: hub for main stem apps, or MCG name/key for managedClusterGroups.*.applications
+- name: Process ssCsiWorkloadAuth entries for application {{ outer_item.key }}
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_collect_one_entry.yaml
+  loop: "{{ outer_item.value.ssCsiWorkloadAuth | default([]) }}"
+  loop_control:
+    loop_var: inner_item
+  vars:
+    ss_csi_cluster_default_for_entry: "{{ ss_csi_cluster_default_for_app | default('hub') }}"

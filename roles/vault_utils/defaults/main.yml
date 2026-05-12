@@ -60,3 +60,49 @@ app_capabilities: '[\"read\"]'
 app_update_hub_role: true
 # Whether to create JWT roles per app (only for entries with jwt_role defined)
 app_create_jwt_roles: false
+
+# Vault Secrets Store CSI: extra Kubernetes auth role on the hub mount (same policy set as hub-role)
+vault_csi_kubernetes_auth: false
+vault_csi_kubernetes_role_name: "{{ vault_hub }}-csi-role"
+vault_csi_service_account_namespace: "secrets-store-csi-driver"
+vault_csi_service_account_name: "secrets-store-csi-driver"
+vault_csi_role_ttl: "15m"
+
+# Pattern values (clustergroup): optional list ssCsiWorkloadAuth under each
+#   clusterGroup.applications.<app>
+# or under clusterGroup.managedClusterGroups.<group>.applications.<app>
+# (see vault_ss_csi_* tasks). Example element (omit cluster; placement sets hub vs spoke):
+#   { serviceAccount: my-sa, namespace: my-ns, optional roleSlug: suffix }
+# Ansible fills cluster from stem (main -> hub, other stems -> stem name) or from managed group name/key.
+# Spoke rows are normalized to vault_path before Vault role writes (same id as ESO). Vault role name is always
+#   <mount>-sscsi-<slug> where mount is hub or vault_path (vp-sscsi-spc uses the same mount for roleName).
+# namespace defaults to the application namespace.
+vault_ss_csi_from_applications: true
+# When true, SS CSI loads ConfigMap/file per clustergroup stem and merges applications +
+# managedClusterGroups (main stem first, then others alphabetically; later files override).
+# When false, only the main clustergroup document is loaded (legacy behavior).
+vault_ss_csi_aggregate_clustergroup_sources: true
+# Prefer merged clustergroup values from an in-cluster ConfigMap (reflects GitOps overrides).
+vault_ss_csi_clustergroup_values_from_configmap: true
+# Namespace containing the clustergroup values ConfigMap (OpenShift GitOps default).
+vault_ss_csi_clustergroup_configmap_namespace: openshift-gitops
+# If empty, the ConfigMap name defaults to values-<main_clustergroupname> (same stem as values-<cg>.yaml).
+vault_ss_csi_clustergroup_configmap_name: ""
+# If empty, try keys in vault_ss_csi_clustergroup_configmap_key_candidates in order.
+vault_ss_csi_clustergroup_configmap_key: ""
+vault_ss_csi_clustergroup_configmap_key_candidates:
+  - values.yaml
+  - helm-values.yaml
+  - values.yml
+# When the ConfigMap is missing or does not contain a parseable clusterGroup document, slurp local file.
+vault_ss_csi_fallback_local_clustergroup_file: true
+# Override path to values-<clustergroup>.yaml; empty uses pattern_dir/values-{{ main_clustergroupname }}.yaml (fallback only)
+vault_ss_csi_cluster_values_file: ""
+vault_ss_csi_role_ttl: "15m"
+# How Vault names Kubernetes auth roles: auth/<mount>/role/<mount>-sscsi-<slug>
+# - hash: legacy SHA1 of namespace|serviceAccount|app (hub) or vault_path|... (spoke)
+# - stable_slug: hub-sscsi-<ns>-<sa>-<app> (sanitized); spokes prefix sanitized vault_path
+# Per-entry override wins: ssCsiWorkloadAuth[].roleSlug (suffix only; still prefixed with <mount>-sscsi-)
+vault_ss_csi_role_slug_mode: hash
+# Full role name is <auth_mount>-sscsi-<slug>. Cap length for older Vault (HTTP 400 invalid role name); 0 = no limit.
+vault_ss_csi_kubernetes_auth_role_name_max_length: 256

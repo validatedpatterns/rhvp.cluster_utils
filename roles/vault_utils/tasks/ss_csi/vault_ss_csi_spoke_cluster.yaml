@@ -1,0 +1,16 @@
+---
+# cluster_loop: one entry from clusters_info (ManagedCluster name -> facts)
+# Rows are pre-normalized to cluster == vault_path (FQDN) in vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml
+# so targeting matches ESO and Vault Kubernetes auth mounts on the spoke.
+- name: Build SS CSI rows matching this spoke cluster
+  ansible.builtin.set_fact:
+    _ss_rows_this_cluster: "{{ _ss_csi_spoke_entries_for_spokes | default([]) | selectattr('cluster', 'equalto', cluster_loop.value.vault_path | default('', true) | string) | list }}"
+
+- name: Configure Vault SS CSI role on spoke {{ cluster_loop.key }}
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_apply_one_spoke_sscsi_role.yaml
+  loop: "{{ _ss_rows_this_cluster | default([]) }}"
+  loop_control:
+    label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"
+  vars:
+    vault_spoke_cluster_loop: "{{ cluster_loop }}"
+  when: (_ss_rows_this_cluster | default([])) | length > 0

@@ -1,0 +1,21 @@
+---
+# Discover values-<clustergroup>.yaml|yml under pattern_dir.
+# Resolves pattern_dir like pattern_settings (extra var pattern_dir, env PATTERN_DIR, cwd).
+- name: List pattern clustergroup value stems
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  roles:
+    - pattern_settings
+    - role: clustergroup_discovery
+  tasks:
+    - name: Report clustergroup discovery
+      ansible.builtin.debug:
+        msg:
+          pattern_dir: "{{ pattern_dir }}"
+          main_clustergroup: "{{ main_clustergroup }}"
+          managed_clustergroup_names: "{{ managed_clustergroup_names }}"
+          clustergroup_names: "{{ clustergroup_names }}"
+          clustergroup_load_order: "{{ clustergroup_load_order }}"
+          clustergroup_file_entries: "{{ clustergroup_file_entries }}"

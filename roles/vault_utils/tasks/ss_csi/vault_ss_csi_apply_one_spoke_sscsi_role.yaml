@@ -1,0 +1,23 @@
+---
+- name: Compute Vault role slug for spoke SS CSI identity
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_compute_role_slug.yaml
+  vars:
+    ss_csi_mount_prefix: "{{ vault_spoke_cluster_loop.value.vault_path }}"
+    ss_csi_hash_input: >-
+      {{
+        (vault_spoke_cluster_loop.value.vault_path | string)
+        ~ '|' ~ (item.namespace | default('', true))
+        ~ '|' ~ (item.serviceAccount | default('', true))
+        ~ '|' ~ (item.app | default('', true))
+      }}
+
+- name: Configure Vault SS CSI role on spoke {{ vault_spoke_cluster_loop.key }}
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault write auth/{{ vault_spoke_cluster_loop.value.vault_path }}/role/{{ vault_spoke_cluster_loop.value.vault_path }}-sscsi-{{ _role_slug }}
+        bound_service_account_names="{{ item.serviceAccount }}"
+        bound_service_account_namespaces="{{ item.namespace }}"
+        policies="default,{{ vault_global_policy }}-secret,{{ vault_pushsecrets_policy }}-secret,{{ vault_spoke_cluster_loop.value.vault_path }}-secret"
+        ttl="{{ vault_spoke_ttl }}"

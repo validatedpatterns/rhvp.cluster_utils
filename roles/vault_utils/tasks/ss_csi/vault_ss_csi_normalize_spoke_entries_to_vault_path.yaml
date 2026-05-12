@@ -1,0 +1,15 @@
+---
+# Rewrite ssCsiWorkloadAuth.cluster to vault_path (FQDN) for each matching ESO-enabled spoke — same cluster id as Vault/ESO spokes.
+
+- name: Reset SS CSI spoke entries normalized to vault_path
+  ansible.builtin.set_fact:
+    _ss_csi_spoke_entries_for_spokes: []
+
+- name: Map SS CSI workload rows onto each spoke vault_path
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_normalize_spoke_entries_one_cluster.yaml
+  loop: "{{ clusters_info | dict2items }}"
+  loop_control:
+    loop_var: ci_loop
+  when:
+    - ci_loop.key != 'local-cluster'
+    - ci_loop.value.esoToken is defined

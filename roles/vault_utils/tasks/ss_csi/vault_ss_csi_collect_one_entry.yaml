@@ -1,0 +1,20 @@
+---
+# inner_item.cluster in values is optional and discouraged; omit it and use stem or managedClusterGroup placement.
+- name: Validate ssCsiWorkloadAuth entry for application {{ outer_item.key }}
+  ansible.builtin.assert:
+    that:
+      - inner_item.serviceAccount is defined
+      - inner_item.serviceAccount | string | length > 0
+    fail_msg: >-
+      clusterGroup.applications.{{ outer_item.key }}.ssCsiWorkloadAuth entry missing non-empty serviceAccount
+
+- name: Append SS CSI workload row for application {{ outer_item.key }}
+  ansible.builtin.set_fact:
+    _ss_csi_all_entries: "{{ _ss_csi_all_entries | default([]) + [_row] }}"
+  vars:
+    _row:
+      app: "{{ outer_item.key }}"
+      serviceAccount: "{{ inner_item.serviceAccount }}"
+      namespace: "{{ inner_item.namespace | default(outer_item.value.namespace | default('', true), true) }}"
+      cluster: "{{ inner_item.cluster | default(ss_csi_cluster_default_for_entry | default('hub')) | string | trim }}"
+      roleSlug: "{{ inner_item.roleSlug | default(inner_item.role_slug | default('', true), true) }}"

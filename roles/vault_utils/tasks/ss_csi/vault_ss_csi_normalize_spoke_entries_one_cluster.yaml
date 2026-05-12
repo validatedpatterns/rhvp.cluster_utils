@@ -1,0 +1,23 @@
+---
+# ci_loop: one clusters_info dict2items entry. Appends matching _ss_csi_spoke_entries_raw rows with cluster=vault_path.
+
+- name: Append SS CSI rows targeting spoke {{ ci_loop.key }} (cluster id = vault_path)
+  ansible.builtin.set_fact:
+    _ss_csi_spoke_entries_for_spokes: "{{ _ss_csi_spoke_entries_for_spokes | default([]) + [_row_out] }}"
+  loop: "{{ _ss_csi_spoke_entries_raw }}"
+  loop_control:
+    loop_var: ss_row
+  vars:
+    _row_out: "{{ ss_row | combine({'cluster': ci_loop.value.vault_path | default('', true) | string}) }}"
+    _ss_norm_match: >-
+      {{
+        (ss_row.cluster | default('') | string == ci_loop.key | string)
+        or (ss_row.cluster | default('') | string == (ci_loop.value.name | default('', true) | string))
+        or (ss_row.cluster | default('') | string == (ci_loop.value.vault_path | default('', true) | string))
+        or (
+          (ci_loop.value.clusterGroup | default('', true) | string | trim | length) > 0
+          and (ss_row.cluster | default('') | string == (ci_loop.value.clusterGroup | string))
+        )
+      }}
+  when:
+    - _ss_norm_match | bool

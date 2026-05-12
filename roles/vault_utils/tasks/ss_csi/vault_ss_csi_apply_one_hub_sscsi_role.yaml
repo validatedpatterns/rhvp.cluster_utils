@@ -1,0 +1,17 @@
+---
+- name: Compute Vault role slug for hub SS CSI identity
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_compute_role_slug.yaml
+  vars:
+    ss_csi_mount_prefix: "{{ vault_hub }}"
+    ss_csi_hash_input: "{{ (item.namespace | default('', true)) ~ '|' ~ (item.serviceAccount | default('', true)) ~ '|' ~ (item.app | default('', true)) }}"
+
+- name: Configure hub Vault Kubernetes auth role for SS CSI workload identity
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault write auth/"{{ vault_hub }}"/role/"{{ vault_hub }}-sscsi-{{ _role_slug }}"
+        bound_service_account_names="{{ item.serviceAccount }}"
+        bound_service_account_namespaces="{{ item.namespace }}"
+        policies="{{ _merged_hub_policies | join(',') }}"
+        ttl="{{ vault_ss_csi_role_ttl }}"
