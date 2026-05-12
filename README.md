@@ -63,8 +63,10 @@ already completed (duplicate inject is skipped).
   bootstrap-tagged v2 entries. Does **not** read `secretLoader.disabled` or load into Vault / primary backend.
 
 - **`playbooks/display_secrets_info.yml`**  
-  Loads and displays parsed secrets (using the backend from `values-global`). For v2 files with bootstrap-tagged entries,
-  uses a merged bootstrap + primary parse for display.
+  Loads and displays parsed secrets (using the backend from `values-global`). For v2 files with any bootstrap-tagged
+  entries, output is split into **`early_bootstrap_inject`** (none backend, early K8s view; includes `bootstrap: true`
+  and `bootstrap: only`) and **`primary_backend`** (configured backend; includes normal secrets and **`bootstrap: true`**
+  again so dual-mode entries appear in both groups). Otherwise a single parse is shown as before.
 
 Typical usage passes the pattern checkout as `pattern_dir` (for example `-e pattern_dir=/path/to/pattern`). If you omit
 it, the same resolution as `pattern_settings` applies: `PATTERN_DIR`, then `PWD`, then the `pwd` command.
