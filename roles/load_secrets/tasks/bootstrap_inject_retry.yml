@@ -1,0 +1,50 @@
+---
+- name: Ensure bootstrap inject attempt counter
+  ansible.builtin.set_fact:
+    _bootstrap_inject_attempt: "{{ _bootstrap_inject_attempt | default(1) | int }}"
+
+- name: Determine bootstrap secrets YAML shape
+  ansible.builtin.set_fact:
+    secrets_bootstrap_yaml: "{{ values_secrets_bootstrap_data if values_secrets_bootstrap_data is not string else values_secrets_bootstrap_data | from_yaml }}"
+
+- name: Fail when bootstrap schema is too old for none backend loading
+  ansible.builtin.fail:
+    msg: Bootstrap secrets require values-secret schema version 2.0 or higher when using the none backend.
+  when: (secrets_bootstrap_yaml.version | default('2.0')) is version('2.0', '<')
+
+- name: Parse and inject bootstrap secrets (attempt {{ _bootstrap_inject_attempt }}/{{ vp_secrets_bootstrap_retry_max | default(5) }})
+  block:
+    - name: Parse bootstrap secrets data
+      no_log: "{{ hide_sensitive_output | default(true) }}"
+      parse_secrets_info:
+        values_secrets_plaintext: "{{ values_secrets_bootstrap_data }}"
+        secrets_backing_store: none
+      register: bootstrap_secrets_results
+
+    - name: Inject bootstrap secrets into the cluster
+      ansible.builtin.include_role:
+        name: k8s_secret_utils
+        tasks_from: inject_k8s_secrets
+      vars:
+        kubernetes_secret_objects: "{{ bootstrap_secrets_results.kubernetes_secret_objects }}"
+        vault_policies: "{{ bootstrap_secrets_results.vault_policies }}"
+        parsed_secrets: "{{ bootstrap_secrets_results.parsed_secrets }}"
+        unique_vault_prefixes: "{{ bootstrap_secrets_results.unique_vault_prefixes | default([]) }}"
+
+  rescue:
+    - name: Fail when bootstrap secrets inject retries are exhausted
+      ansible.builtin.fail:
+        msg: |
+          Bootstrap secrets loading failed after {{ vp_secrets_bootstrap_retry_max | default(5) }} attempt(s).
+      when: (_bootstrap_inject_attempt | int) >= (vp_secrets_bootstrap_retry_max | default(5) | int)
+
+    - name: Wait before retrying bootstrap secrets inject
+      ansible.builtin.pause:
+        seconds: "{{ vp_secrets_bootstrap_retry_delay | default(30) | int }}"
+
+    - name: Bump bootstrap secrets inject attempt counter
+      ansible.builtin.set_fact:
+        _bootstrap_inject_attempt: "{{ (_bootstrap_inject_attempt | int) + 1 }}"
+
+    - name: Retry bootstrap secrets inject
+      ansible.builtin.include_tasks: bootstrap_inject_retry.yml

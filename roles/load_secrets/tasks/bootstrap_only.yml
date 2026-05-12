@@ -1,0 +1,31 @@
+---
+# Bootstrap values-secret only (none backend, k8s inject). Fails if no bootstrap file is found.
+- name: Run cluster pre-check before bootstrap-only secrets load
+  ansible.builtin.include_role:
+    name: cluster_pre_check
+
+- name: Discover bootstrap values-secret file
+  ansible.builtin.include_role:
+    name: find_vp_secrets
+    tasks_from: find_optional_bootstrap.yml
+
+- name: Require a bootstrap values-secret file for bootstrap-only loading
+  ansible.builtin.fail:
+    msg: |
+      No bootstrap values-secret file was found. Install one of the expected bootstrap paths,
+      or set VALUES_SECRET to an existing file whose name ends with -bootstrap.yaml.
+  when: not (vp_bootstrap_secrets_present | default(false) | bool)
+
+- name: Note bootstrap values-secret file in use
+  ansible.builtin.debug:
+    msg: >-
+      Loading bootstrap values-secret only from {{ found_bootstrap_file }}
+      (none backend; up to {{ vp_secrets_bootstrap_retry_max | default(5) }} attempt(s),
+      {{ vp_secrets_bootstrap_retry_delay | default(30) }}s between retries on failure).
+
+- name: Initialize bootstrap secrets inject attempt counter
+  ansible.builtin.set_fact:
+    _bootstrap_inject_attempt: 1
+
+- name: Inject bootstrap secrets with retries on failure
+  ansible.builtin.include_tasks: bootstrap_inject_retry.yml

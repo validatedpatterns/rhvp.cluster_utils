@@ -1,14 +1,18 @@
 ---
-- name: Set fact for secretStore backend
+- name: Run cluster pre-check once before optional bootstrap and primary secrets loading
+  ansible.builtin.include_role:
+    name: cluster_pre_check
+
+- name: Optional bootstrap values-secret discovery and load
+  ansible.builtin.include_tasks: optional_bootstrap_load.yml
+
+- name: Set fact for secretStore backend (from values-global)
   ansible.builtin.set_fact:
     secrets_backing_store: "{{ values_global.global.secretStore.backend | default('vault') }}"
 
-- name: Run secret-loading pre-requisites
+- name: Find primary values-secret file and read it
   ansible.builtin.include_role:
-    name: "{{ item }}"
-  loop:
-    - cluster_pre_check
-    - find_vp_secrets
+    name: find_vp_secrets
 
 - name: Fail if values_secrets_data is missing
   ansible.builtin.shell: |
@@ -47,3 +51,8 @@
     vault_policies: "{{ secrets_results.vault_policies }}"
     parsed_secrets: "{{ secrets_results.parsed_secrets }}"
     unique_vault_prefixes: "{{ secrets_results.unique_vault_prefixes }}"
+
+- name: Clear bootstrap-related VALUES_SECRET routing facts
+  ansible.builtin.set_fact:
+    vp_skip_values_secret_env_for_primary: false
+    vp_bootstrap_loaded_via_values_secret_env: false

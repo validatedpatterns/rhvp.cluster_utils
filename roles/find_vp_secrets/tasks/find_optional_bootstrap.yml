@@ -1,0 +1,80 @@
+---
+# Sets values_secrets_bootstrap_data when a bootstrap values-secret file exists; otherwise no-op.
+# Expects: pattern_name, and _primary_values_secrets_data_snapshot when restoring after read.
+- name: Clear bootstrap secrets facts from any prior play
+  ansible.builtin.set_fact:
+    values_secrets_bootstrap_data: ''
+    vp_bootstrap_secrets_present: false
+    found_bootstrap_file: ''
+    vp_bootstrap_loaded_via_values_secret_env: false
+
+- name: Read VALUES_SECRET for optional bootstrap discovery
+  ansible.builtin.set_fact:
+    bootstrap_custom_env_values_secret: "{{ lookup('ansible.builtin.env', 'VALUES_SECRET') }}"
+
+- name: Decide if VALUES_SECRET names a bootstrap file
+  ansible.builtin.set_fact:
+    _bootstrap_env_is_bootstrap_named: >-
+      {{
+        (bootstrap_custom_env_values_secret | default('') | string | length > 0)
+        and (bootstrap_custom_env_values_secret | regex_search('-bootstrap\.ya?ml$') is not none)
+      }}
+
+- name: Check if VALUES_SECRET points to an existing file (bootstrap)
+  ansible.builtin.stat:
+    path: "{{ bootstrap_custom_env_values_secret }}"
+  register: bootstrap_custom_file_values_secret
+  when:
+    - bootstrap_custom_env_values_secret | default('') | length > 0
+    - _bootstrap_env_is_bootstrap_named | default(false) | bool
+
+- name: Use VALUES_SECRET as bootstrap secrets file
+  ansible.builtin.set_fact:
+    found_bootstrap_file: "{{ bootstrap_custom_file_values_secret.stat.path }}"
+    vp_bootstrap_loaded_via_values_secret_env: true
+  when:
+    - bootstrap_custom_env_values_secret | default('') | length > 0
+    - _bootstrap_env_is_bootstrap_named | default(false) | bool
+    - bootstrap_custom_file_values_secret.stat is defined
+    - bootstrap_custom_file_values_secret.stat.exists
+
+- name: Build bootstrap values-secret candidate paths
+  ansible.builtin.set_fact:
+    _vp_bootstrap_secret_candidates:
+      - "~/.config/hybrid-cloud-patterns/values-secret-{{ pattern_name }}-bootstrap.yaml"
+      - "~/.config/validated-patterns/values-secret-{{ pattern_name }}-bootstrap.yaml"
+      - "~/values-secret-{{ pattern_name }}-bootstrap.yaml"
+      - "~/values-secret-bootstrap.yaml"
+  when: (found_bootstrap_file | default('') | string | length) == 0
+
+- name: Stat bootstrap candidate paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ _vp_bootstrap_secret_candidates }}"
+  register: _vp_bootstrap_stat_results
+  when: (found_bootstrap_file | default('') | string | length) == 0
+
+- name: Pick first existing bootstrap secrets file from candidates
+  ansible.builtin.set_fact:
+    found_bootstrap_file: "{{ (_vp_bootstrap_stat_results.results | default([]) | selectattr('stat.exists') | map(attribute='item') | list | first) | default('') }}"
+  when:
+    - (found_bootstrap_file | default('') | string | length) == 0
+    - _vp_bootstrap_stat_results.results is defined
+
+- name: Read bootstrap secrets when a bootstrap file was found
+  when: (found_bootstrap_file | default('') | string | length) > 0
+  block:
+    - name: Load bootstrap secrets from file
+      ansible.builtin.include_tasks: read_secret_from_path.yml
+      vars:
+        found_file: "{{ found_bootstrap_file }}"
+
+    - name: Publish bootstrap secrets data for display
+      ansible.builtin.set_fact:
+        values_secrets_bootstrap_data: "{{ values_secrets_data }}"
+        vp_bootstrap_secrets_present: true
+
+    - name: Restore primary values_secrets_data after bootstrap read
+      ansible.builtin.set_fact:
+        values_secrets_data: "{{ _primary_values_secrets_data_snapshot }}"
+      when: _primary_values_secrets_data_snapshot is defined

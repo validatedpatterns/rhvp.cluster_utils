@@ -69,6 +69,8 @@ By default, the first file that will looked up is
 The paths can be overridden by setting the environment variable `VALUES_SECRET` to the path of the
 secret file.
 
+Optional **bootstrap** values-secret files (names ending with `-bootstrap.yaml`), the bootstrap-then-primary loading order, the bootstrap-only playbook, and `display_secrets_info.yml` are documented under **Secrets loading** in the collection `README.md` at the repository root.
+
 The values secret YAML files can be encrypted with `ansible-vault`. If the role detects they are encrypted, the password to
 decrypt them will be prompted when needed.
 
