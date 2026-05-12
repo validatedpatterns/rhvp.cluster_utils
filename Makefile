@@ -5,10 +5,6 @@ help: ## This help message
 	@echo "Pattern: $(NAME)"
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^(\s|[a-zA-Z_0-9-])+:.*?##/ { printf "  \033[36m%-35s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-.PHONY: helm-docs
-helm-docs: ## Not used here (no Helm chart); kept so workflows expecting the target succeed
-	@echo "helm-docs: skipped — rhvp.cluster_utils has no Chart.yaml or README.md.gotmpl."
-
 .PHONY: super-linter
 super-linter: ## Runs super linter locally
 	rm -rf .mypy_cache
