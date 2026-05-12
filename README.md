@@ -30,6 +30,8 @@ Files may be plain YAML or `ansible-vault` encrypted.
 
 Bootstrap files are **never** read from `<pattern_dir>/` (no `values-secret-*-bootstrap.yaml` under the pattern tree).
 
+Bootstrap files may be **plain YAML or `ansible-vault` encrypted**, the same as primary values-secret files: when encrypted, Ansible prompts for the vault password (or uses your usual `ansible-playbook` vault options).
+
 When not using `VALUES_SECRET` for bootstrap, candidates are checked in order (first existing file wins):
 
 - `~/.config/hybrid-cloud-patterns/values-secret-<pattern>-bootstrap.yaml`
@@ -43,12 +45,17 @@ Alternatively, set `VALUES_SECRET` to an **existing** file whose name ends with 
 
 ### Playbooks and flows
 
-| Playbook | What it runs |
-| --- | --- |
-| `playbooks/load_secrets.yml` | Respects `.global.secretLoader.disabled` in `values-global.yaml`. When enabled: `cluster_pre_check`, optional **bootstrap** load (if a bootstrap file exists; **not** an error if missing), then **primary** discovery, parse, and load using the configured backend. |
-| `playbooks/load_bootstrap_secrets.yml` | Convenience wrapper: `determine_pattern_dir`, `determine_pattern_name`, then imports `load_secrets.yml` (same combined bootstrap-then-primary behavior as install). |
-| `playbooks/load_bootstrap_secrets_only.yml` | **Bootstrap only**: same pattern discovery plays and `pattern_settings`, then only bootstrap inject (with retries). **Fails** if no bootstrap file is found. Does **not** read `secretLoader.disabled` or load the primary file. |
-| `playbooks/display_secrets_info.yml` | Loads and displays parsed primary secrets (using the backend from `values-global`). If a bootstrap file exists, also parses and displays it with backing store `none`. Missing bootstrap is not an error. |
+- **`playbooks/load_secrets.yml`**  
+  Respects `.global.secretLoader.disabled` in `values-global.yaml`. When enabled: `cluster_pre_check`, optional **bootstrap** load (if a bootstrap file exists; **not** an error if missing), then **primary** discovery, parse, and load using the configured backend.
+
+- **`playbooks/load_bootstrap_secrets.yml`**  
+  Convenience wrapper: `determine_pattern_dir`, `determine_pattern_name`, then imports `load_secrets.yml` (same combined bootstrap-then-primary behavior as install).
+
+- **`playbooks/load_bootstrap_secrets_only.yml`**  
+  **Bootstrap only**: same pattern discovery plays and `pattern_settings`, then only bootstrap inject (with retries). **Fails** if no bootstrap file is found. Does **not** read `secretLoader.disabled` or load the primary file.
+
+- **`playbooks/display_secrets_info.yml`**  
+  Loads and displays parsed primary secrets (using the backend from `values-global`). If a bootstrap file exists, also parses and displays it with backing store `none`. Missing bootstrap is not an error.
 
 Typical usage passes the pattern checkout as `pattern_dir` (for example `-e pattern_dir=/path/to/pattern`). If you omit it, the same resolution as `pattern_settings` applies: `PATTERN_DIR`, then `PWD`, then the `pwd` command.
 
