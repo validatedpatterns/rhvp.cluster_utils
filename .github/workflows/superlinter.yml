@@ -27,6 +27,8 @@ jobs:
           VALIDATE_ALL_CODEBASE: true
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Skip installed collection copies under .ansible/ (duplicate paths break PYTHON_MYPY and other tools).
+          FILTER_REGEX_EXCLUDE: '(^|/)\.ansible/'
           # These are the validation we disable atm
           VALIDATE_ANSIBLE: false
           VALIDATE_BIOME_FORMAT: false

@@ -7,8 +7,9 @@ help: ## This help message
 
 .PHONY: super-linter
 super-linter: ## Runs super linter locally
-	rm -rf .mypy_cache
+	rm -rf .mypy_cache .ansible
 	podman run -e RUN_LOCAL=true -e USE_FIND_ALGORITHM=true	\
+					-e FILTER_REGEX_EXCLUDE='(^|/)\\.ansible/' \
 					-e VALIDATE_ANSIBLE=false \
 					-e VALIDATE_BASH=false \
 					-e VALIDATE_BIOME_FORMAT=false \
