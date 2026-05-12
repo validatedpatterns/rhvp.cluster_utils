@@ -63,6 +63,8 @@ Bootstrap **inject** retries (parse plus Kubernetes apply) are controlled on the
 
 These apply to the optional bootstrap phase inside `load_secrets` and to `load_bootstrap_secrets_only.yml`.
 
+Per-secret namespace readiness (before each `kubernetes.core.k8s` apply) uses role defaults on `k8s_secret_utils`: `k8s_secret_namespace_check_retries` (default `5`) and `k8s_secret_namespace_check_delay` (seconds between attempts, default `45`). If the namespace still does not exist after those attempts, the inject fails and the **outer** bootstrap retry re-runs parse plus all secret injections from the start.
+
 ### Roles (implementation notes)
 
 - `roles/load_secrets/tasks/main.yml` implements the **combined** flow (optional bootstrap, then primary).

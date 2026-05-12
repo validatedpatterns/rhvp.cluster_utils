@@ -1,2 +1,5 @@
 ---
 secrets_ns: 'validated-patterns-secrets'
+# Namespace wait before injecting each Secret (then outer bootstrap retry can re-run the full inject).
+k8s_secret_namespace_check_retries: 5
+k8s_secret_namespace_check_delay: 45
