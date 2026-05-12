@@ -50,7 +50,7 @@ Bootstrap discovery precedence:
 ### Playbooks and flows
 
 - **`playbooks/load_secrets.yml`**  
-  Respects `.global.secretLoader.disabled` in `values-global.yaml`. When enabled: `cluster_pre_check`, optional **bootstrap** load (if a bootstrap file exists; **not** an error if missing), then **primary** discovery, parse, and load using the configured backend.
+  Respects `.global.secretLoader.disabled` in `values-global.yaml`. When enabled: `cluster_pre_check`, optional **bootstrap** load (if a bootstrap file exists; **not** an error if missing), then **primary** discovery, parse, and load using the configured backend. During `playbooks/install.yml`, optional bootstrap runs immediately after the pattern-install manifests are applied (in `operator_deploy.yml`); `load_secrets` then skips the duplicate bootstrap pass and continues with primary loading.
 
 - **`playbooks/load_bootstrap_secrets.yml`**  
   Convenience wrapper: `determine_pattern_dir`, `determine_pattern_name`, then imports `load_secrets.yml` (same combined bootstrap-then-primary behavior as install).
@@ -63,7 +63,7 @@ Bootstrap discovery precedence:
 
 Typical usage passes the pattern checkout as `pattern_dir` (for example `-e pattern_dir=/path/to/pattern`). If you omit it, the same resolution as `pattern_settings` applies: `PATTERN_DIR`, then `PWD`, then the `pwd` command.
 
-`playbooks/install.yml` imports `load_secrets.yml` after the pattern install playbook, so the combined bootstrap-then-primary flow runs during install when secret loading is enabled.
+`playbooks/install.yml` imports `load_secrets.yml` after the pattern install playbook. When secret loading is enabled, optional bootstrap runs at the end of that install playbook (right after apply), then `load_secrets.yml` loads primary secrets without repeating bootstrap.
 
 ### Bootstrap retries
 

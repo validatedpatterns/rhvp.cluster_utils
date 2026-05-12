@@ -6,9 +6,11 @@
 - name: Run cluster pre-check once before optional bootstrap and primary secrets loading
   ansible.builtin.include_role:
     name: cluster_pre_check
+  when: not (vp_cluster_pre_check_done | default(false) | bool)
 
 - name: Optional bootstrap values-secret discovery and load
   ansible.builtin.include_tasks: optional_bootstrap_load.yml
+  when: not (skip_optional_bootstrap | default(false) | bool)
 
 - name: Find primary values-secret file and read it
   ansible.builtin.include_role:
