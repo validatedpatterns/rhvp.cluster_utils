@@ -70,7 +70,7 @@ The paths can be overridden by setting the environment variable `VALUES_SECRET` 
 secret file.
 
 Optional **early bootstrap** behavior (Kubernetes inject for `bootstrap`-tagged v2 secrets in the **primary**
-values-secret file only), the early-then-primary loading order, `load_bootstrap_secrets_only.yml`, and
+values-secret file only), the early-then-primary loading order, `load_bootstrap_secrets.yml`, and
 `display_secrets_info.yml` are documented under **Secrets loading** in the collection `README.md` at the repository root.
 
 For **v2.0** primary files, each `secrets[]` entry may set `bootstrap`: use boolean `true` (or strings like `yes`,

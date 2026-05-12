@@ -54,13 +54,10 @@ already completed (duplicate inject is skipped).
   the configured backend.
 
 - **`playbooks/load_bootstrap_secrets.yml`**  
-  Convenience wrapper: `determine_pattern_dir`, `determine_pattern_name`, then imports `load_secrets.yml` (same behavior
-  as install).
-
-- **`playbooks/load_bootstrap_secrets_only.yml`**  
-  **Early bootstrap inject only**: same pattern discovery plays and `pattern_settings`, then only the Kubernetes inject
-  for bootstrap-tagged secrets in the primary file (with retries). **Fails** if no primary file exists or there are no
-  bootstrap-tagged v2 entries. Does **not** read `secretLoader.disabled` or load into Vault / primary backend.
+  **Early bootstrap inject only**: `determine_pattern_dir`, `determine_pattern_name`, `pattern_settings`, then only the
+  Kubernetes inject for bootstrap-tagged secrets in the primary file (with retries). **Fails** if no primary file exists
+  or there are no bootstrap-tagged v2 entries. Does **not** read `secretLoader.disabled` or load into Vault / primary
+  backend. For the full early-then-primary flow, use `load_secrets.yml` (or `install.yml`).
 
 - **`playbooks/display_secrets_info.yml`**  
   Loads and displays parsed secrets (using the backend from `values-global`). For v2 files with any bootstrap-tagged
@@ -82,7 +79,7 @@ Outer retries (parse plus Kubernetes apply) are controlled on the role defaults 
 - `vp_secrets_bootstrap_retry_max` (default `20`)
 - `vp_secrets_bootstrap_retry_delay` (seconds between attempts, default `30`)
 
-These apply to the early inject path inside `load_secrets` and to `load_bootstrap_secrets_only.yml`.
+These apply to the early inject path inside `load_secrets` and to `load_bootstrap_secrets.yml`.
 
 Per-secret namespace readiness (before each `kubernetes.core.k8s` apply) uses role defaults on `k8s_secret_utils`:
 
@@ -95,8 +92,8 @@ all secret injections from the start.
 
 - `roles/load_secrets/tasks/main.yml` implements the **combined** flow (early inject from primary file, then primary
   backend load).
-- `roles/load_secrets/tasks/bootstrap_only.yml` is used only when you invoke the `load_secrets` role with
-  `tasks_from: bootstrap_only.yml` (as `load_bootstrap_secrets_only.yml` does).
+- `roles/load_secrets/tasks/bootstrap_only.yml` is used when you invoke the `load_secrets` role with
+  `tasks_from: bootstrap_only.yml` (as `playbooks/load_bootstrap_secrets.yml` does).
 - `roles/find_vp_secrets` resolves the primary file (`tasks/main.yml`).
 - v2 parsing and phase filters (`bootstrap_only`, `exclude_bootstrap`, `all`) are implemented in
   `plugins/module_utils/parse_secrets_v2.py` (single `bootstrap` normalizer: off / dual / early-only).

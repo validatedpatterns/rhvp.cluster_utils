@@ -1,6 +1,6 @@
 ---
 # Resolves pattern_dir the same way as the pattern_settings role (extra-vars, PATTERN_DIR, PWD, pwd),
-# then fails if still unset. Used by display_secrets_info, load_values_global, load_bootstrap_secrets*, etc.
+# then fails if still unset. Used by display_secrets_info, load_values_global, load_bootstrap_secrets, etc.
 - name: Determine pattern dir
   hosts: localhost
   connection: local
