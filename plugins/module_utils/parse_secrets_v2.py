@@ -36,7 +36,13 @@ secret_store_namespace = "validated-patterns-secrets"
 
 class ParseSecretsV2(SecretsV2Base):
 
-    def __init__(self, module, syaml, secrets_backing_store, secrets_parse_filter="exclude_bootstrap"):
+    def __init__(
+        self,
+        module,
+        syaml,
+        secrets_backing_store,
+        secrets_parse_filter="exclude_bootstrap",
+    ):
         super().__init__(module, syaml)
         self.secrets_backing_store = str(secrets_backing_store)
         if secrets_parse_filter not in ("all", "bootstrap_only", "exclude_bootstrap"):
@@ -97,15 +103,57 @@ class ParseSecretsV2(SecretsV2Base):
         # We also check for None here to cover when there is no jinja filter is used (unit tests)
         return [] if secrets == "None" or secrets is None else secrets
 
-    @staticmethod
-    def _secret_is_bootstrap(s):
-        val = s.get("bootstrap", False)
-        if val is None:
-            return False
-        return bool(val)
+    def _bootstrap_mode(self, s):
+        """
+        Normalize per-secret bootstrap behavior (single place for the "three-way switch").
+
+        Returns:
+            "off" — not part of the early bootstrap inject phase; primary parse includes the secret.
+            "dual" — C(bootstrap: true) (or equivalent string): early K8s inject (none) and primary load
+                using the configured backend.
+            "early_only" — C(bootstrap: only): early K8s inject only; omitted from C(exclude_bootstrap) primary parse.
+        """
+        if "bootstrap" not in s:
+            return "off"
+        val = s.get("bootstrap")
+        if val is None or val is False:
+            return "off"
+        if val is True:
+            return "dual"
+        if isinstance(val, str):
+            key = val.strip().lower()
+            if key in ("", "false", "no", "0", "off"):
+                return "off"
+            if key in ("only", "early"):
+                return "early_only"
+            if key in ("true", "yes", "1", "both", "dual"):
+                return "dual"
+        self.module.fail_json(
+            msg=(
+                f"Secret {s.get('name', '?')}: invalid `bootstrap` value {val!r}. "
+                "Use boolean true (early inject plus configured backend), false/absent for normal "
+                "primary-only secrets, or the string 'only' (early inject only, excluded from primary load)."
+            )
+        )
+
+    def _secret_in_early_bootstrap_phase(self, s):
+        """Secrets that participate in the optional early (none-backend) inject phase."""
+        return self._bootstrap_mode(s) != "off"
+
+    def _secret_exclude_from_primary_parse(self, s):
+        """Secrets dropped from the default primary parse (C(exclude_bootstrap) filter)."""
+        return self._bootstrap_mode(s) == "early_only"
 
     def _effective_backing_for_secret(self, s):
-        if self._secret_is_bootstrap(s):
+        """
+        Backing store used while parsing this secret's fields. Early-only and dual secrets use the
+        none backend only during C(bootstrap_only) parsing; dual secrets use the pattern backend
+        during primary / C(all) parsing so vault generate paths still work.
+        """
+        bmode = self._bootstrap_mode(s)
+        if bmode == "early_only":
+            return "none"
+        if bmode == "dual" and self.secrets_parse_filter == "bootstrap_only":
             return "none"
         return self._get_backingstore()
 
@@ -114,8 +162,8 @@ class ParseSecretsV2(SecretsV2Base):
         if mode == "all":
             return list(secrets)
         if mode == "bootstrap_only":
-            return [x for x in secrets if self._secret_is_bootstrap(x)]
-        return [x for x in secrets if not self._secret_is_bootstrap(x)]
+            return [x for x in secrets if self._secret_in_early_bootstrap_phase(x)]
+        return [x for x in secrets if not self._secret_exclude_from_primary_parse(x)]
 
     def _get_secrets(self):
         return self._filter_secrets_for_phase(self._all_secrets_raw())
@@ -201,8 +249,8 @@ class ParseSecretsV2(SecretsV2Base):
             total_secrets += 1
             counter = 0  # This counter is to use kv put on first secret and kv patch on latter
             sname = s.get("name")
-            self._effective_backing_for_current_secret = self._effective_backing_for_secret(
-                s
+            self._effective_backing_for_current_secret = (
+                self._effective_backing_for_secret(s)
             )
             fields = s.get("fields", [])
             vault_prefixes = self._get_vault_prefixes(s)
@@ -295,13 +343,15 @@ class ParseSecretsV2(SecretsV2Base):
 
             field_names = []
             for i in fields:
-                if self._secret_is_bootstrap(s) and self._get_field_on_missing_value(
-                    i
-                ) == "generate":
+                if (
+                    self._secret_in_early_bootstrap_phase(s)
+                    and self._get_field_on_missing_value(i) == "generate"
+                ):
                     return (
                         False,
-                        f"Secret {s['name']} field {i['name']}: bootstrap secrets cannot use "
-                        "onMissingValue 'generate' (bootstrap phase uses the 'none' backend)",
+                        f"Secret {s['name']} field {i['name']}: secrets that use the early bootstrap "
+                        "inject phase (bootstrap: true or bootstrap: only) cannot use onMissingValue "
+                        "'generate' (that phase uses the 'none' backend)",
                     )
                 (ret, msg) = self._validate_field(i)
                 if not ret:

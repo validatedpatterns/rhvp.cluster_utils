@@ -1,0 +1,49 @@
+---
+# Requires values_secrets_data from find_vp_secrets. When vp_early_primary_bootstrap_done is true,
+# duplicate inject is skipped (early pass already ran after pattern apply in operator_deploy).
+- name: Cache values-secrets as YAML for v2 inline bootstrap detection
+  ansible.builtin.set_fact:
+    secrets_yaml: "{{ values_secrets_data if values_secrets_data is not string else values_secrets_data | from_yaml }}"
+
+- name: Detect inline bootstrap secrets in primary v2 file
+  ansible.builtin.set_fact:
+    _vp_has_inline_bootstrap_secrets: >-
+      {{
+        (secrets_yaml.version | default('2.0')) is version('2.0', '>=')
+        and (
+          (secrets_yaml.secrets | default([])
+          | selectattr('bootstrap', 'defined')
+          | selectattr('bootstrap')
+          | list
+          | length) > 0
+        )
+      }}
+
+- name: Parse and inject bootstrap-phase secrets with retries
+  when:
+    - _vp_has_inline_bootstrap_secrets | bool
+    - not (vp_early_primary_bootstrap_done | default(false) | bool)
+  block:
+    - name: Stage primary plaintext for bootstrap inject helper
+      ansible.builtin.set_fact:
+        values_secrets_bootstrap_data: "{{ values_secrets_data }}"
+
+    - name: Initialize bootstrap secrets inject attempt counter
+      ansible.builtin.set_fact:
+        _bootstrap_inject_attempt: 1
+
+    - name: Inject bootstrap-tagged secrets into the cluster with retries on failure
+      ansible.builtin.include_tasks: bootstrap_inject_retry.yml
+
+- name: Clear bootstrap inject staging fact
+  ansible.builtin.set_fact:
+    values_secrets_bootstrap_data: ''
+
+- name: Note duplicate early bootstrap inject skipped
+  when:
+    - _vp_has_inline_bootstrap_secrets | bool
+    - vp_early_primary_bootstrap_done | default(false) | bool
+  ansible.builtin.debug:
+    msg: >-
+      Early bootstrap from the primary values-secret file already ran after pattern apply;
+      skipping duplicate inject.

@@ -11,77 +11,90 @@ loading local secrets files into VP secrets stores.
 
 ## Secrets loading
 
-The collection distinguishes **primary** values-secret files (the usual pattern secrets) from optional **bootstrap** values-secret files (extra content loaded with the `none` backing store into the cluster, independent of `values-global.yaml` `secretStore.backend`).
+Secrets are loaded from a **single primary** values-secret file (plus optional `values-secret.yaml.template` under the
+pattern tree as a last-resort discovery path). There are **no** separate `*-bootstrap.yaml` files or `VALUES_SECRET_BOOTSTRAP`
+paths; early cluster bootstrap uses **per-entry** `bootstrap` fields on v2 secrets in that same primary file.
 
-### Primary values-secret (standard load)
+### Primary values-secret
 
-- **Backing store** comes from `values-global.yaml`: `.global.secretStore.backend` (default `vault`). That drives parsing and whether secrets go to Vault or Kubernetes.
+- **Backing store** comes from `values-global.yaml`: `.global.secretStore.backend` (default `vault`). That drives parsing
+  and whether secrets go to Vault or Kubernetes.
 - **Discovery order** when `VALUES_SECRET` is unset (first existing file wins):  
   `~/.config/hybrid-cloud-patterns/values-secret-<pattern>.yaml`,  
   `~/.config/validated-patterns/values-secret-<pattern>.yaml`,  
   `~/values-secret-<pattern>.yaml`,  
   `~/values-secret.yaml`,  
   then `<pattern_dir>/values-secret.yaml.template`.
-- When `VALUES_SECRET` is set to an existing path, that file is used for the **primary** load. If bootstrap loading already consumed that same path because it was a bootstrap-named file, the primary pass temporarily ignores `VALUES_SECRET` so the primary search can fall back to the paths above.
+- When `VALUES_SECRET` is set to an existing path, that file is used for the primary load.
 
 Files may be plain YAML or `ansible-vault` encrypted.
 
-### Bootstrap values-secret (optional)
+### Per-secret `bootstrap` in v2 primary files
 
-Bootstrap files are **never** read from `<pattern_dir>/` (no `values-secret-*-bootstrap.yaml` under the pattern tree).
+On schema **2.0** primary values-secret files, each secret may set `bootstrap`:
 
-Bootstrap files may be **plain YAML or `ansible-vault` encrypted**, the same as primary values-secret files: when encrypted, Ansible prompts for the vault password (or uses your usual `ansible-playbook` vault options).
+- **`bootstrap: true`** (or string equivalents such as `yes`, `both`) — the secret is included in the **early**
+  Kubernetes inject pass (`none` backend) and is **also** parsed in the **primary** pass into the configured backend
+  (Vault or Kubernetes as in `values-global.yaml`). It must not use `onMissingValue: generate` on any field (the early
+  pass cannot generate in Vault).
+- **`bootstrap: only`** (or `early`) — the secret is **only** in the early inject pass; the primary pass **omits** it.
+- **Unset / false** — normal primary-only secret.
 
-When not using environment overrides, bootstrap candidates are checked in order (first existing file wins):
+Invalid `bootstrap` scalars fail parsing with a clear error.
 
-- `~/.config/hybrid-cloud-patterns/values-secret-<pattern>-bootstrap.yaml`
-- `~/.config/validated-patterns/values-secret-<pattern>-bootstrap.yaml`
-- `~/values-secret-<pattern>-bootstrap.yaml`
-- `~/values-secret-bootstrap.yaml`
-
-Bootstrap discovery precedence:
-
-1. **`VALUES_SECRET_BOOTSTRAP`** – if set to a path that exists, that file is used for bootstrap only (any filename). Primary `VALUES_SECRET` is unchanged.
-2. **`VALUES_SECRET`** – if set to an **existing** file whose name ends with `-bootstrap.yaml` or `-bootstrap.yml`, that file is used for bootstrap (and primary loading will ignore `VALUES_SECRET` for the primary file search so a separate primary file can be found).
-3. Otherwise the candidate paths above are searched.
-
-**Bootstrap is always parsed and applied with backing store `none`** (Kubernetes secret injection path), which requires schema version 2.0 or newer in the bootstrap file.
+Early inject runs **before** the primary backend load: during `playbooks/install.yml`, immediately after the
+pattern-install manifests are applied (`operator_deploy.yml`), then again inside `load_secrets` unless that early pass
+already completed (duplicate inject is skipped).
 
 ### Playbooks and flows
 
 - **`playbooks/load_secrets.yml`**  
-  Respects `.global.secretLoader.disabled` in `values-global.yaml`. When enabled: `cluster_pre_check`, optional **bootstrap** load (if a bootstrap file exists; **not** an error if missing), then **primary** discovery, parse, and load using the configured backend. During `playbooks/install.yml`, optional bootstrap runs immediately after the pattern-install manifests are applied (in `operator_deploy.yml`); `load_secrets` then skips the duplicate bootstrap pass and continues with primary loading.
+  Respects `.global.secretLoader.disabled` in `values-global.yaml`. When enabled: `cluster_pre_check`, primary file
+  discovery, early Kubernetes inject for bootstrap-tagged v2 entries (when present), then parse and load the rest into
+  the configured backend.
 
 - **`playbooks/load_bootstrap_secrets.yml`**  
-  Convenience wrapper: `determine_pattern_dir`, `determine_pattern_name`, then imports `load_secrets.yml` (same combined bootstrap-then-primary behavior as install).
+  Convenience wrapper: `determine_pattern_dir`, `determine_pattern_name`, then imports `load_secrets.yml` (same behavior
+  as install).
 
 - **`playbooks/load_bootstrap_secrets_only.yml`**  
-  **Bootstrap only**: same pattern discovery plays and `pattern_settings`, then only bootstrap inject (with retries). **Fails** if no bootstrap file is found. Does **not** read `secretLoader.disabled` or load the primary file.
+  **Early bootstrap inject only**: same pattern discovery plays and `pattern_settings`, then only the Kubernetes inject
+  for bootstrap-tagged secrets in the primary file (with retries). **Fails** if no primary file exists or there are no
+  bootstrap-tagged v2 entries. Does **not** read `secretLoader.disabled` or load into Vault / primary backend.
 
 - **`playbooks/display_secrets_info.yml`**  
-  Loads and displays parsed primary secrets (using the backend from `values-global`). If a bootstrap file exists, also parses and displays it with backing store `none`. Missing bootstrap is not an error.
+  Loads and displays parsed secrets (using the backend from `values-global`). For v2 files with bootstrap-tagged entries,
+  uses a merged bootstrap + primary parse for display.
 
-Typical usage passes the pattern checkout as `pattern_dir` (for example `-e pattern_dir=/path/to/pattern`). If you omit it, the same resolution as `pattern_settings` applies: `PATTERN_DIR`, then `PWD`, then the `pwd` command.
+Typical usage passes the pattern checkout as `pattern_dir` (for example `-e pattern_dir=/path/to/pattern`). If you omit
+it, the same resolution as `pattern_settings` applies: `PATTERN_DIR`, then `PWD`, then the `pwd` command.
 
-`playbooks/install.yml` imports `load_secrets.yml` after the pattern install playbook. When secret loading is enabled, optional bootstrap runs at the end of that install playbook (right after apply), then `load_secrets.yml` loads primary secrets without repeating bootstrap.
+`playbooks/install.yml` imports `load_secrets.yml` after the pattern install playbook. When secret loading is enabled,
+early bootstrap inject from the primary file runs at the end of `operator_deploy.yml` (right after apply), then
+`load_secrets.yml` continues without repeating that inject when it already succeeded.
 
-### Bootstrap retries
+### Early bootstrap inject retries
 
-Bootstrap **inject** retries (parse plus Kubernetes apply) are controlled on the role defaults / extra-vars:
+Outer retries (parse plus Kubernetes apply) are controlled on the role defaults / extra-vars:
 
 - `vp_secrets_bootstrap_retry_max` (default `20`)
 - `vp_secrets_bootstrap_retry_delay` (seconds between attempts, default `30`)
 
-These apply to the optional bootstrap phase inside `load_secrets` and to `load_bootstrap_secrets_only.yml`.
+These apply to the early inject path inside `load_secrets` and to `load_bootstrap_secrets_only.yml`.
 
 Per-secret namespace readiness (before each `kubernetes.core.k8s` apply) uses role defaults on `k8s_secret_utils`:
 
 - `k8s_secret_namespace_check_retries` (default `5`) and `k8s_secret_namespace_check_delay` (seconds between attempts, default `45`).
 
-If the namespace still does not exist after those attempts, the inject fails and the **outer** bootstrap retry re-runs parse plus all secret injections from the start.
+If the namespace still does not exist after those attempts, the inject fails and the **outer** retry re-runs parse plus
+all secret injections from the start.
 
 ### Roles (implementation notes)
 
-- `roles/load_secrets/tasks/main.yml` implements the **combined** flow (optional bootstrap, then primary).
-- `roles/load_secrets/tasks/bootstrap_only.yml` is used only when you invoke the `load_secrets` role with `tasks_from: bootstrap_only.yml` (as `load_bootstrap_secrets_only.yml` does).
-- `roles/find_vp_secrets` resolves primary files (`tasks/main.yml`) and optional bootstrap discovery (`tasks/find_optional_bootstrap.yml`).
+- `roles/load_secrets/tasks/main.yml` implements the **combined** flow (early inject from primary file, then primary
+  backend load).
+- `roles/load_secrets/tasks/bootstrap_only.yml` is used only when you invoke the `load_secrets` role with
+  `tasks_from: bootstrap_only.yml` (as `load_bootstrap_secrets_only.yml` does).
+- `roles/find_vp_secrets` resolves the primary file (`tasks/main.yml`).
+- v2 parsing and phase filters (`bootstrap_only`, `exclude_bootstrap`, `all`) are implemented in
+  `plugins/module_utils/parse_secrets_v2.py` (single `bootstrap` normalizer: off / dual / early-only).

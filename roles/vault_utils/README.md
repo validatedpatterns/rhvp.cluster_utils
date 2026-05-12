@@ -69,7 +69,15 @@ By default, the first file that will looked up is
 The paths can be overridden by setting the environment variable `VALUES_SECRET` to the path of the
 secret file.
 
-Optional **bootstrap** values-secret files (names ending with `-bootstrap.yaml`), the bootstrap-then-primary loading order, the bootstrap-only playbook, and `display_secrets_info.yml` are documented under **Secrets loading** in the collection `README.md` at the repository root.
+Optional **early bootstrap** behavior (Kubernetes inject for `bootstrap`-tagged v2 secrets in the **primary**
+values-secret file only), the early-then-primary loading order, `load_bootstrap_secrets_only.yml`, and
+`display_secrets_info.yml` are documented under **Secrets loading** in the collection `README.md` at the repository root.
+
+For **v2.0** primary files, each `secrets[]` entry may set `bootstrap`: use boolean `true` (or strings like `yes`,
+`both`) for **early Kubernetes inject plus** load into the configured primary backend (Vault or Kubernetes); use the
+string `only` or `early` for **early inject only** (primary parse skips that entry). See **Per-secret `bootstrap` in v2
+primary files** in the root `README.md`. The machine-readable rules live in `values-secrets.v2.schema.json` in this role
+(`bootstrap` is a boolean or a non-empty string).
 
 The values secret YAML files can be encrypted with `ansible-vault`. If the role detects they are encrypted, the password to
 decrypt them will be prompted when needed.

@@ -3,14 +3,10 @@
   ansible.builtin.set_fact:
     secrets_backing_store: "{{ values_global.global.secretStore.backend | default('vault') }}"
 
-- name: Run cluster pre-check once before optional bootstrap and primary secrets loading
+- name: Run cluster pre-check once before bootstrap-tagged and primary secrets loading
   ansible.builtin.include_role:
     name: cluster_pre_check
   when: not (vp_cluster_pre_check_done | default(false) | bool)
-
-- name: Optional bootstrap values-secret discovery and load
-  ansible.builtin.include_tasks: optional_bootstrap_load.yml
-  when: not (skip_optional_bootstrap | default(false) | bool)
 
 - name: Find primary values-secret file and read it
   ansible.builtin.include_role:
@@ -25,42 +21,12 @@
     exit 1
   when: values_secrets_data is not defined
 
+- name: Early Kubernetes inject for bootstrap-tagged secrets in primary file
+  ansible.builtin.include_tasks: inject_early_bootstrap_primary_entries.yml
+
 - name: Determine how to load secrets
   ansible.builtin.set_fact:
     secrets_yaml: "{{ values_secrets_data if values_secrets_data is not string else values_secrets_data | from_yaml }}"
-
-- name: Detect inline bootstrap secrets in primary v2 file
-  ansible.builtin.set_fact:
-    _vp_has_inline_bootstrap_secrets: >-
-      {{
-        (secrets_yaml.version | default('2.0')) is version('2.0', '>=')
-        and (
-          (secrets_yaml.secrets | default([])
-          | selectattr('bootstrap', 'defined')
-          | selectattr('bootstrap')
-          | list
-          | length) > 0
-        )
-      }}
-
-- name: Parse and inject inline bootstrap secrets from primary file (v2)
-  when: _vp_has_inline_bootstrap_secrets | bool
-  block:
-    - name: Parse primary file bootstrap-only secrets for none backend
-      no_log: "{{ hide_sensitive_output | default(true) }}"
-      parse_secrets_info:
-        values_secrets_plaintext: "{{ values_secrets_data }}"
-        secrets_backing_store: none
-        secrets_parse_filter: bootstrap_only
-      register: inline_bootstrap_secrets_results
-
-    - name: Inject inline bootstrap secrets into the cluster
-      ansible.builtin.include_role:
-        name: k8s_secret_utils
-        tasks_from: inject_k8s_secrets
-      vars:
-        kubernetes_secret_objects: "{{ inline_bootstrap_secrets_results.kubernetes_secret_objects }}"
-      when: inline_bootstrap_secrets_results.parsed_secrets | length > 0
 
 - name: Parse secrets data
   no_log: "{{ hide_sensitive_output | default(true) }}"
@@ -87,7 +53,7 @@
     parsed_secrets: "{{ secrets_results.parsed_secrets }}"
     unique_vault_prefixes: "{{ secrets_results.unique_vault_prefixes | default([]) }}"
 
-- name: Clear bootstrap-related VALUES_SECRET routing facts
+- name: Clear early-bootstrap timing facts for later plays
   ansible.builtin.set_fact:
-    vp_skip_values_secret_env_for_primary: false
-    vp_bootstrap_loaded_via_values_secret_env: false
+    vp_early_primary_bootstrap_done: false
+    vp_early_primary_file_loaded: false

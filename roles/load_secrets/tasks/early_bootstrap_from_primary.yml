@@ -1,0 +1,35 @@
+---
+# Discover primary values-secret and inject bootstrap-tagged entries (none backend, with retries).
+# Used from operator_deploy after pattern manifests apply. Rescue allows install to continue when
+# no primary file exists yet; load_secrets.yml will surface the same discovery rules later.
+- name: Early bootstrap from primary values-secret file
+  block:
+    - name: Find and read primary values-secret file
+      ansible.builtin.include_role:
+        name: find_vp_secrets
+
+    - name: Assert primary values-secret content is available
+      ansible.builtin.assert:
+        that:
+          - values_secrets_data is defined
+        fail_msg: >-
+          Primary values-secret discovery succeeded but no content was loaded.
+          Check file permissions and format.
+
+    - name: Inject bootstrap-tagged entries from primary file
+      ansible.builtin.include_tasks: inject_early_bootstrap_primary_entries.yml
+
+    - name: Record that primary values-secret was loaded for early bootstrap timing
+      ansible.builtin.set_fact:
+        vp_early_primary_file_loaded: true
+
+  rescue:
+    - name: Note skipping early bootstrap from primary file
+      ansible.builtin.debug:
+        msg: >-
+          Skipping early bootstrap from primary values-secret (file not found or not readable yet).
+          Full secrets loading will run in load_secrets.yml when secret loading is enabled.
+
+    - name: Record that primary values-secret was not loaded for early bootstrap
+      ansible.builtin.set_fact:
+        vp_early_primary_file_loaded: false

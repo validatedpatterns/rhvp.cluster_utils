@@ -7,12 +7,7 @@
 
 - name: Resolve VALUES_SECRET for primary secrets search
   ansible.builtin.set_fact:
-    custom_env_values_secret: >-
-      {{
-        ''
-        if (vp_skip_values_secret_env_for_primary | default(false) | bool)
-        else (lookup('ansible.builtin.env', 'VALUES_SECRET') | default('', true))
-      }}
+    custom_env_values_secret: "{{ lookup('ansible.builtin.env', 'VALUES_SECRET') | default('', true) }}"
 
 - name: Check if VALUES_SECRET file exists
   ansible.builtin.stat:

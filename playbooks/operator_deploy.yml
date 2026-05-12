@@ -52,13 +52,13 @@
               Failed to install pattern after 10 retries.
               Error: {{ _apply.error | default(_apply.msg) | default('Unknown error') }}
 
-    # Bootstrap secrets (optional file) run immediately after pattern-install manifests are applied
-    # (same ordering constraint as install.yml: before primary secrets load and Argo health wait).
+    # Bootstrap-tagged secrets in the primary values-secret file run immediately after apply
+    # (before full load_secrets and Argo health wait).
     - name: Evaluate secret loader setting for bootstrap timing
       ansible.builtin.set_fact:
         secret_loader_disabled: "{{ values_global.global.secretLoader.disabled | default(false) | bool }}"
 
-    - name: Run cluster pre-check and optional bootstrap secrets immediately after pattern apply
+    - name: Run cluster pre-check and early bootstrap from primary file after pattern apply
       when: not secret_loader_disabled
       block:
         - name: Run cluster pre-check before bootstrap
@@ -69,11 +69,11 @@
           ansible.builtin.set_fact:
             vp_cluster_pre_check_done: true
 
-        - name: Optional bootstrap values-secret discovery and load
+        - name: Early inject of bootstrap-tagged secrets from primary values-secret
           ansible.builtin.include_role:
             name: load_secrets
-            tasks_from: optional_bootstrap_load.yml
+            tasks_from: early_bootstrap_from_primary.yml
 
-        - name: Remember bootstrap phase completed in install play (avoid duplicate in load_secrets)
+        - name: Remember early bootstrap inject for duplicate skip in load_secrets
           ansible.builtin.set_fact:
-            skip_optional_bootstrap: true
+            vp_early_primary_bootstrap_done: "{{ vp_early_primary_file_loaded | default(false) | bool }}"

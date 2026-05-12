@@ -87,10 +87,12 @@ options:
     type: str
   secrets_parse_filter:
     description:
-      - Controls which v2 secrets entries are parsed. Secrets may set C(bootstrap) to C(true) to load in the
-        bootstrap phase (C(none) backend) only; the primary phase omits them when using C(exclude_bootstrap)
-        (the default). Use C(all) when parsing a dedicated bootstrap file that lists secrets without per-entry
-        C(bootstrap) flags, or to merge phases for display.
+      - Controls which v2 secrets entries are parsed. For v2 secrets, C(bootstrap) is normalized to a mode
+        C(off) (unset/false), C(dual) (C(bootstrap) true or equivalent string), or C(early_only) (C(bootstrap) only)).
+        C(bootstrap_only) returns every secret that participates in the early inject phase (C(dual) and C(early_only)).
+        C(exclude_bootstrap) (the default primary parse) omits only C(early_only) secrets; C(dual) secrets are
+        parsed with the configured backend. Use C(all) when parsing a dedicated bootstrap file that lists secrets
+        without per-entry C(bootstrap) flags, or to merge phases for display.
     required: false
     default: exclude_bootstrap
     type: str
