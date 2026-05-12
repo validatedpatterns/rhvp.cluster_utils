@@ -168,6 +168,18 @@ class ParseSecretsV2(SecretsV2Base):
     def _get_secrets(self):
         return self._filter_secrets_for_phase(self._all_secrets_raw())
 
+    def _secrets_subject_to_phase_validation(self):
+        """
+        Secrets that receive backing-store, namespace, and field validation for this parse.
+
+        For bootstrap_only (early K8s inject, caller backing store none), only validate entries that
+        participate in that phase. Other secrets in the same file are parsed in a separate primary
+        pass with the real backend and must not inherit none-backend namespace rules here.
+        """
+        if self.secrets_parse_filter == "bootstrap_only":
+            return self._get_secrets()
+        return list(self._all_secrets_raw())
+
     def _get_field_annotations(self, f):
         return f.get("annotations", {})
 
@@ -305,14 +317,18 @@ class ParseSecretsV2(SecretsV2Base):
 
         names = []
         for s in secrets:
-            # These fields are mandatory
             for i in ["name"]:
                 try:
                     unused = s[i]
                 except KeyError:
-                    return (False, f"Secret {s['name']} is missing {i}")
+                    return (False, f"Secret {s.get('name', '?')} is missing {i}")
             names.append(s["name"])
 
+        dupes = find_dupes(names)
+        if len(dupes) > 0:
+            return (False, f"You cannot have duplicate secret names: {dupes}")
+
+        for s in self._secrets_subject_to_phase_validation():
             vault_prefixes = s.get("vaultPrefixes", ["hub"])
             # This checks for the case when vaultPrefixes: is specified but empty
             if vault_prefixes is None or len(vault_prefixes) == 0:
@@ -361,9 +377,6 @@ class ParseSecretsV2(SecretsV2Base):
             if len(field_dupes) > 0:
                 return (False, f"You cannot have duplicate field names: {field_dupes}")
 
-        dupes = find_dupes(names)
-        if len(dupes) > 0:
-            return (False, f"You cannot have duplicate secret names: {dupes}")
         return (True, "")
 
     def sanitize_values(self):
