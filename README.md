@@ -11,6 +11,8 @@ loading local secrets files into VP secrets stores.
 
 ## SS CSI workload auth notes
 
+SS CSI task files live in **`roles/vault_utils/tasks/ss_csi/`**; paths below match **`include_tasks`** from the role (**`ss_csi/<file>`** relative to **`tasks/`**).
+
 `vault_utils` can read `ssCsiWorkloadAuth` entries from clustergroup values and
 create Vault Kubernetes auth roles for hub and spoke workloads.
 
@@ -46,11 +48,11 @@ and a merged **`clusterGroup.managedClusterGroups`**. It collects:
 
 Rows are appended to **`_ss_csi_all_entries`**, split into hub vs spoke using
 the computed **`cluster`** field (from stem or managed group when omitted in YAML), then **hub** identities get Vault Kubernetes
-auth roles via **`vault_ss_csi_apply_one_hub_sscsi_role.yaml`**. Spoke rows are
-normalized to **`vault_path`** later in the play (**`vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`**
+auth roles via **`ss_csi/vault_ss_csi_apply_one_hub_sscsi_role.yaml`**. Spoke rows are
+normalized to **`vault_path`** later in the play (**`ss_csi/vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`**
 during **`vault_spokes_init`**) and roles are written on each spoke mount
-(**`vault_ss_csi_apply_one_spoke_sscsi_role.yaml`**). Role names use
-**`<mount>-sscsi-<slug>`**; slugs come from **`vault_ss_csi_compute_role_slug.yaml`**.
+(**`ss_csi/vault_ss_csi_apply_one_spoke_sscsi_role.yaml`**). Role names use
+**`<mount>-sscsi-<slug>`**; slugs come from **`ss_csi/vault_ss_csi_compute_role_slug.yaml`**.
 
 To **inspect** stems and files locally, run **`playbooks/list_clustergroups.yml`**
 or **`playbooks/parse_clustergroup_values.yml`** (see **`roles/clustergroup_discovery/README.md`**).

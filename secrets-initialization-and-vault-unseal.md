@@ -10,7 +10,7 @@ This document describes how Vault and application secrets are bootstrapped when 
   1. **`pattern_settings`** — Resolves `pattern_dir` (extra var, `PATTERN_DIR`,
      then `PWD` / `pwd`) and loads `values-global.yaml` (including
      `main.clusterGroupName` as `main_clustergroup`). When `pattern_settings` is
-     not in the play, **`vault_ss_csi_workload_auth`** repeats the same
+     not in the play, **`ss_csi/vault_ss_csi_workload_auth.yaml`** repeats the same
      `pattern_dir` resolution and, if needed, reads `values-global.yaml` under
      that directory to set `main_clustergroup` / `main_clustergroupname` before
      loading merged clustergroup values.
@@ -111,23 +111,23 @@ Summary:
 SS CSI workload auth runs from **`include_tasks: ss_csi/vault_ss_csi_workload_auth.yaml`**
 (inside **`vault_secrets_init.yaml`**). The pipeline is:
 
-1. **Parsing** — **`vault_ss_csi_load_clustergroup_values.yaml`** chooses merged
+1. **Parsing** — **`ss_csi/vault_ss_csi_load_clustergroup_values.yaml`** chooses merged
    multi-stem loading (**`vault_ss_csi_aggregate_clustergroup_sources`**, default
    true) or **legacy** single-document loading. Merged mode runs
    **`clustergroup_discovery`** then, for each stem in **`clustergroup_load_order`**,
    loads **`ConfigMap` `values-<stem>`** (then optional **`values-<stem>.yaml|yml`**
    under **`pattern_dir`**) and merges **`clusterGroup.applications`** and
    **`clusterGroup.managedClusterGroups`**. See **`roles/vault_utils/README.md`**
-   (SS CSI) for variables and task filenames.
+   (SS CSI) for variables and task filenames under **`tasks/ss_csi/`**.
 2. **Extraction** — Builds per-stem **`_vault_ss_csi_apps_by_stem`** and collects
    **`ssCsiWorkloadAuth`** from **`clusterGroup.applications`** per stem (omit
    **`cluster`** in values: main stem resolves to **hub**; other stems to the
    **stem name**) and from merged **`clusterGroup.managedClusterGroups.*.applications`**
    (omit **`cluster`**; defaults to managed group **`name`** or YAML key).
-3. **Projection** — Hub-classified rows get **`vault_ss_csi_apply_one_hub_sscsi_role`**;
+3. **Projection** — Hub-classified rows get **`ss_csi/vault_ss_csi_apply_one_hub_sscsi_role.yaml`**;
    spoke rows are normalized to **`vault_path`** during **`vault_spokes_init`**
-   (**`vault_ss_csi_normalize_spoke_entries_to_vault_path`**) and written with
-   **`vault_ss_csi_apply_one_spoke_sscsi_role`**.
+   (**`ss_csi/vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`**) and written with
+   **`ss_csi/vault_ss_csi_apply_one_spoke_sscsi_role.yaml`**.
 
 **Defaults:** ConfigMaps live in **`openshift-gitops`** unless
 **`vault_ss_csi_clustergroup_configmap_namespace`** is changed; YAML is read from
@@ -136,10 +136,10 @@ data keys in **`vault_ss_csi_clustergroup_configmap_key_candidates`** unless
 **`clusterGroup`**. Set **`vault_ss_csi_clustergroup_values_from_configmap`** to
 false to force file-only reads. When **`vault_ss_csi_fallback_local_clustergroup_file`**
 is true, missing or unusable cluster data falls back to local files as implemented
-in **`vault_ss_csi_load_one_clustergroup_values_fragment.yaml`** / legacy tasks.
+in **`ss_csi/vault_ss_csi_load_one_clustergroup_values_fragment.yaml`** / legacy tasks.
 
 **Spoke cluster ID and charts:** Omit **`cluster`** in pattern `ssCsiWorkloadAuth` lists; Ansible derives it from stem or managed group. Before applying SS CSI roles on spokes,
-`**vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`** rewrites each spoke row so **`cluster` equals `vault_path`**
+**`ss_csi/vault_ss_csi_normalize_spoke_entries_to_vault_path.yaml`** rewrites each spoke row so **`cluster` equals `vault_path`**
 (spoke FQDN) for every cluster that has External Secrets token data (`esoToken`).
 That matches Vault Kubernetes auth mounts and ESO.
 Pattern charts that render **`SecretProviderClass`** via **vp-sscsi-spc** should keep **`global.clusterDomain`** set to that same FQDN on the spoke; the library builds **`spec.parameters.roleName`** as **`<vaultKubernetesMountPath>-sscsi-<roleSlug>`**, using the FQDN mount path (not a short clustergroup label).
