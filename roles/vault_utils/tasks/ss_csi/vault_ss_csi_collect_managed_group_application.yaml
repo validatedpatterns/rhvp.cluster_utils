@@ -2,7 +2,7 @@
 # mcg_outer_item: { key: <managedClusterGroup id>, value: <managedClusterGroup spec> }
 # Reuses vault_ss_csi_collect_one_application; ss_csi_cluster_default_for_app fills cluster when omitted in each entry.
 - name: Process managed cluster group {{ mcg_outer_item.key }} applications for SS CSI
-  ansible.builtin.include_tasks: vault_ss_csi_collect_one_application.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_collect_one_application.yaml
   loop: "{{ (mcg_outer_item.value.applications | default({})) | dict2items | selectattr('value.ssCsiWorkloadAuth', 'defined') | list }}"
   loop_control:
     loop_var: outer_item

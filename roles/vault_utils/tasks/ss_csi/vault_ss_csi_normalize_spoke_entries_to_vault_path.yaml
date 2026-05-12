@@ -6,7 +6,7 @@
     _ss_csi_spoke_entries_for_spokes: []
 
 - name: Map SS CSI workload rows onto each spoke vault_path
-  ansible.builtin.include_tasks: vault_ss_csi_normalize_spoke_entries_one_cluster.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_normalize_spoke_entries_one_cluster.yaml
   loop: "{{ clusters_info | dict2items }}"
   loop_control:
     loop_var: ci_loop

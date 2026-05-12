@@ -15,7 +15,7 @@
     name: clustergroup_discovery
 
 - name: Load and merge each clustergroup fragment for SS CSI
-  ansible.builtin.include_tasks: vault_ss_csi_load_one_clustergroup_values_fragment.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_load_one_clustergroup_values_fragment.yaml
   loop: "{{ clustergroup_load_order | default([]) }}"
   loop_control:
     loop_var: cg_stem

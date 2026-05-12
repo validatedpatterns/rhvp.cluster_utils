@@ -3,7 +3,7 @@
 # Omit cluster in values: main stem -> hub, other stems -> stem name (see ss_csi_cluster_default_for_app below).
 
 - name: Collect SS CSI rows from clusterGroup.applications for stem {{ cg_collect_stem }}
-  ansible.builtin.include_tasks: vault_ss_csi_collect_one_application.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_collect_one_application.yaml
   loop: >-
     {{
       ((_vault_ss_csi_apps_by_stem | default({}))[cg_collect_stem] | default({}))

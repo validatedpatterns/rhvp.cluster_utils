@@ -1,6 +1,6 @@
 ---
 - name: Compute Vault role slug for spoke SS CSI identity
-  ansible.builtin.include_tasks: vault_ss_csi_compute_role_slug.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_compute_role_slug.yaml
   vars:
     ss_csi_mount_prefix: "{{ vault_spoke_cluster_loop.value.vault_path }}"
     ss_csi_hash_input: >-

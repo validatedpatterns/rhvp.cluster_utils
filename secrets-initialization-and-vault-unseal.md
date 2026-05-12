@@ -104,11 +104,11 @@ Summary:
 4. **`vault write auth/{{ vault_hub }}/config`** with `token_reviewer_jwt`, `kubernetes_host`, CA from the Vault pod's service account, issuer `https://kubernetes.default.svc`.
 5. Write **HCL policy files** in the pod under `/tmp` and **`vault policy write`** for: global, pushsecrets (data + metadata paths), hub path.
 6. Read existing **`auth/{{ vault_hub }}/role/{{ vault_hub }}-role`**, merge policies with `vault_hub_role_default_policies`, and **`vault write`** the role when an update is needed (bound SA/namespace from active external-secrets config, TTL from `vault_hub_ttl`).
-7. **`include_tasks: vault_ss_csi_workload_auth.yaml`** for optional SS CSI Kubernetes auth roles from pattern values.
+7. **`include_tasks: ss_csi/vault_ss_csi_workload_auth.yaml`** for optional SS CSI Kubernetes auth roles from pattern values.
 
 ### SS CSI: parsing, extraction, and projection
 
-SS CSI workload auth runs from **`include_tasks: vault_ss_csi_workload_auth.yaml`**
+SS CSI workload auth runs from **`include_tasks: ss_csi/vault_ss_csi_workload_auth.yaml`**
 (inside **`vault_secrets_init.yaml`**). The pipeline is:
 
 1. **Parsing** — **`vault_ss_csi_load_clustergroup_values.yaml`** chooses merged

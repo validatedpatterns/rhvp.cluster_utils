@@ -56,7 +56,7 @@
     - _vault_ss_csi_values_global_slurp.content is defined
 
 - name: Load clustergroup values for SS CSI (cluster ConfigMap, then local file)
-  ansible.builtin.include_tasks: vault_ss_csi_load_clustergroup_values.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_load_clustergroup_values.yaml
   when: vault_ss_csi_from_applications | default(true) | bool
 
 - name: Parse clusterGroup applications and managedClusterGroups from clustergroup values
@@ -100,7 +100,7 @@
     - _vault_ss_csi_apps_by_stem is defined
 
 - name: Collect SS CSI rows from clusterGroup.applications per clustergroup stem
-  ansible.builtin.include_tasks: vault_ss_csi_collect_applications_for_stem.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_collect_applications_for_stem.yaml
   loop: "{{ _vault_ss_csi_cg_collect_stems | default([]) }}"
   loop_control:
     loop_var: cg_collect_stem
@@ -110,7 +110,7 @@
     - (_vault_ss_csi_cg_collect_stems | default([]) | length) > 0
 
 - name: Collect SS CSI rows from clusterGroup.managedClusterGroups.*.applications
-  ansible.builtin.include_tasks: vault_ss_csi_collect_managed_group_application.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_collect_managed_group_application.yaml
   loop: "{{ _vault_ss_csi_managed_cluster_groups | default({}) | dict2items | list }}"
   loop_control:
     loop_var: mcg_outer_item
@@ -171,7 +171,7 @@
   when: vault_ss_csi_from_applications | default(true) | bool
 
 - name: Configure hub Vault Kubernetes auth role per SS CSI workload identity
-  ansible.builtin.include_tasks: vault_ss_csi_apply_one_hub_sscsi_role.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_apply_one_hub_sscsi_role.yaml
   loop: "{{ _ss_csi_hub_entries | default([]) }}"
   loop_control:
     label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"

@@ -7,7 +7,7 @@
     _ss_rows_this_cluster: "{{ _ss_csi_spoke_entries_for_spokes | default([]) | selectattr('cluster', 'equalto', cluster_loop.value.vault_path | default('', true) | string) | list }}"
 
 - name: Configure Vault SS CSI role on spoke {{ cluster_loop.key }}
-  ansible.builtin.include_tasks: vault_ss_csi_apply_one_spoke_sscsi_role.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_apply_one_spoke_sscsi_role.yaml
   loop: "{{ _ss_rows_this_cluster | default([]) }}"
   loop_control:
     label: "{{ item.app }}/{{ item.namespace }}/{{ item.serviceAccount }}"

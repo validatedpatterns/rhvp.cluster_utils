@@ -3,11 +3,11 @@
 # Sets _vault_ss_csi_values_root (mapping with .clusterGroup) and _vault_ss_csi_values_source when successful.
 
 - name: Load merged clustergroup values across all stems for SS CSI
-  ansible.builtin.include_tasks: vault_ss_csi_load_merged_clustergroup_values.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_load_merged_clustergroup_values.yaml
   when: vault_ss_csi_aggregate_clustergroup_sources | default(true) | bool
 
 - name: Load single main clustergroup values for SS CSI (legacy)
-  ansible.builtin.include_tasks: vault_ss_csi_load_clustergroup_values_legacy.yaml
+  ansible.builtin.include_tasks: ss_csi/vault_ss_csi_load_clustergroup_values_legacy.yaml
   when: >-
     not (vault_ss_csi_aggregate_clustergroup_sources | default(true) | bool)
     or not (_vault_ss_csi_merge_any_loaded | default(false))
