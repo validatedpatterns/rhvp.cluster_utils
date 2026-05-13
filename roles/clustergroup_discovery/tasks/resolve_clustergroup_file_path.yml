@@ -1,0 +1,32 @@
+---
+# loop_var: clustergroup_discovery_stem — append {name, path} to clustergroup_file_entries when file exists.
+
+- name: Stat values file for stem {{ clustergroup_discovery_stem }} (yaml)
+  ansible.builtin.stat:
+    path: "{{ pattern_dir | string | trim }}/values-{{ clustergroup_discovery_stem | string | trim }}.yaml"
+  register: _clustergroup_discovery_stem_stat_yaml
+
+- name: Stat values file for stem {{ clustergroup_discovery_stem }} (yml)
+  ansible.builtin.stat:
+    path: "{{ pattern_dir | string | trim }}/values-{{ clustergroup_discovery_stem | string | trim }}.yml"
+  register: _clustergroup_discovery_stem_stat_yml
+
+- name: Record clustergroup file entry for {{ clustergroup_discovery_stem }} (prefer yaml)
+  ansible.builtin.set_fact:
+    clustergroup_file_entries: "{{ clustergroup_file_entries | default([]) + [_entry] }}"
+  vars:
+    _entry:
+      name: "{{ clustergroup_discovery_stem | string | trim }}"
+      path: "{{ pattern_dir | string | trim }}/values-{{ clustergroup_discovery_stem | string | trim }}.yaml"
+  when: _clustergroup_discovery_stem_stat_yaml.stat.exists | default(false)
+
+- name: Record clustergroup file entry for {{ clustergroup_discovery_stem }} (yml fallback)
+  ansible.builtin.set_fact:
+    clustergroup_file_entries: "{{ clustergroup_file_entries | default([]) + [_entry] }}"
+  vars:
+    _entry:
+      name: "{{ clustergroup_discovery_stem | string | trim }}"
+      path: "{{ pattern_dir | string | trim }}/values-{{ clustergroup_discovery_stem | string | trim }}.yml"
+  when:
+    - not (_clustergroup_discovery_stem_stat_yaml.stat.exists | default(false))
+    - _clustergroup_discovery_stem_stat_yml.stat.exists | default(false)

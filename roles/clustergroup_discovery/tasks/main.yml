@@ -1,0 +1,118 @@
+---
+# Discover clustergroups in use: main from values-global, managed from main file's clusterGroup.managedClusterGroups.
+# Sets: clustergroup_names (sorted stems), managed_clustergroup_names (sorted, excludes main),
+#       clustergroup_load_order (main first, then managed sorted — later stems override duplicate keys when merging),
+#       clustergroup_file_entries ({name, path} only when values-<stem>.yaml|yml exists),
+#       clustergroup_documents (optional, stem -> parsed YAML root).
+
+- name: Resolve pattern_dir for clustergroup discovery
+  ansible.builtin.include_tasks: ../pattern_settings/tasks/resolve_overrides.yml
+  when: (pattern_dir | default('', true) | string | trim | length) == 0
+
+- name: Fail when pattern_dir is empty after resolve
+  ansible.builtin.fail:
+    msg: >-
+      pattern_dir is required (extra var pattern_dir, env PATTERN_DIR, or cwd with values-global.yaml).
+  when: (pattern_dir | default('', true) | string | trim | length) == 0
+
+- name: Resolve main clustergroup stem from facts or values-global.yaml
+  ansible.builtin.set_fact:
+    _clustergroup_discovery_main_stem: >-
+      {{
+        (
+          (main_clustergroupname | default(main_clustergroup | default('', true), true) | string | trim | length) > 0
+        )
+        | ternary(
+            main_clustergroupname | default(main_clustergroup, true) | string | trim,
+            (
+              lookup('file', (pattern_dir | string | trim) ~ '/values-global.yaml')
+              | from_yaml
+            ).main.clusterGroupName | string | trim
+          )
+      }}
+
+- name: Fail when main clusterGroupName cannot be resolved
+  ansible.builtin.fail:
+    msg: >-
+      Could not resolve main clustergroup (values-global.yaml missing .main.clusterGroupName or empty).
+  when: (_clustergroup_discovery_main_stem | string | trim | length) == 0
+
+- name: Stat main clustergroup values file (yaml)
+  ansible.builtin.stat:
+    path: "{{ pattern_dir | string | trim }}/values-{{ _clustergroup_discovery_main_stem }}.yaml"
+  register: _clustergroup_discovery_main_stat_yaml
+
+- name: Stat main clustergroup values file (yml)
+  ansible.builtin.stat:
+    path: "{{ pattern_dir | string | trim }}/values-{{ _clustergroup_discovery_main_stem }}.yml"
+  register: _clustergroup_discovery_main_stat_yml
+  when: not (_clustergroup_discovery_main_stat_yaml.stat.exists | default(false))
+
+- name: Set path to main clustergroup values file when present
+  ansible.builtin.set_fact:
+    _clustergroup_main_values_path: "{{ pattern_dir | string | trim }}/values-{{ _clustergroup_discovery_main_stem }}.yaml"
+  when: _clustergroup_discovery_main_stat_yaml.stat.exists | default(false)
+
+- name: Set path to main clustergroup values file when only yml exists
+  ansible.builtin.set_fact:
+    _clustergroup_main_values_path: "{{ pattern_dir | string | trim }}/values-{{ _clustergroup_discovery_main_stem }}.yml"
+  when:
+    - _clustergroup_main_values_path is not defined
+    - _clustergroup_discovery_main_stat_yml is defined
+    - _clustergroup_discovery_main_stat_yml.stat.exists | default(false)
+
+- name: Load parsed root from main clustergroup values file
+  ansible.builtin.set_fact:
+    _clustergroup_main_root: "{{ lookup('file', _clustergroup_main_values_path) | from_yaml }}"
+  when: _clustergroup_main_values_path is defined
+
+- name: Default empty main clustergroup root when file is absent
+  ansible.builtin.set_fact:
+    _clustergroup_main_root: {}
+  when: _clustergroup_main_values_path is not defined
+
+- name: Collect managed clustergroup names from main file managedClusterGroups
+  ansible.builtin.set_fact:
+    managed_clustergroup_names: "{{ managed_clustergroup_names | default([]) + [_cgd_mcg_name] }}"
+  vars:
+    _cgd_mcg_name: "{{ (item.value.name | default(item.key, true)) | string | trim }}"
+  loop: "{{ (_clustergroup_main_root.clusterGroup | default({})).managedClusterGroups | default({}) | dict2items }}"
+  loop_control:
+    label: "{{ _cgd_mcg_name }}"
+  when:
+    - _clustergroup_main_root is mapping
+    - (_clustergroup_main_root.clusterGroup | default({})).managedClusterGroups is defined
+    - ((_clustergroup_main_root.clusterGroup | default({})).managedClusterGroups | default({})) is mapping
+
+- name: Finalize managed clustergroup names list
+  ansible.builtin.set_fact:
+    managed_clustergroup_names: "{{ managed_clustergroup_names | default([]) | unique | sort }}"
+
+- name: Set clustergroup load order (main first so managed values files override on duplicate keys)
+  ansible.builtin.set_fact:
+    clustergroup_load_order: >-
+      {{
+        (
+          [_clustergroup_discovery_main_stem]
+          + (managed_clustergroup_names | reject('equalto', _clustergroup_discovery_main_stem) | list)
+        ) | unique | list
+      }}
+
+- name: Set sorted clustergroup names (all stems in use)
+  ansible.builtin.set_fact:
+    clustergroup_names: "{{ clustergroup_load_order | sort }}"
+
+- name: Build clustergroup_file_entries for stems that have a local values file
+  ansible.builtin.include_tasks: resolve_clustergroup_file_path.yml
+  loop: "{{ clustergroup_load_order }}"
+  loop_control:
+    loop_var: clustergroup_discovery_stem
+
+- name: Default empty clustergroup file entries
+  ansible.builtin.set_fact:
+    clustergroup_file_entries: []
+  when: clustergroup_file_entries is not defined
+
+- name: Parse each resolved clustergroup values file when requested
+  ansible.builtin.include_tasks: parse_documents.yml
+  when: clustergroup_discovery_parse_documents | default(false) | bool
