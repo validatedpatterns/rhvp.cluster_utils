@@ -48,4 +48,4 @@ test: ansible-sanitytest ansible-unittest
 .PHONY: check-jsonschema
 check-jsonschema: ## Runs check-jsonschema against all unit test files except known broken ones
 	set -e; \
-	for i in values-secret-v2-base values-secret-v2-generic-onlygenerate values-secret-v2-block-yamlstring; do echo "$$i"; check-jsonschema --schemafile ./roles/vault_utils/values-secrets.v2.schema.json "tests/unit/v2/$$i.yaml"; done
+	for i in values-secret-v2-base values-secret-v2-generic-onlygenerate values-secret-v2-block-yamlstring values-secret-v2-bootstrap-and-late values-secret-v2-bootstrap-only; do echo "$$i"; check-jsonschema --schemafile ./roles/vault_utils/values-secrets.v2.schema.json "tests/unit/v2/$$i.yaml"; done

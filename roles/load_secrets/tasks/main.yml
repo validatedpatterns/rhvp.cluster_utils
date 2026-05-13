@@ -28,6 +28,7 @@
   parse_secrets_info:
     values_secrets_plaintext: "{{ values_secrets_data }}"
     secrets_backing_store: "{{ secrets_backing_store }}"
+    secrets_phase: "{{ secrets_phase }}"
   register: secrets_results
 
 - name: Select Kubernetes secrets loader (when requested)

@@ -75,15 +75,18 @@ class LoadSecretsV2(SecretsV2Base):
         """
         return str(self.syaml.get("backingStore", "vault"))
 
-    def _get_secrets(self):
-        return self.syaml.get("secrets", {})
+    def _get_bootstrap_secrets(self):
+        bootstrap = self.syaml.get("bootstrap_secrets", [])
+        if bootstrap is None or bootstrap == "None":
+            return []
+        return bootstrap
 
     def _validate_secrets(self):
         secrets = self._get_secrets()
-        if len(secrets) == 0:
+        bootstrap_secrets = self._get_bootstrap_secrets()
+        if len(secrets) == 0 and len(bootstrap_secrets) == 0:
             self.module.fail_json("No secrets found")
 
-        # Validate each secret and collect names for duplicate checking
         secret_names = []
         for secret in secrets:
             result = self._validate_secret(secret)
@@ -91,7 +94,12 @@ class LoadSecretsV2(SecretsV2Base):
                 return result
             secret_names.append(secret["name"])
 
-        # Check for duplicate secret names
+        for secret in bootstrap_secrets:
+            result = self._validate_secret(secret)
+            if not result[0]:
+                return result
+            secret_names.append(secret["name"])
+
         dupes = find_dupes(secret_names)
         if len(dupes) > 0:
             return (False, f"You cannot have duplicate secret names: {dupes}")
@@ -298,10 +306,11 @@ class LoadSecretsV2(SecretsV2Base):
         # This must come first as some passwords might depend on vault policies to exist.
         # It is a noop when no policies are defined
         self.inject_vault_policies()
+        bootstrap_secrets = self._get_bootstrap_secrets()
         secrets = self._get_secrets()
 
         total_secrets = 0  # Counter for all the secrets uploaded
-        for s in secrets:
+        for s in bootstrap_secrets + secrets:
             counter = 0  # This counter is to use kv put on first secret and kv patch on latter
             sname = s.get("name")
             fields = s.get("fields", [])

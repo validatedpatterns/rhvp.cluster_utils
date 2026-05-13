@@ -1,3 +1,5 @@
 secrets_role: "vault_utils"
 tasks_from: "push_parsed_secrets"
 hide_sensitive_output: true
+# late: parse entries under secrets. early: parse bootstrap_secrets only (full file is still validated).
+secrets_phase: late

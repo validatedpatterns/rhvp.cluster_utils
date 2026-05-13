@@ -85,6 +85,16 @@ options:
     required: false
     default: vault
     type: str
+  secrets_phase:
+    description:
+      - Which phase of secrets to parse. When set to C(early), C(bootstrap_secrets) are parsed using the C(none)
+        backend semantics (Kubernetes secret objects, no vault-only features) regardless of
+        C(secrets_backing_store). When set to C(late), entries under C(secrets) use C(secrets_backing_store).
+        The full file is still validated on every call.
+    required: false
+    default: late
+    type: str
+    choices: [early, late]
 """
 
 RETURN = """
@@ -102,11 +112,17 @@ EXAMPLES = """
     secrets_backing_store: 'kubernetes'
   register: secrets_info
 
-- name: Parse secrets file into data structures
+- name: Parse secrets file (none backing store)
   parse_secrets_info:
     values_secrets_plaintext: '{{ <unencrypted content> }}'
     secrets_backing_store: 'none'
   register: secrets_info
+
+- name: Parse secrets file for early phase (bootstrap_secrets only)
+  parse_secrets_info:
+    values_secrets_plaintext: '{{ <unencrypted content> }}'
+    secrets_phase: early
+  register: secrets_info_early
 """
 
 import traceback
@@ -136,13 +152,14 @@ def run(module):
     args = module.params
     values_secrets_plaintext = args.get("values_secrets_plaintext", "")
     secrets_backing_store = args.get("secrets_backing_store", "vault")
+    secrets_phase = args.get("secrets_phase", "late")
 
     syaml = yaml.safe_load(values_secrets_plaintext)
 
     if syaml is None:
         syaml = {}
 
-    parsed_secret_obj = ParseSecretsV2(module, syaml, secrets_backing_store)
+    parsed_secret_obj = ParseSecretsV2(module, syaml, secrets_backing_store, secrets_phase)
     parsed_secret_obj.parse()
 
     results["failed"] = False

@@ -36,13 +36,16 @@ secret_store_namespace = "validated-patterns-secrets"
 
 class ParseSecretsV2(SecretsV2Base):
 
-    def __init__(self, module, syaml, secrets_backing_store):
+    def __init__(self, module, syaml, secrets_backing_store, secrets_phase="late"):
         super().__init__(module, syaml)
         self.secrets_backing_store = str(secrets_backing_store)
+        self.secrets_phase = secrets_phase
         self.secret_store_namespace = None
         self.parsed_secrets = {}
         self.kubernetes_secret_objects = []
         self.vault_policies = {}
+        # Set during parse(): backing store semantics for the current phase (early -> none).
+        self._parse_backing_store = None
 
     def _get_backingstore(self):
         """
@@ -87,6 +90,19 @@ class ParseSecretsV2(SecretsV2Base):
         # filtered thru' from_yaml in module
         # We also check for None here to cover when there is no jinja filter is used (unit tests)
         return [] if secrets == "None" or secrets is None else secrets
+
+    def _get_bootstrap_secrets(self):
+        bootstrap = self.syaml.get("bootstrap_secrets", [])
+        return [] if bootstrap == "None" or bootstrap is None else bootstrap
+
+    def _secrets_for_phase(self):
+        if self.secrets_phase == "early":
+            return self._get_bootstrap_secrets()
+        if self.secrets_phase == "late":
+            return self._get_secrets()
+        self.module.fail_json(
+            f"secrets_phase must be 'early' or 'late', not {self.secrets_phase!r}"
+        )
 
     def _get_field_annotations(self, f):
         return f.get("annotations", {})
@@ -150,122 +166,162 @@ class ParseSecretsV2(SecretsV2Base):
             "stringData": {},
         }
 
+    def _backing_store_for_parse(self):
+        """
+        Effective backing store for the current parse run.
+
+        Bootstrap (early) secrets are always parsed with the 'none' backend so they
+        resolve to Kubernetes secret objects and never use vault-only features.
+        """
+        if self.secrets_phase == "early":
+            return "none"
+        return self._get_backingstore()
+
     # This does what inject_secrets used to (mostly)
     def parse(self):
         self.sanitize_values()
         self.vault_policies = self._get_vault_policies()
         self.secret_store_namespace = self._get_secret_store_namespace()
-        backing_store = self._get_backingstore()
-        secrets = self._get_secrets()
+        backing_store = self._backing_store_for_parse()
+        self._parse_backing_store = backing_store
+        secrets = self._secrets_for_phase()
 
         total_secrets = 0  # Counter for all the secrets uploaded
 
         if len(secrets) == 0:
             self.module.warn("No secrets were parsed")
+            self._parse_backing_store = None
             return total_secrets
 
-        for s in secrets:
-            total_secrets += 1
-            counter = 0  # This counter is to use kv put on first secret and kv patch on latter
-            sname = s.get("name")
-            fields = s.get("fields", [])
-            vault_prefixes = self._get_vault_prefixes(s)
-            secret_type = s.get("type", "Opaque")
-            vault_mount = s.get("vaultMount", "secret")
-            target_namespaces = s.get("targetNamespaces", [])
-            labels = stringify_dict(s.get("labels", self._get_default_labels()))
-            annotations = stringify_dict(
-                s.get("annotations", self._get_default_annotations())
-            )
-
-            self.parsed_secrets[sname] = {
-                "name": sname,
-                "fields": {},
-                "vault_mount": vault_mount,
-                "vault_policies": {},
-                "vault_prefixes": vault_prefixes,
-                "override": [],
-                "generate": [],
-                "paths": {},
-                "base64": [],
-                "ini_file": {},
-                "type": secret_type,
-                "target_namespaces": target_namespaces,
-                "labels": labels,
-                "annotations": annotations,
-            }
-
-            for i in fields:
-                self._inject_field(sname, i)
-                counter += 1
-
-            if backing_store == "kubernetes":
-                k8s_namespaces = [self._get_secret_store_namespace()]
-            else:
-                k8s_namespaces = target_namespaces
-
-            for tns in k8s_namespaces:
-                k8s_secret = self._create_k8s_secret(
-                    sname, secret_type, tns, labels, annotations
+        try:
+            for s in secrets:
+                total_secrets += 1
+                counter = 0  # This counter is to use kv put on first secret and kv patch on latter
+                sname = s.get("name")
+                fields = s.get("fields", [])
+                vault_prefixes = self._get_vault_prefixes(s)
+                secret_type = s.get("type", "Opaque")
+                vault_mount = s.get("vaultMount", "secret")
+                target_namespaces = s.get("targetNamespaces", [])
+                labels = stringify_dict(s.get("labels", self._get_default_labels()))
+                annotations = stringify_dict(
+                    s.get("annotations", self._get_default_annotations())
                 )
-                k8s_secret["stringData"] = self.parsed_secrets[sname]["fields"]
-                self.kubernetes_secret_objects.append(k8s_secret)
 
-        return total_secrets
+                self.parsed_secrets[sname] = {
+                    "name": sname,
+                    "fields": {},
+                    "vault_mount": vault_mount,
+                    "vault_policies": {},
+                    "vault_prefixes": vault_prefixes,
+                    "override": [],
+                    "generate": [],
+                    "paths": {},
+                    "base64": [],
+                    "ini_file": {},
+                    "type": secret_type,
+                    "target_namespaces": target_namespaces,
+                    "labels": labels,
+                    "annotations": annotations,
+                }
+
+                for i in fields:
+                    self._inject_field(sname, i)
+                    counter += 1
+
+                if backing_store == "kubernetes":
+                    k8s_namespaces = [self._get_secret_store_namespace()]
+                else:
+                    k8s_namespaces = target_namespaces
+
+                for tns in k8s_namespaces:
+                    k8s_secret = self._create_k8s_secret(
+                        sname, secret_type, tns, labels, annotations
+                    )
+                    k8s_secret["stringData"] = self.parsed_secrets[sname]["fields"]
+                    self.kubernetes_secret_objects.append(k8s_secret)
+
+            return total_secrets
+        finally:
+            self._parse_backing_store = None
+
+    def _effective_backing_store_for_field_ops(self):
+        return (
+            self._parse_backing_store
+            if self._parse_backing_store is not None
+            else self._get_backingstore()
+        )
+
+    def _validate_one_secret_entry(self, s, backing_store):
+        if "name" not in s:
+            return (False, "Secret entry is missing name")
+
+        vault_prefixes = s.get("vaultPrefixes", ["hub"])
+        # This checks for the case when vaultPrefixes: is specified but empty
+        if vault_prefixes is None or len(vault_prefixes) == 0:
+            return (False, f"Secret {s['name']} has empty vaultPrefixes")
+
+        namespaces = s.get("targetNamespaces", [])
+        if not isinstance(namespaces, list):
+            return (False, f"Secret {s['name']} targetNamespaces must be a list")
+
+        if backing_store == "none" and len(namespaces) == 0:
+            return (
+                False,
+                f"Secret {s['name']} targetNamespaces cannot be empty for secrets backend {backing_store}",
+            )  # noqa: E501
+
+        labels = s.get("labels", {})
+        if not isinstance(labels, dict):
+            return (False, f"Secret {s['name']} labels must be a dictionary")
+
+        annotations = s.get("annotations", {})
+        if not isinstance(annotations, dict):
+            return (False, f"Secret {s['name']} annotations must be a dictionary")
+
+        fields = s.get("fields", [])
+        if len(fields) == 0:
+            return (False, f"Secret {s['name']} does not have any fields")
+
+        field_names = []
+        for i in fields:
+            (ret, msg) = self._validate_field(i)
+            if not ret:
+                return (False, msg)
+            if backing_store == "none" and self._get_field_on_missing_value(i) == "generate":
+                return (
+                    False,
+                    f"Secret {s['name']} field {i['name']} cannot use onMissingValue generate "
+                    "with secrets backend none",
+                )
+            field_names.append(i["name"])
+        field_dupes = find_dupes(field_names)
+        if len(field_dupes) > 0:
+            return (False, f"You cannot have duplicate field names: {field_dupes}")
+
+        return (True, "")
 
     def _validate_secrets(self):
         backing_store = self._get_backingstore()
         secrets = self._get_secrets()
-        if len(secrets) == 0:
+        bootstrap_secrets = self._get_bootstrap_secrets()
+        if len(secrets) == 0 and len(bootstrap_secrets) == 0:
             self.module.warn("No secrets found")
             return (True, "")
 
         names = []
         for s in secrets:
-            # These fields are mandatory
-            for i in ["name"]:
-                try:
-                    unused = s[i]
-                except KeyError:
-                    return (False, f"Secret {s['name']} is missing {i}")
+            (ret, msg) = self._validate_one_secret_entry(s, backing_store)
+            if not ret:
+                return (False, msg)
             names.append(s["name"])
 
-            vault_prefixes = s.get("vaultPrefixes", ["hub"])
-            # This checks for the case when vaultPrefixes: is specified but empty
-            if vault_prefixes is None or len(vault_prefixes) == 0:
-                return (False, f"Secret {s['name']} has empty vaultPrefixes")
-
-            namespaces = s.get("targetNamespaces", [])
-            if not isinstance(namespaces, list):
-                return (False, f"Secret {s['name']} targetNamespaces must be a list")
-
-            if backing_store == "none" and namespaces == []:
-                return (
-                    False,
-                    f"Secret {s['name']} targetNamespaces cannot be empty for secrets backend {backing_store}",
-                )  # noqa: E501
-
-            labels = s.get("labels", {})
-            if not isinstance(labels, dict):
-                return (False, f"Secret {s['name']} labels must be a dictionary")
-
-            annotations = s.get("annotations", {})
-            if not isinstance(annotations, dict):
-                return (False, f"Secret {s['name']} annotations must be a dictionary")
-
-            fields = s.get("fields", [])
-            if len(fields) == 0:
-                return (False, f"Secret {s['name']} does not have any fields")
-
-            field_names = []
-            for i in fields:
-                (ret, msg) = self._validate_field(i)
-                if not ret:
-                    return (False, msg)
-                field_names.append(i["name"])
-            field_dupes = find_dupes(field_names)
-            if len(field_dupes) > 0:
-                return (False, f"You cannot have duplicate field names: {field_dupes}")
+        # bootstrap_secrets are always validated and parsed with the 'none' backend
+        for s in bootstrap_secrets:
+            (ret, msg) = self._validate_one_secret_entry(s, "none")
+            if not ret:
+                return (False, msg)
+            names.append(s["name"])
 
         dupes = find_dupes(names)
         if len(dupes) > 0:
@@ -284,6 +340,11 @@ class ParseSecretsV2(SecretsV2Base):
         v = get_version(self.syaml)
         if v not in ["2.0"]:
             self.module.fail_json(f"Version is not 2.0: {v}")
+
+        if self.secrets_phase not in ("early", "late"):
+            self.module.fail_json(
+                f"secrets_phase must be 'early' or 'late', not {self.secrets_phase!r}"
+            )
 
         backing_store = self._get_backingstore()
         if backing_store not in [
@@ -314,7 +375,7 @@ class ParseSecretsV2(SecretsV2Base):
         if kind in ["value", ""]:
             if on_missing_value == "generate":
                 self.parsed_secrets[secret_name]["generate"].append(f["name"])
-                if self._get_backingstore() != "vault":
+                if self._effective_backing_store_for_field_ops() != "vault":
                     self.module.fail_json(
                         "You cannot have onMissingValue set to 'generate' unless using vault backingstore "
                         f"for secret {secret_name} field {f['name']}"
