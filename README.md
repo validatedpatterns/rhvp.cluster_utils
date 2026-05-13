@@ -12,8 +12,8 @@ loading local secrets files into VP secrets stores.
 ## Secrets loading
 
 Secrets are loaded from a **single primary** values-secret file (plus optional `values-secret.yaml.template` under the
-pattern tree as a last-resort discovery path). There are **no** separate `*-bootstrap.yaml` files or `VALUES_SECRET_BOOTSTRAP`
-paths; early cluster bootstrap uses **per-entry** `bootstrap` fields on v2 secrets in that same primary file.
+pattern tree as a last-resort discovery path). Early cluster bootstrap uses **per-entry** `bootstrap` fields on v2
+secrets in that same primary file.
 
 ### Primary values-secret
 
