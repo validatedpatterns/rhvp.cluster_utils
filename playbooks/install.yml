@@ -1,9 +1,9 @@
 ---
-- name: Install the pattern via pattern-install chart
-  ansible.builtin.import_playbook: operator_deploy.yml
-
 - name: Load bootstrap secrets early phase (if not explicitly disabled in values-global.yaml)
   ansible.builtin.import_playbook: load_bootstrap_secrets.yml
+
+- name: Install the pattern via pattern-install chart
+  ansible.builtin.import_playbook: operator_deploy.yml
 
 - name: Load secrets late phase (if not explicitly disabled in values-global.yaml)
   ansible.builtin.import_playbook: load_secrets.yml

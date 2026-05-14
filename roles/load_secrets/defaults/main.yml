@@ -3,3 +3,4 @@ tasks_from: "push_parsed_secrets"
 hide_sensitive_output: true
 # late: parse entries under secrets. early: parse bootstrap_secrets only (full file is still validated).
 secrets_phase: late
+# secrets_install_phase is set on the host by this role before invoking the backend role (k8s injector reads it).

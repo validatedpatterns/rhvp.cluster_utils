@@ -39,6 +39,10 @@
     - secrets_backing_store in ["kubernetes", "none"]
     - (secrets_yaml.version | default('2.0')) is version('2.0', '>=')
 
+- name: Expose secrets install phase for Kubernetes injectors
+  ansible.builtin.set_fact:
+    secrets_install_phase: "{{ secrets_phase }}"
+
 - name: Load secrets using designated role and tasks
   ansible.builtin.include_role:
     name: "{{ secrets_role }}"
