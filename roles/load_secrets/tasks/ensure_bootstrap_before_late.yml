@@ -1,0 +1,27 @@
+---
+# Late phase only: if load_bootstrap_secrets (or another early apply) did not run earlier
+# on this localhost in the same playbook, apply bootstrap_secrets once via the early
+# Kubernetes path before the main late parse (which omits bootstrap from secrets[]).
+- name: Parse bootstrap secrets for Kubernetes injection before late-phase parse
+  no_log: "{{ hide_sensitive_output | default(true) }}"
+  parse_secrets_info:
+    values_secrets_plaintext: "{{ values_secrets_data }}"
+    secrets_backing_store: "{{ secrets_backing_store }}"
+    secrets_phase: early
+  register: _bootstrap_parse_for_late
+
+- name: Inject bootstrap Kubernetes secrets before late phase
+  ansible.builtin.include_role:
+    name: k8s_secret_utils
+    tasks_from: inject_k8s_secrets
+  vars:
+    kubernetes_secret_objects: "{{ _bootstrap_parse_for_late.kubernetes_secret_objects }}"
+    vault_policies: "{{ _bootstrap_parse_for_late.vault_policies }}"
+    parsed_secrets: "{{ _bootstrap_parse_for_late.parsed_secrets }}"
+    unique_vault_prefixes: "{{ _bootstrap_parse_for_late.unique_vault_prefixes | default([]) }}"
+    secrets_install_phase: early
+  when: _bootstrap_parse_for_late.kubernetes_secret_objects | length > 0
+
+- name: Mark bootstrap secrets as loaded for this playbook run
+  ansible.builtin.set_fact:
+    bootstrap_secrets_loaded_this_run: true
