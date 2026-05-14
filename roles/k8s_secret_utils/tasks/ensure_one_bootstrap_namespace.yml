@@ -1,0 +1,16 @@
+---
+- name: Look up bootstrap target namespace
+  kubernetes.core.k8s_info:
+    kind: Namespace
+    name: "{{ bootstrap_target_namespace }}"
+  register: _bootstrap_ns_info
+
+- name: Create bootstrap target namespace when absent
+  when: _bootstrap_ns_info.resources | length == 0
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ bootstrap_target_namespace }}"
