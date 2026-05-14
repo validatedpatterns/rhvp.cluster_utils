@@ -1,4 +1,11 @@
 ---
+# set_fact for secrets_role/tasks_from in an early run persists on localhost for the whole
+# playbook; reset each time this role runs so late vault path is not skipped after bootstrap.
+- name: Reset secrets loader selection for this load_secrets invocation
+  ansible.builtin.set_fact:
+    secrets_role: "vault_utils"
+    tasks_from: "push_parsed_secrets"
+
 - name: Set fact for secretStore backend
   ansible.builtin.set_fact:
     secrets_backing_store: "{{ values_global.global.secretStore.backend | default('vault') }}"
