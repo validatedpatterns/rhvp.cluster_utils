@@ -1,4 +1,5 @@
 ---
+# Early-phase bootstrap only: create Namespace only when absent (never replace an existing NS).
 - name: Look up bootstrap target namespace
   kubernetes.core.k8s_info:
     kind: Namespace

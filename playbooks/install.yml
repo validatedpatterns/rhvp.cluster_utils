@@ -1,5 +1,5 @@
 ---
-- name: Load bootstrap secrets early phase (if not explicitly disabled in values-global.yaml)
+- name: Load bootstrap secrets early phase
   ansible.builtin.import_playbook: load_bootstrap_secrets.yml
 
 - name: Install the pattern via pattern-install chart

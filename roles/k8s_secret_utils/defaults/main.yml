@@ -1,3 +1,3 @@
 ---
-# secrets_install_phase is set by roles/load_secrets before invoking this role (early|late).
+# secrets_install_phase: early|late — set by load_secrets/process_secrets include_role vars, or by parse_secrets in this role.
 secrets_ns: 'validated-patterns-secrets'
