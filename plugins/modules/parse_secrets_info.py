@@ -81,7 +81,9 @@ options:
     type: str
   secrets_backing_store:
     description:
-      - The secrets backing store that will be used for parsed secrets
+      - The secrets backing store that will be used for parsed secrets.
+      - When C(vault), C(kubernetes_secret_objects) is always empty for the late-phase Vault injector;
+        C(targetNamespaces) on C(secrets) entries are not used to build Kubernetes objects.
     required: false
     default: vault
     type: str

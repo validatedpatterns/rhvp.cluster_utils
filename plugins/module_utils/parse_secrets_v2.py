@@ -256,10 +256,11 @@ class ParseSecretsV2(SecretsV2Base):
 
                 if backing_store == "kubernetes":
                     k8s_namespaces = [self._get_secret_store_namespace()]
+                elif backing_store == "vault":
+                    # Vault injector does not materialize Kubernetes secrets; ignore targetNamespaces.
+                    k8s_namespaces = []
                 else:
                     k8s_namespaces = target_namespaces
-
-                for tns in k8s_namespaces:
                     k8s_secret = self._create_k8s_secret(
                         sname, secret_type, tns, labels, annotations
                     )

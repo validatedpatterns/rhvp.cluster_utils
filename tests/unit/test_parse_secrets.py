@@ -1007,6 +1007,39 @@ class TestMyModule(unittest.TestCase):
         self.assertTrue(ret["failed"] is False)
         self.assertEqual(set(ret["parsed_secrets"].keys()), {"late-only"})
 
+    def test_vault_late_parse_does_not_emit_k8s_secrets_for_target_namespaces(self, getpass):
+        yaml_content = """
+version: "2.0"
+backingStore: vault
+secrets:
+  - name: vault-only
+    targetNamespaces:
+      - documented-but-unused
+    vaultPrefixes:
+      - hub
+    fields:
+      - name: k
+        value: v
+        onMissingValue: error
+"""
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": yaml_content,
+                    "secrets_backing_store": "vault",
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(len(ret["kubernetes_secret_objects"]), 0)
+        self.assertEqual(
+            ret["parsed_secrets"]["vault-only"]["target_namespaces"],
+            ["documented-but-unused"],
+        )
+
     def test_bootstrap_only_file_early_vs_late(self, getpass):
         testfile_output = self.get_file_as_stdout(
             os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-only.yaml")
