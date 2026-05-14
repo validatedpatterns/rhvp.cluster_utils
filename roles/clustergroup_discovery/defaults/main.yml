@@ -1,3 +1,0 @@
----
-# When true, slurp and parse each resolved clustergroup file into clustergroup_documents (stem -> root mapping)
-clustergroup_discovery_parse_documents: false
