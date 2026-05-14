@@ -1,33 +1,20 @@
 ---
-# Root of the Validated Pattern checkout (directory that contains values-global.yaml, values-secret.yaml, etc.).
-#
-# Set explicitly; this is NOT inferred from the playbook file path when you run collection playbooks from
-# ~/.ansible/collections/... — and a literal '.' would mean the shell's current working directory, not the pattern repo.
-#
-# Configure either:
-#   ansible-playbook .../display_secrets_info.yml -e pattern_dir=/absolute/path/to/pattern
-# or:
-#   export PATTERN_DIR=/absolute/path/to/pattern
-#
-# Extra vars (-e pattern_dir) take precedence over PATTERN_DIR when both are set.
+# Same resolution as roles/pattern_settings/tasks/resolve_overrides.yml and README.md:
+# extra var pattern_dir, then env PATTERN_DIR, then env PWD, then output of pwd (trimmed).
 - name: Determine pattern dir
   hosts: localhost
   connection: local
   gather_facts: false
   become: false
-  vars:
-    pattern_dir: "{{ lookup('env', 'PATTERN_DIR', default='') }}"
   tasks:
-    - name: Fail if pattern directory is not configured
+    - name: Resolve pattern_dir (same as pattern_settings)
+      ansible.builtin.include_role:
+        name: pattern_settings
+        tasks_from: resolve_overrides
+
+    - name: Fail if pattern_dir is still empty after resolution
       ansible.builtin.fail:
         msg: >-
-          pattern_dir is not set. Pass your pattern repository root (absolute path), e.g.
-          ansible-playbook .../display_secrets_info.yml -e pattern_dir=/path/to/pattern
-          or set environment variable PATTERN_DIR to that path before running.
-          A default of '.' would follow the shell's current working directory, not the playbook
-          directory, and is not used here to avoid loading the wrong values-global.yaml.
-      when: pattern_dir | length == 0
-
-    - name: Set pattern_dir fact for future plays
-      ansible.builtin.set_fact:
-        pattern_dir: '{{ pattern_dir }}'
+          Could not resolve pattern_dir. Set -e pattern_dir=/path/to/pattern, export PATTERN_DIR,
+          or run from your pattern repository so PWD / pwd points at the directory that contains values-global.yaml.
+      when: pattern_dir | default('', true) | string | trim | length == 0
