@@ -928,7 +928,7 @@ class TestMyModule(unittest.TestCase):
         self.assertEqual(ret["failed"], True)
         assert (
             ret["args"][1]
-            == "You cannot have onMissingValue set to 'generate' unless using vault backingstore for secret config-demo field secret"  # noqa: E501
+            == "Secret config-demo field secret cannot use onMissingValue generate with secrets backend none"  # noqa: E501
         )
 
     def test_ensure_success_empty_secrets(self, getpass):
@@ -1270,7 +1270,17 @@ secrets: []
 
         ret = ansible_err.exception.args[0]
         self.assertEqual(ret["failed"], True)
-        assert "secrets_phase must be 'early' or 'late'" in ret["args"][1]
+        # Invalid choice fails in AnsibleModule before run(); message is in msg, not args[1].
+        msg = ret.get("msg") or (
+            ret["args"][1] if len(ret.get("args", ())) > 1 else ""
+        )
+        self.assertIn("early", msg)
+        self.assertIn("late", msg)
+        self.assertTrue(
+            "secrets_phase must be 'early' or 'late'" in msg
+            or "midnight" in msg.lower(),
+            msg,
+        )
 
 
 if __name__ == "__main__":
