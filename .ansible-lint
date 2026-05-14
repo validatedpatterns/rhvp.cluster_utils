@@ -1,6 +1,9 @@
 # Vim filetype=yaml
 ---
-offline: false
+# Skip ansible-galaxy collection install from requirements.yml. Recent ansible-core
+# releases can hit Galaxy API KeyError: 'results' during install (CI and local uv).
+# Install collections manually or use creator-ee when you need dependency-aware rules.
+offline: true
 skip_list:
   - name[template] # Allow Jinja templating inside task and play names
   - template-instead-of-copy # Templated files should use template instead of copy
