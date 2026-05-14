@@ -95,11 +95,34 @@ class ParseSecretsV2(SecretsV2Base):
         bootstrap = self.syaml.get("bootstrap_secrets", [])
         return [] if bootstrap == "None" or bootstrap is None else bootstrap
 
+    def _late_secrets_excluding_bootstrap(self):
+        """
+        Late phase must not re-apply secrets that are defined under bootstrap_secrets
+        (those are only parsed/injected in the early phase).
+        """
+        bootstrap_names = {
+            s.get("name") for s in self._get_bootstrap_secrets() if s.get("name")
+        }
+        skipped = set()
+        out = []
+        for s in self._get_secrets():
+            n = s.get("name")
+            if n in bootstrap_names:
+                skipped.add(n)
+            else:
+                out.append(s)
+        for n in sorted(skipped):
+            self.module.warn(
+                "Late-phase secrets: omitting secrets entry %r because that name is listed under "
+                "bootstrap_secrets (bootstrap secrets are only applied in the early phase)." % (n,)
+            )
+        return out
+
     def _secrets_for_phase(self):
         if self.secrets_phase == "early":
             return self._get_bootstrap_secrets()
         if self.secrets_phase == "late":
-            return self._get_secrets()
+            return self._late_secrets_excluding_bootstrap()
         self.module.fail_json(
             f"secrets_phase must be 'early' or 'late', not {self.secrets_phase!r}"
         )
@@ -199,7 +222,9 @@ class ParseSecretsV2(SecretsV2Base):
                 counter = 0  # This counter is to use kv put on first secret and kv patch on latter
                 sname = s.get("name")
                 fields = s.get("fields", [])
-                vault_prefixes = self._get_vault_prefixes(s)
+                vault_prefixes = (
+                    [] if backing_store == "none" else self._get_vault_prefixes(s)
+                )
                 secret_type = s.get("type", "Opaque")
                 vault_mount = s.get("vaultMount", "secret")
                 target_namespaces = s.get("targetNamespaces", [])
@@ -257,9 +282,10 @@ class ParseSecretsV2(SecretsV2Base):
             return (False, "Secret entry is missing name")
 
         vault_prefixes = s.get("vaultPrefixes", ["hub"])
-        # This checks for the case when vaultPrefixes: is specified but empty
-        if vault_prefixes is None or len(vault_prefixes) == 0:
-            return (False, f"Secret {s['name']} has empty vaultPrefixes")
+        # Vault path prefixes are not used for the 'none' backend (early bootstrap and none-backed K8s inject).
+        if backing_store != "none":
+            if vault_prefixes is None or len(vault_prefixes) == 0:
+                return (False, f"Secret {s['name']} has empty vaultPrefixes")
 
         namespaces = s.get("targetNamespaces", [])
         if not isinstance(namespaces, list):
@@ -309,23 +335,26 @@ class ParseSecretsV2(SecretsV2Base):
             self.module.warn("No secrets found")
             return (True, "")
 
-        names = []
-        for s in secrets:
-            (ret, msg) = self._validate_one_secret_entry(s, backing_store)
-            if not ret:
-                return (False, msg)
-            names.append(s["name"])
-
-        # bootstrap_secrets are always validated and parsed with the 'none' backend
+        bootstrap_names = []
         for s in bootstrap_secrets:
             (ret, msg) = self._validate_one_secret_entry(s, "none")
             if not ret:
                 return (False, msg)
-            names.append(s["name"])
+            bootstrap_names.append(s["name"])
 
-        dupes = find_dupes(names)
-        if len(dupes) > 0:
-            return (False, f"You cannot have duplicate secret names: {dupes}")
+        secret_names = []
+        for s in secrets:
+            (ret, msg) = self._validate_one_secret_entry(s, backing_store)
+            if not ret:
+                return (False, msg)
+            secret_names.append(s["name"])
+
+        dupes_bootstrap = find_dupes(bootstrap_names)
+        if len(dupes_bootstrap) > 0:
+            return (False, f"You cannot have duplicate secret names in bootstrap_secrets: {dupes_bootstrap}")
+        dupes_secrets = find_dupes(secret_names)
+        if len(dupes_secrets) > 0:
+            return (False, f"You cannot have duplicate secret names in secrets: {dupes_secrets}")
         return (True, "")
 
     def sanitize_values(self):

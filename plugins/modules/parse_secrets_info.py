@@ -89,7 +89,8 @@ options:
     description:
       - Which phase of secrets to parse. When set to C(early), C(bootstrap_secrets) are parsed using the C(none)
         backend semantics (Kubernetes secret objects, no vault-only features) regardless of
-        C(secrets_backing_store). When set to C(late), entries under C(secrets) use C(secrets_backing_store).
+        C(secrets_backing_store); C(vaultPrefixes) on those entries are not used. When set to C(late), entries under C(secrets) use C(secrets_backing_store),
+        excluding any entry whose C(name) matches a secret in C(bootstrap_secrets) (those are only applied in the early phase).
         The full file is still validated on every call.
     required: false
     default: late

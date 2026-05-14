@@ -871,7 +871,8 @@ class TestMyModule(unittest.TestCase):
         ret = ansible_err.exception.args[0]
         self.assertEqual(ret["failed"], True)
         assert (
-            ret["args"][1] == "You cannot have duplicate secret names: ['config-demo']"
+            ret["args"][1]
+            == "You cannot have duplicate secret names in secrets: ['config-demo']"
         )
 
     def test_ensure_error_fields_same_name(self, getpass):
@@ -1090,11 +1091,87 @@ secrets: []
         assert "cannot use onMissingValue generate" in ret["args"][1]
         assert "none" in ret["args"][1]
 
-    def test_bootstrap_dup_name_across_sections_fails(self, getpass):
+    def test_bootstrap_dup_name_across_sections_late_omits_secrets_copy(self, getpass):
         testfile_output = self.get_file_as_stdout(
             os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-across.yaml")
         )
-        with self.assertRaises(AnsibleFailJson) as ansible_err:
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(len(ret["parsed_secrets"]), 0)
+        self.assertEqual(len(ret["kubernetes_secret_objects"]), 0)
+
+    def test_bootstrap_dup_name_across_sections_early_parses_bootstrap_only(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-across.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"config-demo"})
+        self.assertEqual(ret["parsed_secrets"]["config-demo"]["fields"]["a"], "x")
+
+    def test_bootstrap_empty_vaultprefixes_allowed_for_early_none_parse(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-empty-vaultprefixes.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        ps = ret["parsed_secrets"]["no-prefix-needed"]
+        self.assertEqual(ps["vault_prefixes"], [])
+        self.assertEqual(ps["fields"]["token"], "abc")
+
+    def test_bootstrap_dup_name_late_parses_unique_secrets_only(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-mixed-late.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"late-unique"})
+        self.assertEqual(
+            ret["parsed_secrets"]["late-unique"]["fields"]["only_late"], "lateval"
+        )
+
+    def test_bootstrap_dup_name_default_late_omits_secrets_when_name_collides(self, getpass):
+        """Default secrets_phase is late; same-name secrets entries are still omitted."""
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-across.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
             set_module_args(
                 {
                     "values_secrets_plaintext": testfile_output,
@@ -1103,11 +1180,47 @@ secrets: []
             parse_secrets_info.main()
 
         ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(len(ret["parsed_secrets"]), 0)
+
+    def test_duplicate_secret_names_within_bootstrap_section_fails(self, getpass):
+        yaml_content = """
+version: "2.0"
+backingStore: vault
+bootstrap_secrets:
+  - name: dup
+    targetNamespaces:
+      - default
+    vaultPrefixes:
+      - hub
+    fields:
+      - name: f1
+        value: a
+        onMissingValue: error
+  - name: dup
+    targetNamespaces:
+      - default
+    vaultPrefixes:
+      - hub
+    fields:
+      - name: f2
+        value: b
+        onMissingValue: error
+secrets: []
+"""
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": yaml_content,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
         self.assertEqual(ret["failed"], True)
-        assert (
-            ret["args"][1]
-            == "You cannot have duplicate secret names: ['config-demo']"
-        )
+        assert "duplicate secret names in bootstrap_secrets" in ret["args"][1]
+        assert "dup" in ret["args"][1]
 
     def test_invalid_secrets_phase_fails(self, getpass):
         testfile_output = self.get_file_as_stdout(

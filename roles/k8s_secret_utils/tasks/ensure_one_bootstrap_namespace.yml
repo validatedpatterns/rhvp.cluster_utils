@@ -1,12 +1,13 @@
 ---
 # Early-phase bootstrap only: create Namespace only when absent (never replace an existing NS).
-- name: Look up bootstrap target namespace
+- name: Look up namespace {{ bootstrap_target_namespace }}
   kubernetes.core.k8s_info:
     kind: Namespace
     name: "{{ bootstrap_target_namespace }}"
   register: _bootstrap_ns_info
+  changed_when: false
 
-- name: Create bootstrap target namespace when absent
+- name: Create namespace {{ bootstrap_target_namespace }} when absent
   when: _bootstrap_ns_info.resources | length == 0
   kubernetes.core.k8s:
     state: present

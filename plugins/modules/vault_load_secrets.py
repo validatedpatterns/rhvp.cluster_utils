@@ -69,7 +69,10 @@ author:
   - Michele Baldessari (@mbaldess)
   - Martin Jackson (@mhjacks)
 description:
-  - Takes a values-secret.yaml file and uploads the secrets into the HashiCorp Vault
+  - Takes a values-secret.yaml file and uploads secrets into the HashiCorp Vault.
+  - For format version 2.0, only the top-level C(secrets) list is written to Vault. C(bootstrap_secrets)
+    are validated with the same file rules but are never pushed to Vault (Vault is not available for
+    bootstrap material; use the early-phase Kubernetes C(none) injector instead).
 options:
   values_secrets:
     description:
