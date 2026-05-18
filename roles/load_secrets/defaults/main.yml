@@ -1,3 +1,8 @@
 secrets_role: "vault_utils"
 tasks_from: "push_parsed_secrets"
 hide_sensitive_output: true
+# late: parse entries under secrets. early: parse bootstrap_secrets only (full file is still validated).
+secrets_phase: late
+# Set by load_secrets after early-phase apply or late-phase bootstrap preflight; avoids re-applying
+# bootstrap_secrets when load_bootstrap_secrets.yml already ran in this playbook (localhost).
+# secrets_install_phase is set on the host by this role before invoking the backend role (k8s injector reads it).

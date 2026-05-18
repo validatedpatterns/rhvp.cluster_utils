@@ -450,8 +450,87 @@ class TestMyModule(unittest.TestCase):
         ret = ansible_err.exception.args[0]
         self.assertEqual(ret["failed"], True)
         assert (
-            ret["args"][1] == "You cannot have duplicate secret names: ['config-demo']"
+            ret["args"][1]
+            == "You cannot have duplicate secret names in secrets: ['config-demo']"
         )
+
+    def test_vault_load_skips_secrets_when_secret_name_duplicates_bootstrap(self, getpass):
+        """vault_load_secrets does not inject bootstrap or duplicate-name secrets[] entries."""
+        set_module_args(
+            {
+                "values_secrets": os.path.join(
+                    self.testdir_v2, "values-secret-v2-bootstrap-dup-across.yaml"
+                ),
+            }
+        )
+        with patch.object(
+            load_secrets_v2.LoadSecretsV2, "_run_command"
+        ) as mock_run_command:
+            mock_run_command.return_value = (0, "ok", "")
+            with self.assertRaises(AnsibleExitJson):
+                vault_load_secrets.main()
+        cmds = [c[0][0] for c in mock_run_command.call_args_list if c[0]]
+        blob = "\n".join(cmds)
+        self.assertNotIn("a='x'", blob)
+        self.assertNotIn("b='y'", blob)
+
+    def test_vault_load_mixed_secrets_injects_only_non_bootstrap_vault_entries(self, getpass):
+        set_module_args(
+            {
+                "values_secrets": os.path.join(
+                    self.testdir_v2, "values-secret-v2-bootstrap-dup-mixed-late.yaml"
+                ),
+            }
+        )
+        with patch.object(
+            load_secrets_v2.LoadSecretsV2, "_run_command"
+        ) as mock_run_command:
+            mock_run_command.return_value = (0, "ok", "")
+            with self.assertRaises(AnsibleExitJson) as result:
+                vault_load_secrets.main()
+        self.assertTrue(result.exception.args[0]["changed"])
+        cmds = [c[0][0] for c in mock_run_command.call_args_list if c[0]]
+        blob = "\n".join(cmds)
+        self.assertNotIn("from_bootstrap='bootval'", blob)
+        self.assertNotIn("from_secrets_section=", blob)
+        self.assertIn("only_late='lateval'", blob)
+
+    def test_vault_load_fails_duplicate_secret_names_within_bootstrap(self, getpass):
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets": os.path.join(
+                        self.testdir_v2, "values-secret-v2-bootstrap-dup-within.yaml"
+                    ),
+                }
+            )
+            vault_load_secrets.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], True)
+        assert "duplicate secret names in bootstrap_secrets" in ret["args"][1]
+
+    def test_vault_load_bootstrap_only_does_not_kv_inject_secret_fields(self, getpass):
+        """bootstrap_secrets are never written by vault_load_secrets (early K8s / none only)."""
+        set_module_args(
+            {
+                "values_secrets": os.path.join(
+                    self.testdir_v2, "values-secret-v2-bootstrap-empty-vaultprefixes.yaml"
+                ),
+            }
+        )
+        with patch.object(
+            load_secrets_v2.LoadSecretsV2, "_run_command"
+        ) as mock_run_command:
+            mock_run_command.return_value = (0, "ok", "")
+            with self.assertRaises(AnsibleExitJson) as result:
+                vault_load_secrets.main()
+        cmds = [c[0][0] for c in mock_run_command.call_args_list if c[0]]
+        blob = "\n".join(cmds)
+        self.assertNotIn("no-prefix-needed", blob)
+        self.assertNotIn("token='abc'", blob)
+        self.assertNotIn("vault kv put", blob)
+        self.assertNotIn("vault kv patch", blob)
 
     def test_ensure_error_fields_same_name(self, getpass):
         with self.assertRaises(AnsibleFailJson) as ansible_err:

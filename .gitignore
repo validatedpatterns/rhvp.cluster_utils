@@ -13,3 +13,4 @@ super-linter.log
 golang-external-secrets/Chart.lock
 hashicorp-vault/Chart.lock
 tests/output
+ansible_collections/

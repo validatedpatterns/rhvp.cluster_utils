@@ -14,7 +14,10 @@
 # under the License.
 
 """
-Module that implements V2 of the values-secret.yaml spec
+Module that implements V2 of the values-secret.yaml spec.
+
+vault_load_secrets writes only the top-level ``secrets`` list to Vault; ``bootstrap_secrets`` are
+validated but never pushed to Vault (bootstrap targets Kubernetes via the early none injector).
 """
 from __future__ import absolute_import, division, print_function
 
@@ -75,41 +78,52 @@ class LoadSecretsV2(SecretsV2Base):
         """
         return str(self.syaml.get("backingStore", "vault"))
 
-    def _get_secrets(self):
-        return self.syaml.get("secrets", {})
+    def _get_bootstrap_secrets(self):
+        bootstrap = self.syaml.get("bootstrap_secrets", [])
+        if bootstrap is None or bootstrap == "None":
+            return []
+        return bootstrap
 
     def _validate_secrets(self):
         secrets = self._get_secrets()
-        if len(secrets) == 0:
+        bootstrap_secrets = self._get_bootstrap_secrets()
+        if len(secrets) == 0 and len(bootstrap_secrets) == 0:
             self.module.fail_json("No secrets found")
 
-        # Validate each secret and collect names for duplicate checking
+        bootstrap_names = []
+        for secret in bootstrap_secrets:
+            result = self._validate_secret(secret, is_bootstrap=True)
+            if not result[0]:
+                return result
+            bootstrap_names.append(secret["name"])
+
         secret_names = []
         for secret in secrets:
-            result = self._validate_secret(secret)
+            result = self._validate_secret(secret, is_bootstrap=False)
             if not result[0]:
                 return result
             secret_names.append(secret["name"])
 
-        # Check for duplicate secret names
-        dupes = find_dupes(secret_names)
-        if len(dupes) > 0:
-            return (False, f"You cannot have duplicate secret names: {dupes}")
+        dupes_bootstrap = find_dupes(bootstrap_names)
+        if len(dupes_bootstrap) > 0:
+            return (False, f"You cannot have duplicate secret names in bootstrap_secrets: {dupes_bootstrap}")
+        dupes_secrets = find_dupes(secret_names)
+        if len(dupes_secrets) > 0:
+            return (False, f"You cannot have duplicate secret names in secrets: {dupes_secrets}")
 
         return (True, "")
 
-    def _validate_secret(self, secret):
+    def _validate_secret(self, secret, is_bootstrap=False):
         """Validate a single secret configuration"""
         # Check mandatory fields
         if "name" not in secret:
             return (False, f"Secret {secret} is missing name")
 
-        secret_name = secret["name"]
-
-        # Validate vault prefixes
-        result = self._validate_vault_prefixes(secret)
-        if not result[0]:
-            return result
+        # Bootstrap secrets are only applied via early K8s (none) load in phased installs; vaultPrefixes are not used.
+        if not is_bootstrap:
+            result = self._validate_vault_prefixes(secret)
+            if not result[0]:
+                return result
 
         # Validate fields
         result = self._validate_secret_fields(secret)
@@ -298,10 +312,26 @@ class LoadSecretsV2(SecretsV2Base):
         # This must come first as some passwords might depend on vault policies to exist.
         # It is a noop when no policies are defined
         self.inject_vault_policies()
+        bootstrap_secrets = self._get_bootstrap_secrets()
         secrets = self._get_secrets()
+        bootstrap_names = {s.get("name") for s in bootstrap_secrets if s.get("name")}
+        secrets_filtered = [s for s in secrets if s.get("name") not in bootstrap_names]
+        skipped = {s.get("name") for s in secrets if s.get("name") in bootstrap_names}
+        for n in sorted(skipped):
+            self.module.warn(
+                "Omitting secrets entry %r because it duplicates a bootstrap_secrets name "
+                "(bootstrap material is not written to Vault from this module)." % (n,)
+            )
 
-        total_secrets = 0  # Counter for all the secrets uploaded
-        for s in secrets:
+        if bootstrap_secrets:
+            self.module.warn(
+                "bootstrap_secrets are validated but not written to Vault; Vault is not used "
+                "for bootstrap material. Apply bootstrap secrets with the early-phase Kubernetes "
+                "(none) injector (for example load_bootstrap_secrets)."
+            )
+
+        total_secrets = 0  # Counter for all the secrets uploaded (secrets[] only; never bootstrap_secrets)
+        for s in secrets_filtered:
             counter = 0  # This counter is to use kv put on first secret and kv patch on latter
             sname = s.get("name")
             fields = s.get("fields", [])
