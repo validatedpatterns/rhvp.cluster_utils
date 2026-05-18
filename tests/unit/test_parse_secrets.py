@@ -871,7 +871,8 @@ class TestMyModule(unittest.TestCase):
         ret = ansible_err.exception.args[0]
         self.assertEqual(ret["failed"], True)
         assert (
-            ret["args"][1] == "You cannot have duplicate secret names: ['config-demo']"
+            ret["args"][1]
+            == "You cannot have duplicate secret names in secrets: ['config-demo']"
         )
 
     def test_ensure_error_fields_same_name(self, getpass):
@@ -927,7 +928,7 @@ class TestMyModule(unittest.TestCase):
         self.assertEqual(ret["failed"], True)
         assert (
             ret["args"][1]
-            == "You cannot have onMissingValue set to 'generate' unless using vault backingstore for secret config-demo field secret"  # noqa: E501
+            == "Secret config-demo field secret cannot use onMissingValue generate with secrets backend none"  # noqa: E501
         )
 
     def test_ensure_success_empty_secrets(self, getpass):
@@ -970,6 +971,315 @@ class TestMyModule(unittest.TestCase):
             and (ret["changed"] is False)
             and (len(ret["parsed_secrets"])) == 0
             and (len(ret["kubernetes_secret_objects"]) == 0)
+        )
+
+    def test_bootstrap_early_phase_parses_bootstrap_only(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-and-late.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertTrue(ret["failed"] is False)
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"bootstrap-only"})
+
+    def test_bootstrap_late_phase_parses_secrets_only(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-and-late.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertTrue(ret["failed"] is False)
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"late-only"})
+
+    def test_vault_late_parse_does_not_emit_k8s_secrets_for_target_namespaces(self, getpass):
+        yaml_content = """
+version: "2.0"
+backingStore: vault
+secrets:
+  - name: vault-only
+    targetNamespaces:
+      - documented-but-unused
+    vaultPrefixes:
+      - hub
+    fields:
+      - name: k
+        value: v
+        onMissingValue: error
+"""
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": yaml_content,
+                    "secrets_backing_store": "vault",
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(len(ret["kubernetes_secret_objects"]), 0)
+        self.assertEqual(
+            ret["parsed_secrets"]["vault-only"]["target_namespaces"],
+            ["documented-but-unused"],
+        )
+
+    def test_bootstrap_only_file_early_vs_late(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-only.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as early_ret:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+        er = early_ret.exception.args[0]
+        self.assertEqual(set(er["parsed_secrets"].keys()), {"only-bootstrap"})
+
+        with self.assertRaises(AnsibleExitJson) as late_ret:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+        lr = late_ret.exception.args[0]
+        self.assertEqual(len(lr["parsed_secrets"]), 0)
+
+    def test_bootstrap_secret_requires_target_namespaces(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(
+                self.testdir_v2, "values-secret-v2-bootstrap-missing-targetns.yaml"
+            )
+        )
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], True)
+        assert (
+            "boot-without-ns targetNamespaces cannot be empty for secrets backend none"
+            in ret["args"][1]
+        )
+
+    def test_bootstrap_early_rejects_generate_even_when_configured_backend_is_vault(
+        self, getpass
+    ):
+        yaml_content = """
+version: "2.0"
+backingStore: vault
+vaultPolicies:
+  basicPolicy: |
+    length=10
+    rule "charset" { charset = "abcdefghijklmnopqrstuvwxyz" min-chars = 1 }
+bootstrap_secrets:
+  - name: boot-gen
+    targetNamespaces:
+      - default
+    vaultPrefixes:
+      - hub
+    fields:
+      - name: s
+        onMissingValue: generate
+        vaultPolicy: basicPolicy
+secrets: []
+"""
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": yaml_content,
+                    "secrets_backing_store": "vault",
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], True)
+        assert "cannot use onMissingValue generate" in ret["args"][1]
+        assert "none" in ret["args"][1]
+
+    def test_bootstrap_dup_name_across_sections_late_omits_secrets_copy(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-across.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(len(ret["parsed_secrets"]), 0)
+        self.assertEqual(len(ret["kubernetes_secret_objects"]), 0)
+
+    def test_bootstrap_dup_name_across_sections_early_parses_bootstrap_only(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-across.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"config-demo"})
+        self.assertEqual(ret["parsed_secrets"]["config-demo"]["fields"]["a"], "x")
+
+    def test_bootstrap_empty_vaultprefixes_allowed_for_early_none_parse(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-empty-vaultprefixes.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        ps = ret["parsed_secrets"]["no-prefix-needed"]
+        self.assertEqual(ps["vault_prefixes"], [])
+        self.assertEqual(ps["fields"]["token"], "abc")
+
+    def test_bootstrap_dup_name_late_parses_unique_secrets_only(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-mixed-late.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "late",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(set(ret["parsed_secrets"].keys()), {"late-unique"})
+        self.assertEqual(
+            ret["parsed_secrets"]["late-unique"]["fields"]["only_late"], "lateval"
+        )
+
+    def test_bootstrap_dup_name_default_late_omits_secrets_when_name_collides(self, getpass):
+        """Default secrets_phase is late; same-name secrets entries are still omitted."""
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-bootstrap-dup-across.yaml")
+        )
+        with self.assertRaises(AnsibleExitJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], False)
+        self.assertEqual(len(ret["parsed_secrets"]), 0)
+
+    def test_duplicate_secret_names_within_bootstrap_section_fails(self, getpass):
+        yaml_content = """
+version: "2.0"
+backingStore: vault
+bootstrap_secrets:
+  - name: dup
+    targetNamespaces:
+      - default
+    vaultPrefixes:
+      - hub
+    fields:
+      - name: f1
+        value: a
+        onMissingValue: error
+  - name: dup
+    targetNamespaces:
+      - default
+    vaultPrefixes:
+      - hub
+    fields:
+      - name: f2
+        value: b
+        onMissingValue: error
+secrets: []
+"""
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": yaml_content,
+                    "secrets_phase": "early",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], True)
+        assert "duplicate secret names in bootstrap_secrets" in ret["args"][1]
+        assert "dup" in ret["args"][1]
+
+    def test_invalid_secrets_phase_fails(self, getpass):
+        testfile_output = self.get_file_as_stdout(
+            os.path.join(self.testdir_v2, "values-secret-v2-base.yaml")
+        )
+        with self.assertRaises(AnsibleFailJson) as ansible_err:
+            set_module_args(
+                {
+                    "values_secrets_plaintext": testfile_output,
+                    "secrets_phase": "midnight",
+                }
+            )
+            parse_secrets_info.main()
+
+        ret = ansible_err.exception.args[0]
+        self.assertEqual(ret["failed"], True)
+        # Invalid choice fails in AnsibleModule before run(); message is in msg, not args[1].
+        msg = ret.get("msg") or (
+            ret["args"][1] if len(ret.get("args", ())) > 1 else ""
+        )
+        self.assertIn("early", msg)
+        self.assertIn("late", msg)
+        self.assertTrue(
+            "secrets_phase must be 'early' or 'late'" in msg
+            or "midnight" in msg.lower(),
+            msg,
         )
 
 

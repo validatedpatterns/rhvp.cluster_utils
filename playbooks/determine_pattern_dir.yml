@@ -1,17 +1,20 @@
 ---
+# Same resolution as roles/pattern_settings/tasks/resolve_overrides.yml and README.md:
+# extra var pattern_dir, then env PATTERN_DIR, then env PWD, then output of pwd (trimmed).
 - name: Determine pattern dir
   hosts: localhost
   connection: local
   gather_facts: false
   become: false
-  vars:
-    pattern_dir: ''
   tasks:
-    - name: Fail if directory is not set
-      ansible.builtin.fail:
-        msg: "pattern_dir variable must be set"
-      when: pattern_dir | length == 0
+    - name: Resolve pattern_dir (same as pattern_settings)
+      ansible.builtin.include_role:
+        name: pattern_settings
+        tasks_from: resolve_overrides
 
-    - name: Set pattern_dir fact for future plays
-      ansible.builtin.set_fact:
-        pattern_dir: '{{ pattern_dir }}'
+    - name: Fail if pattern_dir is still empty after resolution
+      ansible.builtin.fail:
+        msg: >-
+          Could not resolve pattern_dir. Set -e pattern_dir=/path/to/pattern, export PATTERN_DIR,
+          or run from your pattern repository so PWD / pwd points at the directory that contains values-global.yaml.
+      when: pattern_dir | default('', true) | string | trim | length == 0

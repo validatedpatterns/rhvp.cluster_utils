@@ -1,2 +1,4 @@
 ---
+# secrets_install_phase: early|late — set by load_secrets/process_secrets include_role vars, or by parse_secrets in this role.
+# bootstrap_phase_*_changed: counts for early-phase summary (set during inject_k8s_secrets; not secret material).
 secrets_ns: 'validated-patterns-secrets'

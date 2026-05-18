@@ -1,0 +1,28 @@
+---
+# Early-phase bootstrap only: create Namespace only when absent (never replace an existing NS).
+- name: Look up namespace {{ bootstrap_target_namespace }}
+  kubernetes.core.k8s_info:
+    kind: Namespace
+    name: "{{ bootstrap_target_namespace }}"
+  register: _bootstrap_ns_info
+  changed_when: false
+
+- name: Create namespace {{ bootstrap_target_namespace }} when absent
+  when: _bootstrap_ns_info.resources | length == 0
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ bootstrap_target_namespace }}"
+  register: _bootstrap_ns_create_result
+
+- name: Record bootstrap namespace change count
+  ansible.builtin.set_fact:
+    bootstrap_phase_namespaces_changed: "{{ (bootstrap_phase_namespaces_changed | default(0)) | int + 1 }}"
+  when:
+    - (secrets_install_phase | default(secrets_phase | default('late'))) == 'early'
+    - _bootstrap_ns_create_result is defined
+    - not (_bootstrap_ns_create_result.skipped | default(false))
+    - _bootstrap_ns_create_result.changed | default(false)
