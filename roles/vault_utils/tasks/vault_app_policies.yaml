@@ -40,6 +40,10 @@
     verbosity: 1
   when: app_prefixes is not defined or app_prefixes | length == 0
 
+- name: Detect external secrets service accounts for hub-role
+  ansible.builtin.include_tasks: detect_external_secrets_auth.yml
+  when: app_prefixes is defined and app_prefixes | length > 0
+
 # Build list of policy names we need
 - name: Build app policy names list
   ansible.builtin.set_fact:
@@ -125,53 +129,28 @@
     - _hub_role_result.rc != 0
 
 # Merge current and new policies (removing duplicates)
-- name: Merge policies
+- name: Merge hub-role policies with app policies
   ansible.builtin.set_fact:
-    _merged_policies: "{{ (_current_policies + _app_policy_names) | unique }}"
+    _merged_hub_policies: "{{ (_current_policies + _app_policy_names) | unique }}"
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
 
-# Check if hub-role policies need updating
-- name: Check if hub-role policies changed
-  ansible.builtin.set_fact:
-    _hub_role_policies_changed: "{{ _current_policies | sort != _merged_policies | sort }}"
+- name: Write hub-role with app policies and detected ESO service accounts
+  ansible.builtin.include_tasks: write_hub_role.yml
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
-
-- name: Debug - Hub role policy change status
-  ansible.builtin.debug:
-    msg: "Hub role policies changed: {{ _hub_role_policies_changed }} (current: {{ _current_policies | sort }}, merged: {{ _merged_policies | sort }})"
-    verbosity: 1
-  when:
-    - app_prefixes is defined and app_prefixes | length > 0
-    - app_update_hub_role | default(true) | bool
-
-# Update hub-role only if policies have changed
-- name: Update hub-role with app policies
-  kubernetes.core.k8s_exec:
-    namespace: "{{ vault_ns }}"
-    pod: "{{ vault_pod }}"
-    command: >
-      vault write auth/{{ vault_hub }}/role/{{ vault_hub }}-role
-        bound_service_account_names="{{ active_external_secrets_sa | default('golang-external-secrets') }}"
-        bound_service_account_namespaces="{{ active_external_secrets_ns | default('golang-external-secrets') }}"
-        policies="{{ _merged_policies | join(',') }}"
-        ttl="{{ vault_hub_ttl }}"
-  when:
-    - app_prefixes is defined and app_prefixes | length > 0
-    - app_update_hub_role | default(true) | bool
-    - _hub_role_policies_changed | bool
 
 - name: Display updated hub-role policies
   ansible.builtin.debug:
-    msg: "hub-role policies updated to: {{ _merged_policies | join(', ') }}"
+    msg: >-
+      hub-role policies: {{ _merged_hub_policies | join(', ') }};
+      bindings: {{ hub_bound_service_account_names }}/{{ hub_bound_service_account_namespaces }}
     verbosity: 1
   when:
     - app_prefixes is defined and app_prefixes | length > 0
     - app_update_hub_role | default(true) | bool
-    - _hub_role_policies_changed | bool
 
 # Optionally create JWT roles for app-level isolation
 # Only creates roles for entries that have jwt_role defined

@@ -19,13 +19,16 @@ vault_global_policy: global
 vault_global_capabilities: '[\\\"read\\\"]'
 vault_pushsecrets_policy: pushsecrets
 vault_pushsecrets_capabilities: '[\\\"create\\\",\\\"read\\\",\\\"update\\\",\\\"list\\\",\\\"delete\\\"]'
+# Legacy community chart (golang-external-secrets)
 legacy_external_secrets_ns: golang-external-secrets
 legacy_external_secrets_sa: golang-external-secrets
 legacy_external_secrets_secret: golang-external-secrets
+# Red Hat openshift-external-secrets chart
 external_secrets_ns: external-secrets
-# The service account cannot be called "external-secrets" as that SA is used by the downstream ESO
+# The service account cannot be called "external-secrets" as that SA is used by the ESO operator
 external_secrets_sa: ocp-external-secrets
 external_secrets_secret: ocp-external-secrets
+# hub-role binds every SA whose token secret exists (see detect_external_secrets_auth.yml)
 unseal_secret: "vaultkeys"
 unseal_namespace: "imperative"
 vault_jwt_config: false
