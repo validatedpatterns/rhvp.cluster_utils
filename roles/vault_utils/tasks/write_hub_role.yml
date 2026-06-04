@@ -1,0 +1,78 @@
+---
+# Write or update auth/<vault_hub>/role/<vault_hub>-role using hub_bound_service_account_* facts.
+# Requires: detect_external_secrets_auth.yml (or equivalent facts)
+# Policy list: _merged_hub_policies (vault_secrets_init) or _merged_policies (vault_app_policies)
+
+- name: Normalize merged hub-role policies fact
+  ansible.builtin.set_fact:
+    _merged_hub_policies: >-
+      {{
+        _merged_hub_policies
+        | default(_merged_policies)
+        | default(vault_hub_role_default_policies)
+      }}
+
+- name: Get current hub-role for comparison
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault read -format=json auth/{{ vault_hub }}/role/{{ vault_hub }}-role
+  register: _hub_role_read
+  failed_when: false
+  changed_when: false
+
+- name: Parse existing hub-role policies
+  ansible.builtin.set_fact:
+    _current_hub_policies: "{{ (_hub_role_read.stdout | from_json).data.token_policies | default([]) }}"
+  when: _hub_role_read.rc == 0
+
+- name: Set empty hub-role policies when role does not exist
+  ansible.builtin.set_fact:
+    _current_hub_policies: []
+  when: _hub_role_read.rc != 0
+
+- name: Parse existing hub-role service account bindings
+  ansible.builtin.set_fact:
+    _current_hub_bound_names: "{{ (_hub_role_read.stdout | from_json).data.bound_service_account_names | default([]) }}"
+    _current_hub_bound_namespaces: "{{ (_hub_role_read.stdout | from_json).data.bound_service_account_namespaces | default([]) }}"
+  when: _hub_role_read.rc == 0
+
+- name: Set empty hub-role bindings when role does not exist
+  ansible.builtin.set_fact:
+    _current_hub_bound_names: []
+    _current_hub_bound_namespaces: []
+  when: _hub_role_read.rc != 0
+
+- name: Check if hub-role needs updating
+  ansible.builtin.set_fact:
+    _hub_role_needs_update: >-
+      {{
+        (_hub_role_read.rc != 0)
+        or (_current_hub_policies | sort != _merged_hub_policies | sort)
+        or (_current_hub_bound_names | sort != hub_bound_service_account_names_list | sort)
+        or (_current_hub_bound_namespaces | sort != hub_bound_service_account_namespaces_list | sort)
+      }}
+
+- name: Debug - Hub role update status
+  ansible.builtin.debug:
+    msg: >-
+      Hub role needs update: {{ _hub_role_needs_update }}
+      (policies changed: {{ _current_hub_policies | sort != _merged_hub_policies | sort }},
+      bindings changed: {{
+        (_current_hub_bound_names | sort != hub_bound_service_account_names_list | sort)
+        or (_current_hub_bound_namespaces | sort != hub_bound_service_account_namespaces_list | sort)
+      }})
+    verbosity: 1
+
+- name: Configure kubernetes role for hub
+  kubernetes.core.k8s_exec:
+    namespace: "{{ vault_ns }}"
+    pod: "{{ vault_pod }}"
+    command: >
+      vault write auth/"{{ vault_hub }}"/role/"{{ vault_hub }}"-role
+        bound_service_account_names="{{ hub_bound_service_account_names }}"
+        bound_service_account_namespaces="{{ hub_bound_service_account_namespaces }}"
+        policies="{{ _merged_hub_policies | join(',') }}"
+        ttl="{{ vault_hub_ttl }}"
+  when: _hub_role_needs_update | bool
