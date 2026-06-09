@@ -5,3 +5,9 @@ uninstall_wait_timeout: |
       | default("3600", true)
       | int
   }}
+
+patterns_operator_namespace: >-
+  {{
+    lookup("env", "PATTERNS_OPERATOR_NAMESPACE")
+      | default("patterns-operator", true)
+  }}
