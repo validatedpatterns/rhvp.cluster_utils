@@ -4,7 +4,7 @@
     api_version: gitops.hybrid-cloud-patterns.io/v1alpha1
     kind: Pattern
     name: "{{ pattern_name }}"
-    namespace: openshift-operators
+    namespace: "{{ patterns_operator_namespace }}"
   register: pattern_info
 
 - name: Check that the pattern '{{ pattern_name }}' is present on the cluster
@@ -15,10 +15,25 @@
       can only be run on hub clusters, where the pattern CR and patterns operator are present,
       in patterns with both hub and spoke components.
 
-- name: Fetch the pods in the openshift-operators namespace
+- name: Ensure prune annotation is set on pattern CR
+  kubernetes.core.k8s:
+    state: present
+    api_version: gitops.hybrid-cloud-patterns.io/v1alpha1
+    kind: Pattern
+    name: "{{ pattern_name }}"
+    namespace: "{{ patterns_operator_namespace }}"
+    definition:
+      metadata:
+        annotations:
+          patterns.gitops.hybrid-cloud-patterns.io/prune: "true"
+  when: >-
+    (pattern_info.resources[0].metadata.annotations | default({}))
+    .get('patterns.gitops.hybrid-cloud-patterns.io/prune', '') != 'true'
+
+- name: Fetch the pods in the {{ patterns_operator_namespace }} namespace
   kubernetes.core.k8s_info:
     kind: Pod
-    namespace: openshift-operators
+    namespace: "{{ patterns_operator_namespace }}"
   register: pod_list
 
 - name: Find the patterns operator controller pod
@@ -29,7 +44,7 @@
   ansible.builtin.assert:
     that: patterns_operator_pod_name != ''
     fail_msg: |
-      Could not find the patterns operator controller manager pod in the 'openshift-operators' namespace. Please ensure that the patterns
+      Could not find the patterns operator controller manager pod in the '{{ patterns_operator_namespace }}' namespace. Please ensure that the patterns
       operator is currently running in your cluster.
 
 - name: Print user-friendly uninstall message
@@ -40,9 +55,9 @@
       only the pattern will be removed, to facilitate easy reinstall of this pattern or other patterns.
       This command will wait for up to {{ uninstall_wait_timeout }} seconds while the pattern is uninstalled.
       To view deletion progress, you can check the logs of the '{{ patterns_operator_pod_name }}' pod
-      pod in the 'openshift-operators' namespace with the command:
+      pod in the '{{ patterns_operator_namespace }}' namespace with the command:
 
-      oc logs -f --tail=50 -n openshift-operators {{ patterns_operator_pod_name }}
+      oc logs -f --tail=50 -n {{ patterns_operator_namespace }} {{ patterns_operator_pod_name }}
 
 - name: Delete pattern from cluster
   kubernetes.core.k8s:
@@ -50,6 +65,6 @@
     api_version: gitops.hybrid-cloud-patterns.io/v1alpha1
     kind: Pattern
     name: "{{ pattern_name }}"
-    namespace: openshift-operators
+    namespace: "{{ patterns_operator_namespace }}"
     wait: true
     wait_timeout: "{{ uninstall_wait_timeout }}"
