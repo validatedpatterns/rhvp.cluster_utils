@@ -1,0 +1,12 @@
+---
+- name: Importing ACM clusters automatically
+  hosts: localhost
+  connection: local
+  pre_tasks:
+    - name: Set HUBCONFIG and SPOKECONFIG facts from env variables
+      ansible.builtin.set_fact:
+        HUBCONFIG: "{{ lookup('env', 'HUBCONFIG') }}"
+        SPOKECONFIG: "{{ lookup('env', 'SPOKECONFIG') }}"
+
+  roles:
+    - acm_import
