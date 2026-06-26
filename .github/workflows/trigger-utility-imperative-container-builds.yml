@@ -18,6 +18,7 @@ jobs:
           app-id: ${{ secrets.GH_WORKFLOW_AUTOMATION_CLIENT_ID }}
           private-key: ${{ secrets.GH_WORKFLOW_AUTOMATION_PRIVATE_KEY }}
           owner: validatedpatterns
+          permission-actions: write
           repositories: |
             utility-container
             imperative-container
