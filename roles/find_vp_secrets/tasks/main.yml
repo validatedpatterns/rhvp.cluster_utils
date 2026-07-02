@@ -25,17 +25,45 @@
 
 # FIXME(bandini): Eventually around end of 2023(?) we should drop
 # ~/values-secret-{{ pattern_name }}.yaml and ~/values-secret.yaml
-- name: Find first existing values-secret yaml file
+- name: Set values-secret search paths
   ansible.builtin.set_fact:
-    found_file: "{{ lookup('ansible.builtin.first_found', findme) }}"
-  vars:
-    findme:
+    values_secret_search_paths:
       - "~/.config/hybrid-cloud-patterns/values-secret-{{ pattern_name }}.yaml"
       - "~/.config/validated-patterns/values-secret-{{ pattern_name }}.yaml"
       - "~/values-secret-{{ pattern_name }}.yaml"
       - "~/values-secret.yaml"
       - "{{ pattern_dir }}/values-secret.yaml.template"
+
+- name: Find first existing values-secret yaml file
+  ansible.builtin.set_fact:
+    found_file: "{{ lookup('ansible.builtin.first_found', values_secret_search_paths, skip=true) }}"
   when: custom_env_values_secret | default('') | length == 0
+
+- name: Skip bootstrap secret loading when no secrets file exists and loading is disabled
+  when: >-
+    (secrets_phase | default('late') == 'early')
+    and (values_global.global.secretLoader.disabled | default(false) | bool)
+    and (found_file is not defined or found_file | default('') | length == 0)
+  block:
+    - name: Report skipping bootstrap secret loading
+      ansible.builtin.debug:
+        msg: >-
+          No values-secret file found and global.secretLoader.disabled is true.
+          Skipping bootstrap (early-phase) secret loading.
+
+    - name: End play (no bootstrap secrets to load)
+      ansible.builtin.meta: end_play
+
+- name: Ensure a values-secret file was found
+  ansible.builtin.assert:
+    that:
+      - found_file is defined
+      - found_file | default('') | length > 0
+    fail_msg: >-
+      No values-secret file could be found. Searched:
+      {{ values_secret_search_paths | join(', ') }}.
+      Set the VALUES_SECRET environment variable to specify a custom path,
+      or create one of the expected files.
 
 - name: Is found values secret file encrypted
   no_log: "{{ hide_sensitive_output | default(true) }}"
