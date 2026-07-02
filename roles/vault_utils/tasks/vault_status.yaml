@@ -16,7 +16,7 @@
     vault_ns_rc is not defined or
     'resources' not in vault_ns_rc
 
-- name: Check if the vault pod is present
+- name: Check if the vault pod is present and running
   kubernetes.core.k8s_info:
     kind: Pod
     namespace: "{{ vault_ns }}"
@@ -26,7 +26,10 @@
     vault_pod_rc is defined and
     'resources' in vault_pod_rc and
     vault_pod_rc.resources is defined and
-    vault_pod_rc.resources | length > 0
+    vault_pod_rc.resources | length > 0 and
+    vault_pod_rc.resources[0].status.containerStatuses is defined and
+    vault_pod_rc.resources[0].status.containerStatuses | length > 0 and
+    vault_pod_rc.resources[0].status.containerStatuses[0].started | default(false)
   retries: 20
   delay: 45
   failed_when: >-
