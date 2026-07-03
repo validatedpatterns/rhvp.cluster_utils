@@ -3,6 +3,16 @@
   hosts: localhost
   connection: local
   gather_facts: false
+  vars:
+    with_retries: false
+    max_retries: 60
+    retry_count: 0
+    retry_delay: 60
   tasks:
     - name: Check health of argo applications
       ansible.builtin.include_tasks: tasks/check_argo_health.yml
+      when: not (with_retries | bool)
+
+    - name: Wait for all Argo applications to be healthy and synced with retry logic
+      ansible.builtin.include_tasks: tasks/retry_argo_healthcheck.yml
+      when: with_retries | bool
