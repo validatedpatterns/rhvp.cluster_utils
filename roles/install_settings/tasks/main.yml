@@ -44,8 +44,9 @@
   ansible.builtin.set_fact:
     clustergroup_opt: >-
       {{
-        "" if (target_clustergroup | default("") | trim == "")
-        else "--set main.clusterGroupName=%s" | format(target_clustergroup)
+        "--set main.clusterGroupName=%s --set main.variant=null" | format(target_variant) if (_target_clustergroup_override | default("") | trim != "")
+        else "--set main.variant=%s --set main.clusterGroupName=null" | format(target_variant) if (_target_variant_override | default("") | trim != "")
+        else ""
       }}
 
 - name: Build include_crds_opt
