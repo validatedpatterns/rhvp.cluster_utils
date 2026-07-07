@@ -7,7 +7,7 @@
 
     - name: Get length of target clustergroup
       ansible.builtin.set_fact:
-        _clustergroup_name_len: "{{ target_clustergroup | length }}"
+        _clustergroup_name_len: "{{ target_variant | length }}"
 
     - name: Ensure ArgoCD will have valid DNS hostname based on pattern name and clustergroup lengths
       ansible.builtin.assert:
@@ -17,7 +17,7 @@
             -> {%raw%}{{ .Values.clusterGroup.name }}-gitops-server-{{ .Values.global.pattern }}-{{ .Values.clusterGroup.name }}{%endraw%}
           To stay under the 63-character DNS limit, the variable part of the name must be less than 47 characters:
             (2 * length of 'clusterGroup.name') + length of 'global.pattern' < 47
-          With your current values this DNS part is '{{ target_clustergroup }}-gitops-server-{{ pattern_name }}-{{ target_clustergroup }}' and exceeds the 63 character limit.
+          With your current values this DNS part is '{{ target_variant }}-gitops-server-{{ pattern_name }}-{{ target_variant }}' and exceeds the 63 character limit.
 
 - name: Ensure kubernetes python module is installed
   ansible.builtin.pip:
