@@ -22,13 +22,21 @@
           | default((values_global.global.pattern | string | trim), true)
       }}
 
-- name: Ensure main.clusterGroupName is set
-  ansible.builtin.assert:
-    that: (values_global.main.clusterGroupName | default('') | string | trim) != ""
-    fail_msg: |
-      values-global.yaml does not define .main.clusterGroupName.
-      Please set a value for clusterGroupName under the 'main' key.
-
-- name: Set fact for main clustergroup
+- name: Set helper booleans for main.clusterGroupName and main.variant
   ansible.builtin.set_fact:
-    main_clustergroup: "{{ values_global.main.clusterGroupName | string | trim }}"
+    _has_clustergroupname: "{{ (values_global.main.clusterGroupName | default('') | string | trim) != '' }}"
+    _has_variant: "{{ (values_global.main.variant | default('') | string | trim) != '' }}"
+
+- name: Ensure exactly one of main.clusterGroupName or main.variant is set
+  ansible.builtin.assert:
+    that:
+      - _has_clustergroupname or _has_variant
+      - not (_has_clustergroupname and _has_variant)
+    fail_msg: |
+      values-global.yaml must define exactly one of .main.clusterGroupName or .main.variant (not both).
+      Please set one of these values under the 'main' key.
+
+- name: Set fact for main variant
+  ansible.builtin.set_fact:
+    main_variant: >-
+      {{ (values_global.main.clusterGroupName if _has_clustergroupname else values_global.main.variant) | string | trim }}

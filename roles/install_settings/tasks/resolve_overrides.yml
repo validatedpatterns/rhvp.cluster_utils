@@ -77,14 +77,41 @@
           Alternatively, pass the remote explicitly via the 'target_origin' variable
           or 'TARGET_ORIGIN' environment variable.
 
-- name: Resolve target_clustergroup
+- name: Resolve TARGET_CLUSTERGROUP override
   ansible.builtin.set_fact:
-    target_clustergroup: >-
+    _target_clustergroup_override: >-
       {{
         target_clustergroup
           | default(lookup("env", "TARGET_CLUSTERGROUP"), true)
-          | default(main_clustergroup, true)
+          | default("", true)
           | trim
+      }}
+
+- name: Resolve TARGET_VARIANT override
+  ansible.builtin.set_fact:
+    _target_variant_override: >-
+      {{
+        target_variant
+          | default(lookup("env", "TARGET_VARIANT"), true)
+          | default("", false)
+          | trim
+       }}
+
+- name: Ensure TARGET_CLUSTERGROUP and TARGET_VARIANT are not both set
+  ansible.builtin.assert:
+    that: _target_clustergroup_override == "" or _target_variant_override == ""
+    fail_msg: |
+      Both target_clustergroup/TARGET_CLUSTERGROUP and target_variant/TARGET_VARIANT are set.
+      Please use only one of these to specify the cluster group name.
+
+- name: Resolve target_variant
+  ansible.builtin.set_fact:
+    target_variant: >-
+      {{
+        (_target_clustergroup_override if _target_clustergroup_override != ""
+         else _target_variant_override if _target_variant_override != ""
+         else main_variant)
+        | trim
       }}
 
 - name: Resolve token_secret
