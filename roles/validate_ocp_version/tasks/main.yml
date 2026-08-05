@@ -1,123 +1,146 @@
 ---
-- name: Check for SKIP_OCP_VERSION_CHECK override
+- name: Check for DISABLE_OCP_VERSION_CHECK override
   ansible.builtin.set_fact:
-    _skip_ocp_version_check: "{{ lookup('env', 'SKIP_OCP_VERSION_CHECK') | default('false', true) | bool }}"
+    _disable_ocp_version_check: "{{ lookup('env', 'DISABLE_OCP_VERSION_CHECK') | default('false', true) | bool }}"
 
-- name: Skip OCP version check if explicitly disabled
+- name: OCP version check disabled
   ansible.builtin.debug:
-    msg: "OCP version compatibility check skipped (SKIP_OCP_VERSION_CHECK=true)."
-  when: _skip_ocp_version_check
+    msg: "OCP version compatibility check disabled (DISABLE_OCP_VERSION_CHECK=true)."
+  when: _disable_ocp_version_check
 
 - name: Run OCP version compatibility check
-  when: not _skip_ocp_version_check
+  when: not _disable_ocp_version_check
   block:
-    - name: Read pattern-metadata.yaml
-      ansible.builtin.set_fact:
-        _pattern_metadata: "{{ lookup('file', pattern_dir + '/pattern-metadata.yaml', errors='ignore') | default('', true) | from_yaml | default({}, true) }}"
+    - name: Check pattern-metadata.yaml exists
+      ansible.builtin.stat:
+        path: "{{ pattern_dir }}/pattern-metadata.yaml"
+      register: _metadata_file
 
-    - name: Check if ocp_versions section exists in metadata
-      ansible.builtin.set_fact:
-        _has_ocp_versions: "{{ _pattern_metadata.ocp_versions is defined and _pattern_metadata.ocp_versions is mapping }}"
-
-    - name: Skip version check when metadata has no ocp_versions section
+    - name: Skip version check when pattern-metadata.yaml is missing
       ansible.builtin.debug:
-        msg: "No ocp_versions section found in pattern-metadata.yaml — skipping OCP version compatibility check."
-      when: not _has_ocp_versions
+        msg: "No pattern-metadata.yaml found — skipping OCP version compatibility check."
+      when: not _metadata_file.stat.exists
 
     - name: Validate OCP version compatibility
-      when: _has_ocp_versions
+      when: _metadata_file.stat.exists
       block:
-        - name: Extract cluster OCP version
+        - name: Read pattern-metadata.yaml
+          ansible.builtin.slurp:
+            src: "{{ pattern_dir }}/pattern-metadata.yaml"
+          register: _metadata_raw
+
+        - name: Parse pattern-metadata.yaml
           ansible.builtin.set_fact:
-            _cluster_ocp_version: "{{ cluster_info.version.server.kubernetes.major ~ '.' ~ cluster_info.version.server.kubernetes.minor }}"
+            _pattern_metadata: "{{ _metadata_raw.content | b64decode | from_yaml }}"
+          rescue:
+            - name: Fail on malformed pattern-metadata.yaml
+              ansible.builtin.fail:
+                msg: "pattern-metadata.yaml exists but contains invalid YAML. Please fix the file before proceeding."
 
-        - name: Fetch ClusterVersion to get the OCP semantic version
-          kubernetes.core.k8s_info:
-            api_version: config.openshift.io/v1
-            kind: ClusterVersion
-            name: version
-          register: _cluster_version_info
-          failed_when: false
-
-        - name: Extract OCP version from ClusterVersion
+        - name: Check if ocp_versions section exists in metadata
           ansible.builtin.set_fact:
-            _cluster_ocp_version: >-
-              {{ (_cluster_version_info.resources[0].status.desired.version | default(''))
-                 | regex_search('^(\d+\.\d+)') }}
-          when:
-            - _cluster_version_info.resources | default([]) | length > 0
-            - _cluster_version_info.resources[0].status.desired.version is defined
+            _has_ocp_versions: "{{ _pattern_metadata.ocp_versions is defined and _pattern_metadata.ocp_versions is mapping }}"
 
-        - name: Resolve minimum supported OCP version
-          ansible.builtin.set_fact:
-            _minimum_ocp_version: "{{ _pattern_metadata.ocp_versions.minimum | default(default_minimum_supported_ocp_version) }}"
-
-        - name: Collect unsupported versions list
-          ansible.builtin.set_fact:
-            _unsupported_versions: "{{ _pattern_metadata.ocp_versions.unsupported | default([]) }}"
-
-        - name: Build unsupported version strings for lookup
-          ansible.builtin.set_fact:
-            _unsupported_version_strings: "{{ _unsupported_versions | map(attribute='version') | list }}"
-
-        - name: Display detected OCP version
+        - name: Skip version check when metadata has no ocp_versions section
           ansible.builtin.debug:
-            msg: "Detected cluster OCP version: {{ _cluster_ocp_version }}"
+            msg: "No ocp_versions section found in pattern-metadata.yaml — skipping OCP version compatibility check."
+          when: not _has_ocp_versions
 
-        - name: Check if cluster version is explicitly unsupported
-          ansible.builtin.set_fact:
-            _is_unsupported: "{{ _cluster_ocp_version in _unsupported_version_strings }}"
+        - name: Check OCP version against compatibility matrix
+          when: _has_ocp_versions
+          block:
+            - name: Fetch ClusterVersion from CVO
+              kubernetes.core.k8s_info:
+                api_version: config.openshift.io/v1
+                kind: ClusterVersion
+                name: version
+              register: _cluster_version_info
 
-        - name: Find unsupported version details
-          ansible.builtin.set_fact:
-            _unsupported_reason: "{{ (_unsupported_versions | selectattr('version', 'equalto', _cluster_ocp_version) | first).reason | default('No reason specified.') }}"
-          when: _is_unsupported
+            - name: Assert ClusterVersion is available
+              ansible.builtin.assert:
+                that:
+                  - _cluster_version_info.resources | default([]) | length > 0
+                  - _cluster_version_info.resources[0].status.desired.version is defined
+                fail_msg: |
+                  Could not retrieve the ClusterVersion resource from the cluster.
+                  Ensure you are connected to an OpenShift cluster (not vanilla Kubernetes).
 
-        - name: Fail on explicitly unsupported OCP version
-          ansible.builtin.fail:
-            msg: |
+            - name: Extract OCP version from ClusterVersion
+              ansible.builtin.set_fact:
+                _cluster_ocp_version: >-
+                  {{ _cluster_version_info.resources[0].status.desired.version
+                     | regex_search('^(\d+\.\d+)') }}
 
-              ╔══════════════════════════════════════════════════════════════════╗
-              ║               OCP VERSION NOT SUPPORTED                        ║
-              ╠══════════════════════════════════════════════════════════════════╣
-              ║                                                                ║
-              ║  Pattern:  {{ (_pattern_metadata.display_name | default(_pattern_metadata.name | default('unknown'))) | truncate(46) }}
-              ║  Cluster:  OCP {{ _cluster_ocp_version }}
-              ║                                                                ║
-              ║  This OCP version is explicitly listed as unsupported.         ║
-              ║                                                                ║
-              ║  Reason: {{ _unsupported_reason | truncate(52) }}
-              ║                                                                ║
-              ║  To override this check (e.g. for testing), re-run with:      ║
-              ║    SKIP_OCP_VERSION_CHECK=true ./pattern.sh make install       ║
-              ║                                                                ║
-              ╚══════════════════════════════════════════════════════════════════╝
-          when: _is_unsupported
+            - name: Resolve minimum supported OCP version
+              ansible.builtin.set_fact:
+                _minimum_ocp_version: "{{ _pattern_metadata.ocp_versions.minimum | default(default_minimum_supported_ocp_version) }}"
 
-        - name: Check if cluster version is below minimum supported
-          ansible.builtin.set_fact:
-            _is_below_minimum: "{{ _cluster_ocp_version is version(_minimum_ocp_version, '<') }}"
+            - name: Collect unsupported versions list
+              ansible.builtin.set_fact:
+                _unsupported_versions: "{{ _pattern_metadata.ocp_versions.unsupported | default([]) }}"
 
-        - name: Warn when OCP version is below minimum supported
-          ansible.builtin.debug:
-            msg: |
+            - name: Build unsupported version strings for lookup
+              ansible.builtin.set_fact:
+                _unsupported_version_strings: "{{ _unsupported_versions | map(attribute='version') | list }}"
 
-              ┌──────────────────────────────────────────────────────────────────┐
-              │                         WARNING                                  │
-              ├──────────────────────────────────────────────────────────────────┤
-              │                                                                  │
-              │  Your cluster is running OCP {{ _cluster_ocp_version }}, which is below the     │
-              │  minimum supported version ({{ _minimum_ocp_version }}) for this pattern.       │
-              │                                                                  │
-              │  The installation will proceed, but you may encounter issues     │
-              │  with operator availability or component compatibility.          │
-              │                                                                  │
-              │  For the best experience, please use OCP {{ _minimum_ocp_version }} or later.   │
-              │                                                                  │
-              └──────────────────────────────────────────────────────────────────┘
-          when: _is_below_minimum
+            - name: Display detected OCP version
+              ansible.builtin.debug:
+                msg: "Detected cluster OCP version: {{ _cluster_ocp_version }}"
 
-        - name: Confirm OCP version is compatible
-          ansible.builtin.debug:
-            msg: "OK: OCP {{ _cluster_ocp_version }} is compatible with this pattern (minimum: {{ _minimum_ocp_version }})."
-          when: not _is_below_minimum and not _is_unsupported
+            - name: Check if cluster version is explicitly unsupported
+              ansible.builtin.set_fact:
+                _is_unsupported: "{{ _cluster_ocp_version in _unsupported_version_strings }}"
+
+            - name: Find unsupported version details
+              ansible.builtin.set_fact:
+                _unsupported_reason: "{{ (_unsupported_versions | selectattr('version', 'equalto', _cluster_ocp_version) | first).reason | default('No reason specified.') }}"
+              when: _is_unsupported
+
+            - name: Fail on explicitly unsupported OCP version
+              ansible.builtin.fail:
+                msg: |
+
+                  ╔══════════════════════════════════════════════════════════════════╗
+                  ║               OCP VERSION NOT SUPPORTED                        ║
+                  ╠══════════════════════════════════════════════════════════════════╣
+                  ║                                                                ║
+                  ║  Pattern:  {{ (_pattern_metadata.display_name | default(_pattern_metadata.name | default('unknown'))) | truncate(46) }}
+                  ║  Cluster:  OCP {{ _cluster_ocp_version }}
+                  ║                                                                ║
+                  ║  This OCP version is explicitly listed as unsupported.         ║
+                  ║                                                                ║
+                  ║  Reason: {{ _unsupported_reason | truncate(52) }}
+                  ║                                                                ║
+                  ║  To override this check (e.g. for testing), re-run with:      ║
+                  ║    DISABLE_OCP_VERSION_CHECK=true ./pattern.sh make install    ║
+                  ║                                                                ║
+                  ╚══════════════════════════════════════════════════════════════════╝
+              when: _is_unsupported
+
+            - name: Check if cluster version is below minimum supported
+              ansible.builtin.set_fact:
+                _is_below_minimum: "{{ _cluster_ocp_version is version(_minimum_ocp_version, '<') }}"
+
+            - name: Warn when OCP version is below minimum supported
+              ansible.builtin.debug:
+                msg: |
+
+                  ┌──────────────────────────────────────────────────────────────────┐
+                  │                         WARNING                                  │
+                  ├──────────────────────────────────────────────────────────────────┤
+                  │                                                                  │
+                  │  Your cluster is running OCP {{ _cluster_ocp_version }}, which is below the     │
+                  │  minimum supported version ({{ _minimum_ocp_version }}) for this pattern.       │
+                  │                                                                  │
+                  │  The installation will proceed, but you may encounter issues     │
+                  │  with operator availability or component compatibility.          │
+                  │                                                                  │
+                  │  For the best experience, please use OCP {{ _minimum_ocp_version }} or later.   │
+                  │                                                                  │
+                  └──────────────────────────────────────────────────────────────────┘
+              when: _is_below_minimum
+
+            - name: Confirm OCP version is compatible
+              ansible.builtin.debug:
+                msg: "OK: OCP {{ _cluster_ocp_version }} is compatible with this pattern (minimum: {{ _minimum_ocp_version }})."
+              when: not _is_below_minimum and not _is_unsupported
