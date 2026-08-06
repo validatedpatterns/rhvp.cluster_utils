@@ -13,9 +13,9 @@
       name: install_settings
       tasks_from: resolve_overrides
 
-  - name: Run pytest with clustergroup {{ target_clustergroup }}
+  - name: Run pytest with clustergroup {{ target_variant }}
     ansible.builtin.command:
-      cmd: pytest -lv test_{{ target_clustergroup }}.py --junit-xml .results/test_{{ target_clustergroup }}.xml
+      cmd: pytest -lv test_{{ target_variant }}.py --junit-xml .results/test_{{ target_variant }}.xml
       chdir: "{{ pattern_dir }}/tests/ci/"
     environment:
       WORKSPACE: "{{ pattern_dir }}/tests/ci/"
