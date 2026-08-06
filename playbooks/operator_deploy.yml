@@ -9,6 +9,7 @@
     - role: install_settings # set pattern-install specific vars
     - role: validate_prereq # ensure installation dependencies are present
     - role: validate_cluster # ensure a cluster is connected and has a default storage class
+    - role: validate_ocp_version
     - role: pattern_install_template # render the pattern-install helm chart
 
   tasks:
