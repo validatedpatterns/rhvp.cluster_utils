@@ -28,7 +28,7 @@
   block:
     - name: Get kubeconfig content
       ansible.builtin.slurp:
-        src: "{{ SPOKECONFIG }}"
+        src: "{{ VP_SPOKECONFIG }}"
       register: _acm_region_kubeconfig_content
       no_log: true
 
