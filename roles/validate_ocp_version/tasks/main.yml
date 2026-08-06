@@ -30,8 +30,10 @@
           register: _metadata_raw
 
         - name: Parse pattern-metadata.yaml
-          ansible.builtin.set_fact:
-            _pattern_metadata: "{{ _metadata_raw.content | b64decode | from_yaml }}"
+          block:
+            - name: Decode and parse pattern-metadata.yaml
+              ansible.builtin.set_fact:
+                _pattern_metadata: "{{ _metadata_raw.content | b64decode | from_yaml }}"
           rescue:
             - name: Fail on malformed pattern-metadata.yaml
               ansible.builtin.fail:
