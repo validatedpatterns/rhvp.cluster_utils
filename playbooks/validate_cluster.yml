@@ -1,5 +1,5 @@
 ---
-- name: Validates that we are logged into a cluster with a default storage class
+- name: Validates cluster connectivity, storage class, and OCP version compatibility
   hosts: localhost
   connection: local
   gather_facts: false
@@ -7,3 +7,4 @@
     - role: pattern_settings # set general pattern vars
     - role: install_settings # set pattern-install specific vars
     - role: validate_cluster
+    - role: validate_ocp_version
