@@ -19,6 +19,7 @@
       chdir: "{{ pattern_dir }}/tests/ci/"
     environment:
       WORKSPACE: "{{ pattern_dir }}/tests/ci/"
+      PLAYWRIGHT_BROWSERS_PATH: "/playwright/.cache/ms-playwright"
     changed_when: false
     register: pytest_out
 
