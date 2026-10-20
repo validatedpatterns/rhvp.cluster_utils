@@ -39,6 +39,112 @@ unseal_namespace: "imperative"
 vault_jwt_config: false
 ```
 
+## Vault JWT authentication
+
+JWT auth lets workloads authenticate to Vault with OIDC discovery (for example SPIFFE JWT
+SVIDs validated against an in-cluster SPIRE OIDC provider, or an external IdP). The tasks
+in `vault_jwt.yaml` run when `vault_jwt_config` is `true` (Ansible tag: `vault_jwt`).
+
+### Extra vars from the pattern
+
+Several JWT settings are not role defaults. Validated Patterns passes them from pattern
+Helm values (for example `overrides/values-vault-jwt.yaml`) as **extra vars** when this role
+runs, the same way as `oidc_discovery_url`:
+
+| Extra var | Required | Role |
+| --- | --- | --- |
+| `oidc_discovery_url` | Yes (when JWT config is enabled) | OIDC discovery document URL for Vault JWT auth |
+| `default_role` | No | Default JWT role name in Vault (defaults to `default` in tasks) |
+| `oidc_discovery_ca_pem` | No | PEM trust bundle for TLS to `oidc_discovery_url`; see below |
+| `vault_jwt_policies` | No | List of `{name, policy}` entries written to Vault |
+| `vault_jwt_roles` | No | JWT roles applied via `vault_jwt_roles.yaml` |
+
+Enable JWT handling in pattern values with `vault_jwt_config: true` (role default is `false`).
+
+### Workflow
+
+1. **Enable JWT auth** on Vault if it is not already enabled.
+2. **Check reachability** of `oidc_discovery_url` from the Vault pod (`/.well-known/openid-configuration`).
+3. **Read current JWT config** from Vault and decide whether an update is needed. Configuration is
+   rewritten when JWT auth was just enabled, discovery config is missing, or
+   `oidc_discovery_url` / `default_role` differ from what is stored in Vault.
+4. **Build a CA bundle** for TLS verification of the discovery endpoint:
+   - If the `oidc_discovery_ca_pem` extra var is set, use that material.
+   - Otherwise read the OpenShift service CA from ConfigMap `openshift-service-ca.crt` in
+     `vault_ns` (key `service-ca.crt`). OpenShift injects this ConfigMap into every namespace;
+     it is the correct trust anchor for in-cluster `*.svc` endpoints.
+5. **Write the bundle** into the Vault pod and run `vault write auth/jwt/config` with
+   `oidc_discovery_url`, `default_role`, and `oidc_discovery_ca_pem` (Vault API field).
+6. **Apply policies and roles** from `vault_jwt_policies` and `vault_jwt_roles`.
+
+### OIDC discovery CA (`oidc_discovery_ca_pem`)
+
+Vault must trust the TLS certificate presented by the host in `oidc_discovery_url` when it
+fetches OIDC metadata. Pass `oidc_discovery_ca_pem` as an extra var (same mechanism as
+`oidc_discovery_url`) when the OpenShift service CA is not the right trust anchor—external IdP,
+corporate PKI, or TLS terminated with a private CA in front of the discovery URL.
+
+If you omit `oidc_discovery_ca_pem` or pass an empty string, the role uses the OpenShift
+service CA from `openshift-service-ca.crt` in `vault_ns`.
+
+| `oidc_discovery_ca_pem` extra var | Trust used for discovery TLS |
+| --- | --- |
+| Omitted or empty | OpenShift service CA from `openshift-service-ca.crt` in `vault_ns` |
+| Single PEM string | That certificate or bundle (multiline YAML with `\|`) |
+| List of PEM strings | Certificates concatenated in order (multiple CAs or chain members) |
+
+**In-cluster OIDC** — pattern override with discovery URL only (SPIRE example):
+
+```yaml
+vault_jwt_config: true
+vault_jwt_policies:
+  - name: apps-qtodo-jwt-secret
+    policy: |
+      path "secret/data/apps/qtodo/*" {
+        capabilities = ["read"]
+      }
+vault_jwt_roles:
+  - name: qtodo
+    audience: https://keycloak.apps.example.com/realms/ztvp
+    subject: spiffe://apps.example.com/ns/qtodo/sa/qtodo
+    policies:
+      - apps-qtodo-jwt-secret
+oidc_discovery_url: https://spire-spiffe-oidc-discovery-provider.zero-trust-workload-identity-manager.svc.cluster.local
+```
+
+**External OIDC** — add `oidc_discovery_ca_pem` next to `oidc_discovery_url` in the same values file:
+
+```yaml
+vault_jwt_config: true
+oidc_discovery_url: https://idp.example.com
+default_role: default
+oidc_discovery_ca_pem: |
+  -----BEGIN CERTIFICATE-----
+  MIIDXTCCAkWgAwIBAgIJAKZ...
+  -----END CERTIFICATE-----
+vault_jwt_policies: []
+vault_jwt_roles: []
+```
+
+**Multiple CAs** — list form in pattern values:
+
+```yaml
+oidc_discovery_url: https://idp.example.com
+oidc_discovery_ca_pem:
+  - |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+  - |
+    -----BEGIN CERTIFICATE-----
+    ...
+    -----END CERTIFICATE-----
+```
+
+Changing only `oidc_discovery_ca_pem` does not trigger a JWT config update if `oidc_discovery_url`
+and `default_role` are unchanged. After rotating a custom CA, change one of those temporarily,
+or update `auth/jwt/config` on Vault manually, so the new bundle is applied.
+
 ## Dependencies
 
 This relies on [kubernetes.core](https://docs.ansible.com/ansible/latest/collections/kubernetes/core/k8s_module.html)
