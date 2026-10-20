@@ -71,20 +71,57 @@
     jwt_config_default_role: "{{ jwt_discovery_config.data.default_role }}"
   when: jwt_discovery
 
-- name: Get OIDC discovery certificate
+- name: Set JWT configuration update required fact
+  ansible.builtin.set_fact:
+    vault_jwt_config_needs_update: >-
+      {{
+        (not vault_auth_jwt) or
+        (not jwt_discovery) or
+        (jwt_config_oidc_discovery_url | default('') != oidc_discovery_url) or
+        (jwt_config_default_role | default('') != (default_role | default('default')))
+      }}
+
+- name: Set whether custom OIDC discovery CA is configured
+  ansible.builtin.set_fact:
+    oidc_discovery_ca_custom: >-
+      {{
+        (oidc_discovery_ca_pem | default('') is string and (oidc_discovery_ca_pem | default('') | trim | length) > 0) or
+        (oidc_discovery_ca_pem is defined and oidc_discovery_ca_pem is not string and (oidc_discovery_ca_pem | length) > 0)
+      }}
+
+- name: Set OIDC discovery CA bundle from user-provided certificate(s)
+  ansible.builtin.set_fact:
+    oidc_discovery_ca_bundle: "{{ oidc_discovery_ca_pem if oidc_discovery_ca_pem is string else (oidc_discovery_ca_pem | join('\n')) }}"
+  when:
+    - vault_jwt_config_needs_update | bool
+    - oidc_discovery_ca_custom | bool
+
+- name: Get OpenShift service CA for OIDC discovery
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    name: openshift-service-ca.crt
+    namespace: "{{ vault_ns }}"
+  register: openshift_service_ca_cm
+  when:
+    - vault_jwt_config_needs_update | bool
+    - not oidc_discovery_ca_custom | bool
+
+- name: Set OIDC discovery CA bundle from OpenShift service CA
+  ansible.builtin.set_fact:
+    oidc_discovery_ca_bundle: "{{ openshift_service_ca_cm.resources[0].data['service-ca.crt'] }}"
+  when:
+    - vault_jwt_config_needs_update | bool
+    - not oidc_discovery_ca_custom | bool
+
+- name: Write OIDC discovery CA certificate to vault pod
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
     command: >
-      bash -e -c
-      "echo -n | openssl s_client -connect {{ oidc_discovery_host }}:{{ oidc_discovery_port }} -servername {{ oidc_discovery_host }}
-      | openssl x509 -outform PEM > /tmp/oidc-discovery-certificate.pem"
-  retries: 10
-  delay: 30
-  when: not vault_auth_jwt or
-        not jwt_discovery or
-        not jwt_config_oidc_discovery_url == oidc_discovery_url or
-        not jwt_config_default_role == default_role | default('default')
+      bash -c
+      "echo {{ oidc_discovery_ca_bundle | b64encode }} | base64 -d > /tmp/oidc-discovery-certificate.pem"
+  when: vault_jwt_config_needs_update | bool
 
 - name: Write JWT configuration
   kubernetes.core.k8s_exec:
@@ -97,10 +134,7 @@
         oidc_discovery_ca_pem=@/tmp/oidc-discovery-certificate.pem
   retries: 10
   delay: 30
-  when: not vault_auth_jwt or
-        not jwt_discovery or
-        not jwt_config_oidc_discovery_url == oidc_discovery_url or
-        not jwt_config_default_role == default_role | default('default')
+  when: vault_jwt_config_needs_update | bool
 
 # Create JWT auth policies from vault_jwt_policies variable
 # These are manually defined policies for SPIFFE workloads that need direct Vault access
@@ -123,7 +157,7 @@
   loop_control:
     loop_var: jwt_role
 
-- name: Delete router CA certificate
+- name: Delete OIDC discovery CA certificate from vault pod
   kubernetes.core.k8s_exec:
     namespace: "{{ vault_ns }}"
     pod: "{{ vault_pod }}"
