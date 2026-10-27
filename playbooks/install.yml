@@ -17,6 +17,8 @@
     max_retries: 60
     retry_count: 0
     retry_delay: 60
+    # Set VP_SKIP_ARGO_HEALTHCHECK=true to bypass Argo health/sync checks
+    skip_argo_healthcheck: "{{ lookup('env', 'VP_SKIP_ARGO_HEALTHCHECK') | default('false', true) }}"
 
   tasks:
     - name: Print start message
@@ -25,3 +27,4 @@
 
     - name: Wait for all Argo applications to be healthy and synced with retry logic
       ansible.builtin.include_tasks: tasks/retry_argo_healthcheck.yml
+      when: not (skip_argo_healthcheck | bool)
